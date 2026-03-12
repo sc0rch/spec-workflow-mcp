@@ -1,14 +1,25 @@
 {
-  "name": "@pimzino/spec-workflow-mcp",
+  "name": "@sc0rch/spec-workflow-mcp",
   "version": "2.2.6",
   "description": "MCP server for spec-driven development workflow with real-time web dashboard",
   "main": "dist/index.js",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sc0rch/spec-workflow-mcp.git"
+  },
+  "homepage": "https://github.com/sc0rch/spec-workflow-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/sc0rch/spec-workflow-mcp/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "spec-workflow-mcp": "dist/index.js"
   },
   "files": [
-    "dist/**/*",
+    "dist",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"

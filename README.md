@@ -1,9 +1,11 @@
 # Spec Workflow MCP
 
-[![npm version](https://img.shields.io/npm/v/@pimzino/spec-workflow-mcp)](https://www.npmjs.com/package/@pimzino/spec-workflow-mcp)
+[![npm version](https://img.shields.io/npm/v/@sc0rch/spec-workflow-mcp)](https://www.npmjs.com/package/@sc0rch/spec-workflow-mcp)
 [![VSCode Extension](https://vsmarketplacebadges.dev/version-short/Pimzino.spec-workflow-mcp.svg)](https://marketplace.visualstudio.com/items?itemName=Pimzino.spec-workflow-mcp)
 
 A Model Context Protocol (MCP) server for structured spec-driven development with real-time dashboard and VSCode extension.
+
+This fork is published to npm as `@sc0rch/spec-workflow-mcp`.
 
 ## ☕ Support This Project
 
@@ -54,7 +56,7 @@ Add to your MCP configuration (see client-specific setup below):
   "mcpServers": {
     "spec-workflow": {
       "command": "npx",
-      "args": ["-y", "@pimzino/spec-workflow-mcp@latest", "/path/to/your/project"]
+      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest", "/path/to/your/project"]
     }
   }
 }
@@ -65,7 +67,7 @@ Add to your MCP configuration (see client-specific setup below):
 **Option A: Web Dashboard** (Required for CLI users)
 Start the dashboard (runs on port 5000 by default):
 ```bash
-npx -y @pimzino/spec-workflow-mcp@latest --dashboard
+npx -y @sc0rch/spec-workflow-mcp@latest --dashboard
 ```
 
 The dashboard will be accessible at: http://localhost:5000
@@ -97,7 +99,7 @@ Configure in your Augment settings:
   "mcpServers": {
     "spec-workflow": {
       "command": "npx",
-      "args": ["-y", "@pimzino/spec-workflow-mcp@latest", "/path/to/your/project"]
+      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest", "/path/to/your/project"]
     }
   }
 }
@@ -109,7 +111,7 @@ Configure in your Augment settings:
 
 Add to your MCP configuration:
 ```bash
-claude mcp add spec-workflow npx @pimzino/spec-workflow-mcp@latest -- /path/to/your/project
+claude mcp add spec-workflow npx @sc0rch/spec-workflow-mcp@latest -- /path/to/your/project
 ```
 
 **Important Notes:**
@@ -119,7 +121,7 @@ claude mcp add spec-workflow npx @pimzino/spec-workflow-mcp@latest -- /path/to/y
 
 **Alternative for Windows (if the above doesn't work):**
 ```bash
-claude mcp add spec-workflow cmd.exe /c "npx @pimzino/spec-workflow-mcp@latest /path/to/your/project"
+claude mcp add spec-workflow cmd.exe /c "npx @sc0rch/spec-workflow-mcp@latest /path/to/your/project"
 ```
 </details>
 
@@ -132,7 +134,7 @@ Add to `claude_desktop_config.json`:
   "mcpServers": {
     "spec-workflow": {
       "command": "npx",
-      "args": ["-y", "@pimzino/spec-workflow-mcp@latest", "/path/to/your/project"]
+      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest", "/path/to/your/project"]
     }
   }
 }
@@ -151,7 +153,7 @@ Add to your MCP server configuration:
   "mcpServers": {
     "spec-workflow": {
       "command": "npx",
-      "args": ["-y", "@pimzino/spec-workflow-mcp@latest", "/path/to/your/project"]
+      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest", "/path/to/your/project"]
     }
   }
 }
@@ -167,7 +169,7 @@ Add to your Continue configuration:
   "mcpServers": {
     "spec-workflow": {
       "command": "npx",
-      "args": ["-y", "@pimzino/spec-workflow-mcp@latest", "/path/to/your/project"]
+      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest", "/path/to/your/project"]
     }
   }
 }
@@ -183,7 +185,7 @@ Add to your Cursor settings (`settings.json`):
   "mcpServers": {
     "spec-workflow": {
       "command": "npx",
-      "args": ["-y", "@pimzino/spec-workflow-mcp@latest", "/path/to/your/project"]
+      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest", "/path/to/your/project"]
     }
   }
 }
@@ -200,7 +202,7 @@ Add to your `opencode.json` configuration file:
   "mcp": {
     "spec-workflow": {
       "type": "local",
-      "command": ["npx", "-y", "@pimzino/spec-workflow-mcp@latest", "/path/to/your/project"],
+      "command": ["npx", "-y", "@sc0rch/spec-workflow-mcp@latest", "/path/to/your/project"],
       "enabled": true
     }
   }
@@ -217,7 +219,7 @@ Add to your `~/.codeium/windsurf/mcp_config.json` configuration file:
   "mcpServers": {
     "spec-workflow": {
       "command": "npx",
-      "args": ["-y", "@pimzino/spec-workflow-mcp@latest", "/path/to/your/project"]
+      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest", "/path/to/your/project"]
     }
   }
 }
@@ -231,7 +233,7 @@ Add to your `~/.codex/config.toml` configuration file:
 ```toml
 [mcp_servers.spec-workflow]
 command = "npx"
-args = ["-y", "@pimzino/spec-workflow-mcp@latest", "/path/to/your/project"]
+args = ["-y", "@sc0rch/spec-workflow-mcp@latest", "/path/to/your/project"]
 ```
 </details>
 
@@ -313,7 +315,7 @@ server {
 For sandboxed environments (e.g., Codex CLI with `sandbox_mode=workspace-write`) where `$HOME` is read-only, use the `SPEC_WORKFLOW_HOME` environment variable to redirect global state files to a writable location:
 
 ```bash
-SPEC_WORKFLOW_HOME=/workspace/.spec-workflow-mcp npx -y @pimzino/spec-workflow-mcp@latest /workspace
+SPEC_WORKFLOW_HOME=/workspace/.spec-workflow-mcp npx -y @sc0rch/spec-workflow-mcp@latest /workspace
 ```
 
 [See Configuration Guide →](docs/CONFIGURATION.md#environment-variables)
@@ -364,10 +366,10 @@ GPL-3.0
 
 ## ⭐ Star History
 
-<a href="https://www.star-history.com/#Pimzino/spec-workflow-mcp&Date">
+<a href="https://www.star-history.com/#sc0rch/spec-workflow-mcp&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Pimzino/spec-workflow-mcp&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Pimzino/spec-workflow-mcp&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Pimzino/spec-workflow-mcp&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=sc0rch/spec-workflow-mcp&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=sc0rch/spec-workflow-mcp&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=sc0rch/spec-workflow-mcp&type=Date" />
  </picture>
 </a>

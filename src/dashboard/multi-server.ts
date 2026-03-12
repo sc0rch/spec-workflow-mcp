@@ -62,6 +62,7 @@ export class MultiProjectDashboardServer {
   // Debounce spec broadcasts to coalesce rapid updates
   private pendingSpecBroadcasts: Map<string, NodeJS.Timeout> = new Map();
   private readonly SPEC_BROADCAST_DEBOUNCE_MS = 300;
+  private packageName: string = '@sc0rch/spec-workflow-mcp';
 
   constructor(options: MultiDashboardOptions = {}) {
     this.options = options;
@@ -120,23 +121,26 @@ export class MultiProjectDashboardServer {
     console.error(`   - Allowed Origins: ${this.securityConfig.allowedOrigins.join(', ')}`);
     console.error('');
 
-    // Fetch package version once at startup
+    // Resolve package metadata once at startup so forks can publish under their
+    // own npm package name without changing dashboard code.
     try {
-      const response = await fetch('https://registry.npmjs.org/@pimzino/spec-workflow-mcp/latest');
+      const packageJsonPath = join(__dirname, '..', '..', 'package.json');
+      const packageJsonContent = await readFile(packageJsonPath, 'utf-8');
+      const packageJson = JSON.parse(packageJsonContent) as { name?: string; version?: string };
+      this.packageName = packageJson.name || this.packageName;
+      this.packageVersion = packageJson.version || 'unknown';
+    } catch {
+      // Keep defaults if local package.json cannot be read
+    }
+
+    try {
+      const response = await fetch(`https://registry.npmjs.org/${encodeURIComponent(this.packageName)}/latest`);
       if (response.ok) {
         const packageInfo = await response.json() as { version?: string };
-        this.packageVersion = packageInfo.version || 'unknown';
+        this.packageVersion = packageInfo.version || this.packageVersion;
       }
     } catch {
-      // Fallback to local package.json version if npm request fails
-      try {
-        const packageJsonPath = join(__dirname, '..', '..', 'package.json');
-        const packageJsonContent = await readFile(packageJsonPath, 'utf-8');
-        const packageJson = JSON.parse(packageJsonContent) as { version?: string };
-        this.packageVersion = packageJson.version || 'unknown';
-      } catch {
-        // Keep default 'unknown' if both npm and local package.json fail
-      }
+      // Keep the local package.json version if the npm request fails
     }
 
     // Initialize security components
