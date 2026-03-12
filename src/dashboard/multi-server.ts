@@ -88,6 +88,17 @@ export class MultiProjectDashboardServer {
     this.app = fastify({ logger: false });
   }
 
+  private getPublicDashboardHost(): string {
+    // Prefer an explicit IPv4 loopback URL for local dashboards. On some macOS
+    // setups, `localhost` resolves to `::1`, where another system service may
+    // already be listening on the same port.
+    if (this.bindAddress === 'localhost' || this.bindAddress === '::1' || this.bindAddress === '::' || this.bindAddress === '0.0.0.0') {
+      return '127.0.0.1';
+    }
+
+    return this.bindAddress;
+  }
+
   async start() {
     // Security warning if binding to non-localhost address
     if (!isLocalhostAddress(this.bindAddress)) {
@@ -294,7 +305,7 @@ export class MultiProjectDashboardServer {
     this.startHeartbeat();
 
     // Register dashboard in the session manager
-    const dashboardUrl = `http://localhost:${this.actualPort}`;
+    const dashboardUrl = `http://${this.getPublicDashboardHost()}:${this.actualPort}`;
     await this.sessionManager.registerDashboard(dashboardUrl, this.actualPort, process.pid);
 
     // Open browser if requested
@@ -1511,6 +1522,6 @@ export class MultiProjectDashboardServer {
   }
 
   getUrl(): string {
-    return `http://localhost:${this.actualPort}`;
+    return `http://${this.getPublicDashboardHost()}:${this.actualPort}`;
   }
 }
