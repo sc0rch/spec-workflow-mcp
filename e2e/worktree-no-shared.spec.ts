@@ -46,7 +46,7 @@ test.describe.serial('No-shared worktree dashboard separation', () => {
 
     await harness.setup();
     await harness.startMcpServers();
-    registeredProjects = await harness.waitForProjects(2, 90000);
+    registeredProjects = await harness.waitForProjects(3, 90000);
   });
 
   test.afterAll(async () => {
@@ -55,7 +55,8 @@ test.describe.serial('No-shared worktree dashboard separation', () => {
     }
   });
 
-  test('shows separate worktree projects in dropdown without aggregated main project', async ({ page }) => {
+  test('shows the main repo and worktrees as separate dropdown projects', async ({ page }) => {
+    const projectMain = getProjectByPathSuffix(registeredProjects, 'repo-main');
     const projectA = getProjectByPathSuffix(registeredProjects, 'wt-a');
     const projectB = getProjectByPathSuffix(registeredProjects, 'wt-b');
 
@@ -65,47 +66,68 @@ test.describe.serial('No-shared worktree dashboard separation', () => {
     await page.getByTestId('project-dropdown-toggle').click();
     await expect(page.getByTestId('project-dropdown-menu')).toBeVisible();
 
+    await expect(page.getByTestId(`project-dropdown-item-${projectMain.projectId}`)).toBeVisible();
     await expect(page.getByTestId(`project-dropdown-item-${projectA.projectId}`)).toBeVisible();
     await expect(page.getByTestId(`project-dropdown-item-${projectB.projectId}`)).toBeVisible();
 
     const dropdownItems = page.locator('[data-testid^="project-dropdown-item-"]');
-    await expect(dropdownItems).toHaveCount(2);
+    await expect(dropdownItems).toHaveCount(3);
     await expect(page.getByText(/\(\d+\s+instances\)/i)).toHaveCount(0);
   });
 
-  test('isolates specs by selected worktree project', async ({ page }) => {
+  test('isolates specs by selected project', async ({ page }) => {
+    const projectMain = getProjectByPathSuffix(registeredProjects, 'repo-main');
     const projectA = getProjectByPathSuffix(registeredProjects, 'wt-a');
     const projectB = getProjectByPathSuffix(registeredProjects, 'wt-b');
 
     await page.goto('/');
     await expect(page.getByTestId('project-dropdown-toggle')).toBeVisible();
+
+    await selectProject(page, projectMain.projectId);
+    await page.getByRole('link', { name: /^Specs$/i }).click();
+    await expect(page.getByTestId('spec-table-row-spec-main')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('spec-table-row-spec-a')).toHaveCount(0);
+    await expect(page.getByTestId('spec-table-row-spec-b')).toHaveCount(0);
 
     await selectProject(page, projectA.projectId);
     await page.getByRole('link', { name: /^Specs$/i }).click();
     await expect(page.getByTestId('spec-table-row-spec-a')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('spec-table-row-spec-main')).toHaveCount(0);
     await expect(page.getByTestId('spec-table-row-spec-b')).toHaveCount(0);
 
     await selectProject(page, projectB.projectId);
     await expect(page.getByTestId('spec-table-row-spec-b')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('spec-table-row-spec-main')).toHaveCount(0);
     await expect(page.getByTestId('spec-table-row-spec-a')).toHaveCount(0);
   });
 
-  test('isolates approval content by selected worktree project', async ({ page }) => {
+  test('isolates approval content by selected project', async ({ page }) => {
+    const projectMain = getProjectByPathSuffix(registeredProjects, 'repo-main');
     const projectA = getProjectByPathSuffix(registeredProjects, 'wt-a');
     const projectB = getProjectByPathSuffix(registeredProjects, 'wt-b');
 
     await page.goto('/');
     await expect(page.getByTestId('project-dropdown-toggle')).toBeVisible();
 
+    await selectProject(page, projectMain.projectId);
+    await page.getByRole('link', { name: /^Approvals$/i }).click();
+    await expect(page.getByTestId('approval-item-approval-main')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('approval-item-approval-wt-a')).toHaveCount(0);
+    await expect(page.getByTestId('approval-item-approval-wt-b')).toHaveCount(0);
+    await page.getByTestId('approval-item-approval-main').getByRole('button', { name: /review/i }).first().click();
+    await expect(page.getByText(/source\s*=\s*"main"/i)).toBeVisible({ timeout: 15000 });
+
     await selectProject(page, projectA.projectId);
     await page.getByRole('link', { name: /^Approvals$/i }).click();
     await expect(page.getByTestId('approval-item-approval-wt-a')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('approval-item-approval-main')).toHaveCount(0);
     await expect(page.getByTestId('approval-item-approval-wt-b')).toHaveCount(0);
     await page.getByTestId('approval-item-approval-wt-a').getByRole('button', { name: /review/i }).first().click();
     await expect(page.getByText(/source\s*=\s*"wt-a"/i)).toBeVisible({ timeout: 15000 });
 
     await selectProject(page, projectB.projectId);
     await expect(page.getByTestId('approval-item-approval-wt-b')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('approval-item-approval-main')).toHaveCount(0);
     await expect(page.getByTestId('approval-item-approval-wt-a')).toHaveCount(0);
     await page.getByTestId('approval-item-approval-wt-b').getByRole('button', { name: /review/i }).first().click();
     await expect(page.getByText(/source\s*=\s*"wt-b"/i)).toBeVisible({ timeout: 15000 });

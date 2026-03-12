@@ -16,12 +16,18 @@ const prompt: Prompt = {
       name: 'scope',
       description: 'Scope of the steering document (e.g., frontend, backend, full-stack)',
       required: false
+    },
+    {
+      name: 'projectPath',
+      description: 'Workspace/worktree path to bind downstream spec-workflow tool calls to',
+      required: false
     }
   ]
 };
 
 async function handler(args: Record<string, any>, context: ToolContext): Promise<PromptMessage[]> {
-  const { docType, scope } = args;
+  const { docType, scope, projectPath } = args;
+  const boundProjectPath = projectPath || context.workspacePath || context.projectPath;
   
   if (!docType) {
     throw new Error('docType is a required argument');
@@ -40,7 +46,7 @@ async function handler(args: Record<string, any>, context: ToolContext): Promise
         text: `Create a ${docType} steering document for the project.
 
 **Context:**
-- Project: ${context.projectPath}
+- Project: ${boundProjectPath}
 - Steering document type: ${docType}
 ${scope ? `- Scope: ${scope}` : ''}
 ${context.dashboardUrl ? `- Dashboard: ${context.dashboardUrl}` : ''}
@@ -50,7 +56,7 @@ ${context.dashboardUrl ? `- Dashboard: ${context.dashboardUrl}` : ''}
 2. Check if steering docs exist at: .spec-workflow/steering/
 3. Create comprehensive content following the template structure
 4. Create the document at: .spec-workflow/steering/${docType}.md
-5. After creating, use approvals tool with action:'request' to get user approval
+5. After creating, use approvals tool with action:'request' and projectPath "${boundProjectPath}" to get user approval
 
 **File Paths:**
 - Template location: .spec-workflow/templates/${docType}-template.md
@@ -67,6 +73,11 @@ ${context.dashboardUrl ? `- Dashboard: ${context.dashboardUrl}` : ''}
 - Consider both technical and business requirements
 - Provide clear guidance for future development
 - Templates are automatically updated on server start
+
+**Project Binding:**
+- Treat projectPath as the workspace/worktree selector for all stateful spec-workflow tool calls
+- Use projectPath "${boundProjectPath}" when calling approvals, spec-status, and log-implementation
+- This is especially important when one shared MCP server serves multiple git worktrees
 
 Please read the ${docType} template and create a comprehensive steering document at the specified path.`
       }

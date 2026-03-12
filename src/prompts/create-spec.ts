@@ -21,12 +21,18 @@ const prompt: Prompt = {
       name: 'description',
       description: 'Brief description of what this spec should accomplish',
       required: false
+    },
+    {
+      name: 'projectPath',
+      description: 'Workspace/worktree path to bind downstream spec-workflow tool calls to',
+      required: false
     }
   ]
 };
 
 async function handler(args: Record<string, any>, context: ToolContext): Promise<PromptMessage[]> {
-  const { specName, documentType, description } = args;
+  const { specName, documentType, description, projectPath } = args;
+  const boundProjectPath = projectPath || context.workspacePath || context.projectPath;
   
   if (!specName || !documentType) {
     throw new Error('specName and documentType are required arguments');
@@ -46,7 +52,7 @@ async function handler(args: Record<string, any>, context: ToolContext): Promise
         text: `Create a ${documentType} document for the "${specName}" feature using the spec-workflow methodology.
 
 **Context:**
-- Project: ${context.projectPath}
+- Project: ${boundProjectPath}
 - Feature: ${specName}
 - Document type: ${documentType}
 ${description ? `- Description: ${description}` : ''}
@@ -59,11 +65,16 @@ ${context.dashboardUrl ? `- Dashboard: ${context.dashboardUrl}` : ''}
 4. Include all required sections from the template
 5. Use clear, actionable language
 6. Create the document at: .spec-workflow/specs/${specName}/${documentType}.md
-7. After creating, use approvals tool with action:'request' to get user approval
+7. After creating, use approvals tool with action:'request' and projectPath "${boundProjectPath}" to get user approval
 
 **File Paths:**
 - Template location: .spec-workflow/templates/${documentType}-template.md
 - Document destination: .spec-workflow/specs/${specName}/${documentType}.md
+
+**Project Binding:**
+- Treat projectPath as the workspace/worktree selector for all stateful spec-workflow tool calls
+- Use projectPath "${boundProjectPath}" when calling approvals, spec-status, and log-implementation
+- This is especially important when one shared MCP server serves multiple git worktrees
 
 **Workflow Guidelines:**
 - Requirements documents define WHAT needs to be built

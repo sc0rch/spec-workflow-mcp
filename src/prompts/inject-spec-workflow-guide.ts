@@ -28,7 +28,7 @@ async function handler(args: Record<string, any>, context: ToolContext): Promise
 ${guide}
 
 **Current Context:**
-- Project: ${context.projectPath}
+- Project: ${context.workspacePath || context.projectPath}
 ${dashboardUrl ? `- Dashboard: ${dashboardUrl}` : '- Dashboard: Please start the dashboard or use VS Code extension "Spec Workflow MCP"'}
 
 **Next Steps:**
@@ -40,6 +40,7 @@ ${nextSteps.map(step => `- ${step}`).join('\n')}
 3. Use the MCP tools mentioned in the guide to execute each phase
 4. Always request approval between phases using the approvals tool
 5. Never proceed to the next phase without successful approval cleanup
+6. If you are working in a git worktree via a shared MCP server, pass projectPath explicitly to stateful tools so they bind to the correct worktree
 
 Please acknowledge that you've reviewed this workflow guide and are ready to help with spec-driven development.`
       }

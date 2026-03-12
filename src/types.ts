@@ -56,7 +56,9 @@ export interface JobExecutionLog {
 }
 
 export interface ToolContext {
-  projectPath: string;
+  projectPath: string; // Default workflow root path where .spec-workflow lives
+  workspacePath?: string; // Default workspace/worktree path for the active chat
+  noSharedWorktreeSpecs?: boolean; // Whether worktrees keep their own local .spec-workflow roots
   dashboardUrl?: string; // Optional for backwards compatibility
   lang?: string; // Language code for i18n (e.g., 'en', 'ja')
 }
@@ -176,6 +178,7 @@ export interface ToolResponse {
   nextSteps?: string[]; // Optional for backwards compatibility
   projectContext?: {
     projectPath: string;
+    workspacePath?: string;
     workflowRoot: string;
     specName?: string;
     currentPhase?: string;

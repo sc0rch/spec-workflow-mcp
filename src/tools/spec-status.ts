@@ -2,6 +2,7 @@ import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { ToolContext, ToolResponse } from '../types.js';
 import { PathUtils } from '../core/path-utils.js';
 import { SpecParser } from '../core/parser.js';
+import { resolveToolProjectPaths } from '../core/project-path-resolution.js';
 
 export const specStatusTool: Tool = {
   name: 'spec-status',
@@ -32,20 +33,9 @@ Call when resuming work on a spec or checking overall completion status. Shows w
 export async function specStatusHandler(args: any, context: ToolContext): Promise<ToolResponse> {
   const { specName } = args;
   
-  // Use context projectPath as default, allow override via args
-  const projectPath = args.projectPath || context.projectPath;
-  
-  if (!projectPath) {
-    return {
-      success: false,
-      message: 'Project path is required but not provided in context or arguments'
-    };
-  }
-
   try {
-    // Translate path at tool entry point (components expect pre-translated paths)
-    const translatedPath = PathUtils.translatePath(projectPath);
-    const parser = new SpecParser(translatedPath);
+    const resolvedProject = await resolveToolProjectPaths(args.projectPath, context);
+    const parser = new SpecParser(resolvedProject.translatedWorkflowRootPath);
     const spec = await parser.getSpec(specName);
     
     if (!spec) {
@@ -162,8 +152,9 @@ export async function specStatusHandler(args: any, context: ToolContext): Promis
       },
       nextSteps,
       projectContext: {
-        projectPath,
-        workflowRoot: PathUtils.getWorkflowRoot(projectPath),
+        projectPath: resolvedProject.workspacePath,
+        workspacePath: resolvedProject.workspacePath,
+        workflowRoot: PathUtils.getWorkflowRoot(resolvedProject.workflowRootPath),
         currentPhase,
         dashboardUrl: context.dashboardUrl
       }

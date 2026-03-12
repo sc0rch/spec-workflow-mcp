@@ -16,12 +16,18 @@ const prompt: Prompt = {
       name: 'detailed',
       description: 'Show detailed status including task breakdown and approval history',
       required: false
+    },
+    {
+      name: 'projectPath',
+      description: 'Workspace/worktree path to bind downstream spec-workflow tool calls to',
+      required: false
     }
   ]
 };
 
 async function handler(args: Record<string, any>, context: ToolContext): Promise<PromptMessage[]> {
-  const { specName, detailed } = args;
+  const { specName, detailed, projectPath } = args;
+  const boundProjectPath = projectPath || context.workspacePath || context.projectPath;
 
   const scope = specName ? `the "${specName}" feature` : 'all specifications in the project';
   const detailLevel = detailed ? 'detailed' : 'summary';
@@ -34,18 +40,18 @@ async function handler(args: Record<string, any>, context: ToolContext): Promise
         text: `Get ${detailLevel} status overview for ${scope}.
 
 **Context:**
-- Project: ${context.projectPath}
+- Project: ${boundProjectPath}
 ${specName ? `- Feature: ${specName}` : '- Scope: All specifications'}
 - Detail level: ${detailLevel}
 ${context.dashboardUrl ? `- Dashboard: ${context.dashboardUrl}` : ''}
 
 **Instructions:**
 ${specName ? 
-  `1. Use the spec-status tool with specName "${specName}" to get status information
+  `1. Use the spec-status tool with specName "${specName}" and projectPath "${boundProjectPath}" to get status information
 2. If you need detailed task information, read the tasks.md file directly at .spec-workflow/specs/${specName}/tasks.md
-3. Check for any pending approvals using approvals tool with action:'status'` :
+3. Check for any pending approvals using approvals tool with action:'status' and projectPath "${boundProjectPath}"` :
   `1. List directory .spec-workflow/specs/ to see all specifications
-2. Use the spec-status tool to get status for each specification
+2. Use the spec-status tool with projectPath "${boundProjectPath}" to get status for each specification
 3. Provide a consolidated overview of project progress`}
 
 **Status Information Includes:**
@@ -68,6 +74,10 @@ ${detailed ? `**Detailed Information Includes:**
 - File modification timestamps
 - Steering document references
 - Dependency tracking between specs` : ''}
+
+**Project Binding:**
+- Treat projectPath as the workspace/worktree selector for stateful spec-workflow tool calls
+- Use projectPath "${boundProjectPath}" whenever the shared MCP server may be serving multiple git worktrees
 
 Please provide a comprehensive status report that helps understand the current state and next steps.`
       }

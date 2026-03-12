@@ -16,12 +16,18 @@ const prompt: Prompt = {
       name: 'taskId',
       description: 'Specific task ID to implement (e.g., "1", "2.1", "3")',
       required: false
+    },
+    {
+      name: 'projectPath',
+      description: 'Workspace/worktree path to bind downstream spec-workflow tool calls to',
+      required: false
     }
   ]
 };
 
 async function handler(args: Record<string, any>, context: ToolContext): Promise<PromptMessage[]> {
-  const { specName, taskId } = args;
+  const { specName, taskId, projectPath } = args;
+  const boundProjectPath = projectPath || context.workspacePath || context.projectPath;
   
   if (!specName) {
     throw new Error('specName is a required argument');
@@ -35,7 +41,7 @@ async function handler(args: Record<string, any>, context: ToolContext): Promise
         text: `Implement ${taskId ? `task ${taskId}` : 'the next pending task'} for the "${specName}" feature.
 
 **Context:**
-- Project: ${context.projectPath}
+- Project: ${boundProjectPath}
 - Feature: ${specName}
 ${taskId ? `- Task ID: ${taskId}` : ''}
 ${context.dashboardUrl ? `- Dashboard: ${context.dashboardUrl}` : ''}
@@ -43,7 +49,7 @@ ${context.dashboardUrl ? `- Dashboard: ${context.dashboardUrl}` : ''}
 **Implementation Workflow:**
 
 1. **Check Current Status:**
-   - Use the spec-status tool with specName "${specName}" to see overall progress
+   - Use the spec-status tool with specName "${specName}" and projectPath "${boundProjectPath}" to see overall progress
    - Read .spec-workflow/specs/${specName}/tasks.md to see all tasks
    - Identify ${taskId ? `task ${taskId}` : 'the next pending task marked with [ ]'}
 
@@ -108,6 +114,7 @@ ${context.dashboardUrl ? `- Dashboard: ${context.dashboardUrl}` : ''}
    - ⚠️ **STOP: Do NOT mark the task [x] until this step succeeds.**
    - A task without an implementation log is NOT complete. Skipping this step is the #1 workflow violation.
    - Call log-implementation with ALL of the following:
+     - projectPath: "${boundProjectPath}"
      - specName: "${specName}"
      - taskId: ${taskId ? `"${taskId}"` : 'the task ID you just completed'}
      - summary: Clear description of what was implemented (1-2 sentences)
@@ -151,6 +158,8 @@ ${context.dashboardUrl ? `- Dashboard: ${context.dashboardUrl}` : ''}
 - **ALWAYS call log-implementation BEFORE marking a task [x]** — this is the most-skipped step and it is mandatory
 - If a task has subtasks (e.g., 4.1, 4.2), complete them in order
 - If you encounter blockers, document them and move to another task
+- Treat projectPath as the workspace/worktree selector for all stateful spec-workflow tool calls
+- Use projectPath "${boundProjectPath}" throughout this task so worktree-local specs and approvals resolve correctly
 
 **Tools to Use:**
 - spec-status: Check overall progress

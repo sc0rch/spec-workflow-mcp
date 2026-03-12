@@ -1,6 +1,5 @@
 import { ChildProcess, spawn } from 'child_process';
 import { mkdtemp, mkdir, realpath, rm, writeFile } from 'fs/promises';
-import { tmpdir } from 'os';
 import { join } from 'path';
 
 export interface RegisteredProject {
@@ -115,6 +114,7 @@ export class WorktreeHarness {
 
   getWorktreePaths() {
     return {
+      repoRoot: this.repoRoot,
       wtAPath: this.wtAPath,
       wtBPath: this.wtBPath
     };
@@ -125,7 +125,9 @@ export class WorktreeHarness {
   }
 
   async setup(): Promise<void> {
-    this.tempRoot = await mkdtemp(join(tmpdir(), 'specwf-e2e-worktree-'));
+    const tempBaseDir = join(this.options.serverRoot, '.tmp-e2e-worktrees');
+    await mkdir(tempBaseDir, { recursive: true });
+    this.tempRoot = await mkdtemp(join(tempBaseDir, 'specwf-e2e-worktree-'));
     this.repoRoot = join(this.tempRoot, 'repo-main');
     this.wtAPath = join(this.tempRoot, 'wt-a');
     this.wtBPath = join(this.tempRoot, 'wt-b');
@@ -146,8 +148,28 @@ export class WorktreeHarness {
     this.wtAPath = await realpath(this.wtAPath);
     this.wtBPath = await realpath(this.wtBPath);
 
+    await this.seedMainRepo();
     await this.seedWorktreeA();
     await this.seedWorktreeB();
+  }
+
+  private async seedMainRepo(): Promise<void> {
+    await mkdir(join(this.repoRoot, 'src'), { recursive: true });
+    await writeFile(join(this.repoRoot, 'src', 'service-main.ts'), 'export const source = "main";\n', 'utf-8');
+
+    const specDir = join(this.repoRoot, '.spec-workflow', 'specs', 'spec-main');
+    const approvalsDir = join(this.repoRoot, '.spec-workflow', 'approvals', 'spec-main');
+    await mkdir(specDir, { recursive: true });
+    await mkdir(approvalsDir, { recursive: true });
+    await writeFile(join(specDir, 'requirements.md'), '# Requirements Main\n', 'utf-8');
+
+    const approval = buildApprovalPayload({
+      id: 'approval-main',
+      title: 'Requirements: Spec Main',
+      filePath: 'src/service-main.ts',
+      categoryName: 'spec-main'
+    });
+    await writeFile(join(approvalsDir, 'approval-main.json'), JSON.stringify(approval, null, 2), 'utf-8');
   }
 
   private async seedWorktreeA(): Promise<void> {
@@ -189,9 +211,7 @@ export class WorktreeHarness {
   }
 
   async startMcpServers(): Promise<void> {
-    await this.startMcpForPath(this.wtAPath);
-    await this.waitForProjects(1, 45000);
-    await this.startMcpForPath(this.wtBPath);
+    await this.startMcpForPath(this.repoRoot);
   }
 
   private async startMcpForPath(projectPath: string): Promise<void> {
@@ -224,10 +244,11 @@ export class WorktreeHarness {
     this.mcpProcesses.push(child);
   }
 
-  async waitForProjects(expectedCount = 2, timeoutMs = 60000): Promise<RegisteredProject[]> {
+  async waitForProjects(expectedCount = 3, timeoutMs = 60000): Promise<RegisteredProject[]> {
     const startedAt = Date.now();
     const url = `${this.options.dashboardApiBaseUrl}/api/projects/list`;
     let lastBody = '';
+    const expectedPaths = new Set([this.repoRoot, this.wtAPath, this.wtBPath]);
 
     while (Date.now() - startedAt < timeoutMs) {
       try {
@@ -235,12 +256,12 @@ export class WorktreeHarness {
         if (response.ok) {
           const body = await response.json() as RegisteredProject[];
           lastBody = JSON.stringify(body);
-          const worktreeProjects = body.filter((project) => {
-            return project.projectPath === this.wtAPath || project.projectPath === this.wtBPath;
+          const matchingProjects = body.filter((project) => {
+            return expectedPaths.has(project.projectPath);
           });
 
-          if (worktreeProjects.length === expectedCount) {
-            return worktreeProjects;
+          if (matchingProjects.length === expectedCount) {
+            return matchingProjects;
           }
         }
       } catch {

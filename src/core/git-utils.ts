@@ -1,5 +1,5 @@
 import { execSync, ExecSyncOptionsWithStringEncoding } from 'child_process';
-import { resolve } from 'path';
+import { basename, resolve } from 'path';
 
 export const SPEC_WORKFLOW_SHARED_ROOT_ENV = 'SPEC_WORKFLOW_SHARED_ROOT';
 const GIT_EXEC_OPTIONS: ExecSyncOptionsWithStringEncoding = {
@@ -7,6 +7,22 @@ const GIT_EXEC_OPTIONS: ExecSyncOptionsWithStringEncoding = {
   stdio: ['pipe', 'pipe', 'pipe'],
   timeout: 5000
 };
+
+export interface GitWorkspaceDescriptor {
+  workspacePath: string;
+  workflowRootPath: string;
+  repoRootPath: string;
+  repoName: string;
+  isMainWorkspace: boolean;
+}
+
+function isAbsoluteGitPath(pathValue: string): boolean {
+  return pathValue.startsWith('/') || /^[A-Za-z]:[\\/]/.test(pathValue);
+}
+
+function resolveGitPath(basePath: string, pathValue: string): string {
+  return isAbsoluteGitPath(pathValue) ? pathValue : resolve(basePath, pathValue);
+}
 
 /**
  * Resolves the git workspace root directory.
@@ -88,5 +104,60 @@ export function isGitWorktree(projectPath: string): boolean {
     return gitCommonDir !== '.git';
   } catch {
     return false;
+  }
+}
+
+/**
+ * Discover the main git repo and all linked worktrees for the repository
+ * containing the provided path. For non-git directories, returns the current
+ * workspace as a single entry.
+ */
+export function discoverGitWorkspaces(
+  projectPath: string,
+  options: { noSharedWorktreeSpecs?: boolean } = {}
+): GitWorkspaceDescriptor[] {
+  const workspacePath = resolveGitWorkspaceRoot(projectPath);
+  const repoRootPath = resolveGitRoot(workspacePath);
+  const repoName = basename(repoRootPath || workspacePath);
+  const workflowRootFor = (candidateWorkspacePath: string) =>
+    options.noSharedWorktreeSpecs ? candidateWorkspacePath : repoRootPath;
+
+  const buildDescriptor = (candidateWorkspacePath: string): GitWorkspaceDescriptor => ({
+    workspacePath: candidateWorkspacePath,
+    workflowRootPath: workflowRootFor(candidateWorkspacePath),
+    repoRootPath,
+    repoName,
+    isMainWorkspace: candidateWorkspacePath === repoRootPath
+  });
+
+  try {
+    const rawOutput = execSync('git worktree list --porcelain', {
+      cwd: workspacePath,
+      ...GIT_EXEC_OPTIONS
+    }).trim();
+
+    const discoveredWorkspacePaths = rawOutput
+      ? rawOutput
+        .split(/\r?\n/)
+        .filter(line => line.startsWith('worktree '))
+        .map(line => resolveGitPath(workspacePath, line.slice('worktree '.length).trim()))
+      : [];
+
+    const uniqueWorkspacePaths = Array.from(new Set([
+      repoRootPath,
+      ...discoveredWorkspacePaths,
+      workspacePath
+    ]));
+
+    return uniqueWorkspacePaths
+      .map(buildDescriptor)
+      .sort((left, right) => {
+        if (left.isMainWorkspace !== right.isMainWorkspace) {
+          return left.isMainWorkspace ? -1 : 1;
+        }
+        return left.workspacePath.localeCompare(right.workspacePath);
+      });
+  } catch {
+    return [buildDescriptor(workspacePath)];
   }
 }

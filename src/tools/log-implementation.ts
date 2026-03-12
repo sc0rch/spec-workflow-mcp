@@ -3,6 +3,7 @@ import { ToolContext, ToolResponse, ImplementationLogEntry } from '../types.js';
 import { PathUtils } from '../core/path-utils.js';
 import { ImplementationLogManager } from '../dashboard/implementation-log-manager.js';
 import { parseTasksFromMarkdown } from '../core/task-parser.js';
+import { resolveToolProjectPaths } from '../core/project-path-resolution.js';
 
 export const logImplementationTool: Tool = {
   name: 'log-implementation',
@@ -304,17 +305,9 @@ export async function logImplementationHandler(
     artifacts
   } = args;
   
-  // Use context projectPath as default, allow override via args
-  const projectPath = args.projectPath || context.projectPath;
-  
-  if (!projectPath) {
-    return {
-      success: false,
-      message: 'Project path is required but not provided in context or arguments'
-    };
-  }
-
   try {
+    const resolvedProject = await resolveToolProjectPaths(args.projectPath, context);
+
     // Validate artifacts is provided
     if (!artifacts) {
       return {
@@ -330,7 +323,7 @@ export async function logImplementationHandler(
     }
 
     // Validate task exists
-    const specTasksPath = PathUtils.getSpecPath(projectPath, specName);
+    const specTasksPath = PathUtils.getSpecPath(resolvedProject.translatedWorkflowRootPath, specName);
     const tasksFile = `${specTasksPath}/tasks.md`;
 
     try {
@@ -399,8 +392,9 @@ export async function logImplementationHandler(
         'Continue with next pending task'
       ],
       projectContext: {
-        projectPath,
-        workflowRoot: PathUtils.getWorkflowRoot(projectPath),
+        projectPath: resolvedProject.workspacePath,
+        workspacePath: resolvedProject.workspacePath,
+        workflowRoot: PathUtils.getWorkflowRoot(resolvedProject.workflowRootPath),
         specName,
         dashboardUrl: context.dashboardUrl
       }

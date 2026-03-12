@@ -2,31 +2,9 @@ import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { ToolContext, ToolResponse } from '../types.js';
 import { ApprovalStorage } from '../dashboard/approval-storage.js';
 import { join, isAbsolute } from 'path';
-import { validateProjectPath, PathUtils } from '../core/path-utils.js';
-import { readFile } from 'fs/promises';
 import { validateTasksMarkdown, formatValidationErrors } from '../core/task-validator.js';
 import { validateMarkdownForMdx, formatMdxValidationIssues } from '../core/mdx-validator.js';
-
-/**
- * Safely translate a path, with defensive checks to provide better error messages
- * in case of module loading issues.
- * 
- * Note: The original issue reported "PathUtils.translatePath is not a function" on Windows.
- * While we couldn't reproduce it, this defensive check ensures a clear error message
- * is provided if such edge cases occur.
- */
-function safeTranslatePath(path: string): string {
-  // Defensive check: ensure translatePath method exists and is callable
-  // This handles edge cases where the class might be partially initialized
-  if (typeof PathUtils?.translatePath !== 'function') {
-    throw new Error(
-      `PathUtils.translatePath is not available (got ${typeof PathUtils?.translatePath}). ` +
-      'This may indicate a module loading issue. Please reinstall the package with: ' +
-      'npm uninstall @pimzino/spec-workflow-mcp && npm install @pimzino/spec-workflow-mcp'
-    );
-  }
-  return PathUtils.translatePath(path);
-}
+import { readProjectRelativeFile, resolveToolProjectPaths } from '../core/project-path-resolution.js';
 
 export const approvalsTool: Tool = {
   name: 'approvals',
@@ -195,25 +173,12 @@ async function handleRequestApproval(
   args: RequestApprovalArgs,
   context: ToolContext
 ): Promise<ToolResponse> {
-  // Use context projectPath as default, allow override via args
-  const projectPath = args.projectPath || context.projectPath;
-
-  if (!projectPath) {
-    return {
-      success: false,
-      message: 'Project path is required but not provided in context or arguments'
-    };
-  }
-
   try {
-    // Validate and resolve project path
-    const validatedProjectPath = await validateProjectPath(projectPath);
-    // Translate path at tool entry point (ApprovalStorage expects pre-translated paths)
-    const translatedPath = safeTranslatePath(validatedProjectPath);
+    const resolvedProject = await resolveToolProjectPaths(args.projectPath, context);
 
-    const approvalStorage = new ApprovalStorage(translatedPath, {
-      originalPath: validatedProjectPath,
-      fileResolutionPath: translatedPath
+    const approvalStorage = new ApprovalStorage(resolvedProject.translatedWorkflowRootPath, {
+      originalPath: resolvedProject.workflowRootPath,
+      fileResolutionPath: resolvedProject.translatedWorkspacePath
     });
     await approvalStorage.start();
 
@@ -238,8 +203,7 @@ async function handleRequestApproval(
 
     if (isMarkdownFile) {
       try {
-        const fullPath = PathUtils.safeJoin(validatedProjectPath, args.filePath);
-        markdownContent = await readFile(fullPath, 'utf-8');
+        markdownContent = (await readProjectRelativeFile(resolvedProject, args.filePath)).content;
       } catch (fileError) {
         await approvalStorage.stop();
         const errorMessage = fileError instanceof Error ? fileError.message : String(fileError);
@@ -276,7 +240,7 @@ async function handleRequestApproval(
 
     // Validate tasks.md format before allowing approval request
     if (args.filePath.endsWith('tasks.md')) {
-      const content = markdownContent ?? await readFile(PathUtils.safeJoin(validatedProjectPath, args.filePath), 'utf-8');
+      const content = markdownContent ?? (await readProjectRelativeFile(resolvedProject, args.filePath)).content;
       const validationResult = validateTasksMarkdown(content);
 
       if (!validationResult.valid) {
@@ -344,8 +308,9 @@ async function handleRequestApproval(
         `Poll status with: approvals action:"status" approvalId:"${approvalId}"`
       ],
       projectContext: {
-        projectPath: validatedProjectPath,
-        workflowRoot: join(validatedProjectPath, '.spec-workflow'),
+        projectPath: resolvedProject.workspacePath,
+        workspacePath: resolvedProject.workspacePath,
+        workflowRoot: join(resolvedProject.workflowRootPath, '.spec-workflow'),
         dashboardUrl: deeplink
       }
     };
@@ -366,23 +331,11 @@ async function handleGetApprovalStatus(
   // approvalId is guaranteed by type
 
   try {
-    // Use provided projectPath or fall back to context
-    const projectPath = args.projectPath || context.projectPath;
-    if (!projectPath) {
-      return {
-        success: false,
-        message: 'Project path is required. Please provide projectPath parameter.'
-      };
-    }
+    const resolvedProject = await resolveToolProjectPaths(args.projectPath, context);
 
-    // Validate and resolve project path
-    const validatedProjectPath = await validateProjectPath(projectPath);
-    // Translate path at tool entry point (ApprovalStorage expects pre-translated paths)
-    const translatedPath = safeTranslatePath(validatedProjectPath);
-
-    const approvalStorage = new ApprovalStorage(translatedPath, {
-      originalPath: validatedProjectPath,
-      fileResolutionPath: translatedPath
+    const approvalStorage = new ApprovalStorage(resolvedProject.translatedWorkflowRootPath, {
+      originalPath: resolvedProject.workflowRootPath,
+      fileResolutionPath: resolvedProject.translatedWorkspacePath
     });
     await approvalStorage.start();
 
@@ -470,8 +423,9 @@ async function handleGetApprovalStatus(
       },
       nextSteps,
       projectContext: {
-        projectPath: validatedProjectPath,
-        workflowRoot: join(validatedProjectPath, '.spec-workflow'),
+        projectPath: resolvedProject.workspacePath,
+        workspacePath: resolvedProject.workspacePath,
+        workflowRoot: join(resolvedProject.workflowRootPath, '.spec-workflow'),
         dashboardUrl: context.dashboardUrl
       }
     };
@@ -492,23 +446,11 @@ async function handleDeleteApproval(
   // approvalId is guaranteed by type
 
   try {
-    // Use provided projectPath or fall back to context
-    const projectPath = args.projectPath || context.projectPath;
-    if (!projectPath) {
-      return {
-        success: false,
-        message: 'Project path is required. Please provide projectPath parameter.'
-      };
-    }
+    const resolvedProject = await resolveToolProjectPaths(args.projectPath, context);
 
-    // Validate and resolve project path
-    const validatedProjectPath = await validateProjectPath(projectPath);
-    // Translate path at tool entry point (ApprovalStorage expects pre-translated paths)
-    const translatedPath = safeTranslatePath(validatedProjectPath);
-
-    const approvalStorage = new ApprovalStorage(translatedPath, {
-      originalPath: validatedProjectPath,
-      fileResolutionPath: translatedPath
+    const approvalStorage = new ApprovalStorage(resolvedProject.translatedWorkflowRootPath, {
+      originalPath: resolvedProject.workflowRootPath,
+      fileResolutionPath: resolvedProject.translatedWorkspacePath
     });
     await approvalStorage.start();
 
@@ -566,8 +508,9 @@ async function handleDeleteApproval(
           'Continue to next phase'
         ],
         projectContext: {
-          projectPath: validatedProjectPath,
-          workflowRoot: join(validatedProjectPath, '.spec-workflow'),
+          projectPath: resolvedProject.workspacePath,
+          workspacePath: resolvedProject.workspacePath,
+          workflowRoot: join(resolvedProject.workflowRootPath, '.spec-workflow'),
           dashboardUrl: context.dashboardUrl
         }
       };

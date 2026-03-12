@@ -2,6 +2,7 @@ import { Prompt, PromptMessage } from '@modelcontextprotocol/sdk/types.js';
 import { PromptDefinition } from './types.js';
 import { ToolContext } from '../types.js';
 import { PathUtils } from '../core/path-utils.js';
+import { resolveToolProjectPaths } from '../core/project-path-resolution.js';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 
@@ -19,18 +20,24 @@ const prompt: Prompt = {
       name: 'changes',
       description: 'Description of what changed in requirements or design',
       required: false
+    },
+    {
+      name: 'projectPath',
+      description: 'Workspace/worktree path to bind downstream spec-workflow tool calls to',
+      required: false
     }
   ]
 };
 
 async function handler(args: Record<string, any>, context: ToolContext): Promise<PromptMessage[]> {
-  const { specName, changes = 'Requirements or design have been updated' } = args;
-  const projectPath = context.projectPath;
+  const { specName, changes = 'Requirements or design have been updated', projectPath } = args;
+  const resolvedProject = await resolveToolProjectPaths(projectPath, context);
+  const boundProjectPath = resolvedProject.workspacePath;
 
   // Try to load existing documents for context
   let contextInfo = '';
   try {
-    const specDir = PathUtils.getSpecPath(projectPath, specName);
+    const specDir = PathUtils.getSpecPath(resolvedProject.translatedWorkflowRootPath, specName);
 
     // Check what documents exist
     let hasRequirements = false;
@@ -83,6 +90,10 @@ ${contextInfo}
 
 ## Context
 You are refreshing the task list for specification "${specName}" because requirements or design have changed during implementation. Your goal is to ensure the task list accurately reflects what needs to be done to bridge the gap between current implementation and the updated requirements/design.
+
+## Project Binding
+- Use projectPath "${boundProjectPath}" for all stateful spec-workflow tool calls during this refresh
+- Treat projectPath as the workspace/worktree selector when one shared MCP server serves multiple git worktrees
 
 ## CRITICAL: Source of Truth
 - Requirements come ONLY from requirements.md - not from existing tasks
@@ -203,7 +214,7 @@ This ensures the application remains functional throughout the transition.
 4. Perform Pass 2: Identify gaps in task coverage
 5. Determine if changes are needed
 6. If changes needed, build updated task list with proper validation
-7. Use create-spec-doc tool to save the updated tasks.md
+7. Use create-spec-doc with projectPath "${boundProjectPath}" to save the updated tasks.md
 8. Report what changes were made and why
 
 ## Example Analysis Output

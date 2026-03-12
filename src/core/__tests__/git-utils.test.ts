@@ -4,6 +4,7 @@ import {
   resolveGitRoot,
   resolveGitWorkspaceRoot,
   isGitWorktree,
+  discoverGitWorkspaces,
   SPEC_WORKFLOW_SHARED_ROOT_ENV
 } from '../git-utils.js';
 
@@ -254,5 +255,133 @@ describe('isGitWorktree', () => {
     });
 
     expect(isGitWorktree('/some/path')).toBe(false);
+  });
+});
+
+describe('discoverGitWorkspaces', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('discovers the main repo and all linked worktrees in shared mode', () => {
+    mockedExecSync.mockImplementation((command: string) => {
+      if (command === 'git rev-parse --show-toplevel') {
+        return '/repo/main\n';
+      }
+      if (command === 'git rev-parse --git-common-dir') {
+        return '.git\n';
+      }
+      if (command === 'git worktree list --porcelain') {
+        return [
+          'worktree /repo/main',
+          'HEAD 1111111',
+          'branch refs/heads/main',
+          '',
+          'worktree /repo/wt-b',
+          'HEAD 2222222',
+          'branch refs/heads/wt-b',
+          '',
+          'worktree /repo/wt-a',
+          'HEAD 3333333',
+          'branch refs/heads/wt-a'
+        ].join('\n');
+      }
+      throw new Error(`Unexpected git command: ${command}`);
+    });
+
+    const result = discoverGitWorkspaces('/repo/main', { noSharedWorktreeSpecs: false });
+
+    expect(result).toEqual([
+      {
+        workspacePath: '/repo/main',
+        workflowRootPath: '/repo/main',
+        repoRootPath: '/repo/main',
+        repoName: 'main',
+        isMainWorkspace: true
+      },
+      {
+        workspacePath: '/repo/wt-a',
+        workflowRootPath: '/repo/main',
+        repoRootPath: '/repo/main',
+        repoName: 'main',
+        isMainWorkspace: false
+      },
+      {
+        workspacePath: '/repo/wt-b',
+        workflowRootPath: '/repo/main',
+        repoRootPath: '/repo/main',
+        repoName: 'main',
+        isMainWorkspace: false
+      }
+    ]);
+  });
+
+  it('uses workspace-local workflow roots when no-shared mode is enabled', () => {
+    mockedExecSync.mockImplementation((command: string) => {
+      if (command === 'git rev-parse --show-toplevel') {
+        return '/repo/main\n';
+      }
+      if (command === 'git rev-parse --git-common-dir') {
+        return '.git\n';
+      }
+      if (command === 'git worktree list --porcelain') {
+        return [
+          'worktree /repo/main',
+          'HEAD 1111111',
+          'branch refs/heads/main',
+          '',
+          'worktree /repo/wt-a',
+          'HEAD 3333333',
+          'branch refs/heads/wt-a'
+        ].join('\n');
+      }
+      throw new Error(`Unexpected git command: ${command}`);
+    });
+
+    const result = discoverGitWorkspaces('/repo/main', { noSharedWorktreeSpecs: true });
+
+    expect(result).toEqual([
+      {
+        workspacePath: '/repo/main',
+        workflowRootPath: '/repo/main',
+        repoRootPath: '/repo/main',
+        repoName: 'main',
+        isMainWorkspace: true
+      },
+      {
+        workspacePath: '/repo/wt-a',
+        workflowRootPath: '/repo/wt-a',
+        repoRootPath: '/repo/main',
+        repoName: 'main',
+        isMainWorkspace: false
+      }
+    ]);
+  });
+
+  it('falls back to the current workspace when git worktree listing fails', () => {
+    mockedExecSync.mockImplementation((command: string) => {
+      if (command === 'git rev-parse --show-toplevel') {
+        return '/repo/main\n';
+      }
+      if (command === 'git rev-parse --git-common-dir') {
+        return '.git\n';
+      }
+      if (command === 'git worktree list --porcelain') {
+        throw new Error('worktree listing unavailable');
+      }
+      throw new Error(`Unexpected git command: ${command}`);
+    });
+
+    const result = discoverGitWorkspaces('/repo/main', { noSharedWorktreeSpecs: true });
+
+    expect(result).toEqual([
+      {
+        workspacePath: '/repo/main',
+        workflowRootPath: '/repo/main',
+        repoRootPath: '/repo/main',
+        repoName: 'main',
+        isMainWorkspace: true
+      }
+    ]);
   });
 });

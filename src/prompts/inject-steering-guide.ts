@@ -28,7 +28,7 @@ async function handler(args: Record<string, any>, context: ToolContext): Promise
 ${guide}
 
 **Current Context:**
-- Project: ${context.projectPath}
+- Project: ${context.workspacePath || context.projectPath}
 ${dashboardUrl ? `- Dashboard: ${dashboardUrl}` : '- Dashboard: Please start the dashboard or use VS Code extension "Spec Workflow MCP"'}
 
 **Next Steps:**
@@ -42,6 +42,7 @@ ${nextSteps.map(step => `- ${step}`).join('\n')}
 5. Create documents in .spec-workflow/steering/ directory
 6. Request approval after each document using the approvals tool
 7. Never proceed to the next document without successful approval cleanup
+8. If you are working in a git worktree via a shared MCP server, pass projectPath explicitly to stateful tools so they bind to the correct worktree
 
 **Note:** Steering documents are NOT part of the standard spec workflow. They are project-level guidance documents that should only be created when explicitly requested by the user. These documents establish vision, architecture, and conventions for established codebases.
 

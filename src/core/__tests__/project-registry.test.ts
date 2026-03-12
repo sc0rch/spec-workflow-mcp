@@ -48,6 +48,21 @@ describe('ProjectRegistry worktree identity', () => {
     expect(projectIdA).not.toBe(projectIdB);
   });
 
+  it('preserves explicit project names for isolated worktrees', async () => {
+    const registry = new ProjectRegistry();
+    const workspacePath = '/tmp/worktrees/feature-payments';
+    const workflowRootPath = workspacePath;
+
+    const projectId = await registry.registerProject(workspacePath, process.pid, {
+      workflowRootPath,
+      projectName: 'my-repo · feature-payments'
+    });
+    const entry = await registry.getProjectById(projectId);
+
+    expect(entry).not.toBeNull();
+    expect(entry?.projectName).toBe('my-repo · feature-payments');
+  });
+
   it('normalizes legacy entries without workflowRootPath', async () => {
     const workspacePath = '/tmp/my-repo';
     const projectId = generateProjectId(workspacePath);

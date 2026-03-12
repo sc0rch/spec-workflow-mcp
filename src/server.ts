@@ -14,8 +14,9 @@ import { validateProjectPath } from './core/path-utils.js';
 import { WorkspaceInitializer } from './core/workspace-initializer.js';
 import { ProjectRegistry } from './core/project-registry.js';
 import { DashboardSessionManager } from './core/dashboard-session.js';
+import { discoverGitWorkspaces } from './core/git-utils.js';
 import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
 
 export class SpecWorkflowMCPServer {
@@ -24,6 +25,7 @@ export class SpecWorkflowMCPServer {
   private workspacePath!: string; // workspace/worktree path for identity in registry
   private projectRegistry: ProjectRegistry;
   private lang?: string;
+  private registeredWorkspacePaths: Set<string> = new Set();
 
   constructor() {
     // Get version from package.json
@@ -56,28 +58,62 @@ export class SpecWorkflowMCPServer {
     this.projectRegistry = new ProjectRegistry();
   }
 
-  async initialize(projectPath: string, workspacePath: string, lang?: string) {
+  async initialize(
+    projectPath: string,
+    workspacePath: string,
+    options: {
+      lang?: string;
+      noSharedWorktreeSpecs?: boolean;
+    } = {}
+  ) {
     this.projectPath = projectPath;
     this.workspacePath = workspacePath;
-    this.lang = lang;
+    this.lang = options.lang;
 
     try {
-      // Validate project path
-      await validateProjectPath(this.projectPath);
-      await validateProjectPath(this.workspacePath);
+      const discoveredProjects = discoverGitWorkspaces(this.workspacePath, {
+        noSharedWorktreeSpecs: options.noSharedWorktreeSpecs
+      });
+      const validProjects = [];
 
-      // Initialize workspace
+      for (const descriptor of discoveredProjects) {
+        try {
+          await validateProjectPath(descriptor.workspacePath);
+          await validateProjectPath(descriptor.workflowRootPath);
+          validProjects.push(descriptor);
+        } catch (error: any) {
+          console.error(
+            `Skipping project registration for ${descriptor.workspacePath}: ${error.message}`
+          );
+        }
+      }
+
+      if (validProjects.length === 0) {
+        throw new Error('No valid workspace paths found for MCP registration');
+      }
+
+      // Initialize every unique workflow root so templates exist regardless of
+      // whether a project is the main repo or an isolated worktree.
       const __dirname = dirname(fileURLToPath(import.meta.url));
       const packageJsonPath = join(__dirname, '..', 'package.json');
       const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-      const workspaceInitializer = new WorkspaceInitializer(this.projectPath, packageJson.version);
-      await workspaceInitializer.initializeWorkspace();
+      const workflowRoots = Array.from(new Set(validProjects.map(project => project.workflowRootPath)));
+      for (const workflowRootPath of workflowRoots) {
+        const workspaceInitializer = new WorkspaceInitializer(workflowRootPath, packageJson.version);
+        await workspaceInitializer.initializeWorkspace();
+      }
 
-      // Register this project in the global registry
-      const projectId = await this.projectRegistry.registerProject(this.workspacePath, process.pid, {
-        workflowRootPath: this.projectPath
-      });
-      console.error(`Project registered: ${projectId}`);
+      for (const descriptor of validProjects) {
+        const projectName = descriptor.isMainWorkspace
+          ? descriptor.repoName
+          : `${descriptor.repoName} · ${basename(descriptor.workspacePath)}`;
+        const projectId = await this.projectRegistry.registerProject(descriptor.workspacePath, process.pid, {
+          workflowRootPath: descriptor.workflowRootPath,
+          projectName
+        });
+        this.registeredWorkspacePaths.add(descriptor.workspacePath);
+        console.error(`Project registered: ${projectId} (${projectName})`);
+      }
 
       // Try to get the dashboard URL from session manager
       let dashboardUrl: string | undefined = undefined;
@@ -94,6 +130,8 @@ export class SpecWorkflowMCPServer {
       // Create context for tools
       const context = {
         projectPath: this.projectPath,
+        workspacePath: this.workspacePath,
+        noSharedWorktreeSpecs: !!options.noSharedWorktreeSpecs,
         dashboardUrl: dashboardUrl,
         lang: this.lang
       };
@@ -184,8 +222,14 @@ export class SpecWorkflowMCPServer {
       // In Docker, projects should persist across sessions since we can't verify host PIDs
       if (!this.isDockerMode()) {
         try {
-          // Pass current PID to only remove this specific instance
-          await this.projectRegistry.unregisterProject(this.workspacePath, process.pid);
+          const workspacePaths = this.registeredWorkspacePaths.size > 0
+            ? Array.from(this.registeredWorkspacePaths)
+            : [this.workspacePath];
+
+          for (const workspacePath of workspacePaths) {
+            await this.projectRegistry.unregisterProject(workspacePath, process.pid);
+          }
+          this.registeredWorkspacePaths.clear();
           console.error('Project instance unregistered from global registry');
         } catch (error) {
           // Ignore errors during cleanup

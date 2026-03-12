@@ -4,7 +4,8 @@ import { logImplementationHandler } from '../log-implementation.js';
 import { approvalsHandler } from '../approvals.js';
 import { ToolContext } from '../../types.js';
 import { dirname, join } from 'path';
-import { mkdtemp, mkdir, rm, writeFile } from 'fs/promises';
+import { homedir } from 'os';
+import { mkdtemp, mkdir, readdir, rm, writeFile } from 'fs/promises';
 
 describe('Tool projectPath fallback behavior', () => {
   const mockContext: ToolContext = {
@@ -13,6 +14,17 @@ describe('Tool projectPath fallback behavior', () => {
   };
 
   describe('spec-status tool', () => {
+    async function createWorkspacePair(prefix: string): Promise<{ mainRepo: string; worktree: string }> {
+      const tempRoot = join(homedir(), '.tmp-test-worktrees');
+      await mkdir(tempRoot, { recursive: true });
+      const pairRoot = await mkdtemp(join(tempRoot, prefix));
+      const mainRepo = join(pairRoot, 'repo-main');
+      const worktree = join(pairRoot, 'repo-wt-a');
+      await mkdir(mainRepo, { recursive: true });
+      await mkdir(worktree, { recursive: true });
+      return { mainRepo, worktree };
+    }
+
     it('should use context.projectPath when args.projectPath is not provided', async () => {
       const result = await specStatusHandler(
         { specName: 'test-spec' },
@@ -47,6 +59,32 @@ describe('Tool projectPath fallback behavior', () => {
       
       expect(result.success).toBe(false);
       expect(result.message).toContain('Project path is required but not provided');
+    });
+
+    it('uses explicit projectPath as a worktree selector in no-shared mode', async () => {
+      const { mainRepo, worktree } = await createWorkspacePair('specwf-status-');
+      const requirementsPath = join(worktree, '.spec-workflow', 'specs', 'worktree-spec', 'requirements.md');
+
+      try {
+        await mkdir(dirname(requirementsPath), { recursive: true });
+        await writeFile(requirementsPath, '# Requirements\n', 'utf-8');
+
+        const result = await specStatusHandler(
+          { specName: 'worktree-spec', projectPath: worktree },
+          {
+            projectPath: mainRepo,
+            workspacePath: mainRepo,
+            noSharedWorktreeSpecs: true,
+            dashboardUrl: 'http://localhost:5000'
+          }
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.projectContext?.projectPath).toBe(worktree);
+        expect(result.projectContext?.workflowRoot).toBe(join(worktree, '.spec-workflow'));
+      } finally {
+        await rm(join(mainRepo, '..'), { recursive: true, force: true });
+      }
     });
   });
 
@@ -93,7 +131,7 @@ describe('Tool projectPath fallback behavior', () => {
 
   describe('approvals tool', () => {
     async function createTempProject(prefix: string): Promise<string> {
-      const tempRoot = join(process.cwd(), '.tmp-test-approvals');
+      const tempRoot = join(homedir(), '.tmp-test-approvals');
       await mkdir(tempRoot, { recursive: true });
       return mkdtemp(join(tempRoot, prefix));
     }
@@ -253,6 +291,50 @@ describe('Tool projectPath fallback behavior', () => {
         expect(result.nextSteps?.some(step => step.includes('mdx-compile-error'))).toBe(true);
       } finally {
         await rm(tempProject, { recursive: true, force: true });
+      }
+    });
+
+    it('stores approvals in the selected worktree workflow root in no-shared mode', async () => {
+      const tempRoot = join(homedir(), '.tmp-test-approvals');
+      await mkdir(tempRoot, { recursive: true });
+      const pairRoot = await mkdtemp(join(tempRoot, 'specwf-worktree-'));
+      const mainRepo = join(pairRoot, 'repo-main');
+      const worktree = join(pairRoot, 'repo-wt-a');
+      const relativePath = '.spec-workflow/specs/test-spec/requirements.md';
+      const absolutePath = join(worktree, relativePath);
+
+      try {
+        await mkdir(mainRepo, { recursive: true });
+        await mkdir(dirname(absolutePath), { recursive: true });
+        await writeFile(absolutePath, '# Requirements\n', 'utf-8');
+
+        const result = await approvalsHandler(
+          {
+            action: 'request',
+            projectPath: worktree,
+            title: 'Review worktree requirements',
+            filePath: relativePath,
+            type: 'document',
+            category: 'spec',
+            categoryName: 'test-spec'
+          },
+          {
+            projectPath: mainRepo,
+            workspacePath: mainRepo,
+            noSharedWorktreeSpecs: true,
+            dashboardUrl: 'http://localhost:5000'
+          }
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.projectContext?.projectPath).toBe(worktree);
+        expect(result.projectContext?.workflowRoot).toBe(join(worktree, '.spec-workflow'));
+
+        const approvalFiles = (await readdir(join(worktree, '.spec-workflow', 'approvals', 'test-spec')))
+          .filter(fileName => fileName.endsWith('.json'));
+        expect(approvalFiles).toHaveLength(1);
+      } finally {
+        await rm(pairRoot, { recursive: true, force: true });
       }
     });
   });

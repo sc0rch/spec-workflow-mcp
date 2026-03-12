@@ -362,7 +362,10 @@ async function main() {
 
       const server = new SpecWorkflowMCPServer();
 
-      await server.initialize(workflowRootPath, workspacePath, lang);
+      await server.initialize(workflowRootPath, workspacePath, {
+        lang,
+        noSharedWorktreeSpecs
+      });
 
       // Handle graceful shutdown
       process.on('SIGINT', async () => {
