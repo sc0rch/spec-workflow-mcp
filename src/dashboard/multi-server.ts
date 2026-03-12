@@ -90,11 +90,17 @@ export class MultiProjectDashboardServer {
   }
 
   private getPublicDashboardHost(): string {
-    // Prefer an explicit IPv4 loopback URL for local dashboards. On some macOS
-    // setups, `localhost` resolves to `::1`, where another system service may
-    // already be listening on the same port.
-    if (this.bindAddress === 'localhost' || this.bindAddress === '::1' || this.bindAddress === '::' || this.bindAddress === '0.0.0.0') {
-      return '127.0.0.1';
+    // Use localhost for browser-facing local URLs. The default dashboard port
+    // avoids the macOS system-service conflict on port 5000, so localhost is
+    // safe again and provides a nicer default user experience.
+    if (
+      this.bindAddress === '127.0.0.1' ||
+      this.bindAddress === 'localhost' ||
+      this.bindAddress === '::1' ||
+      this.bindAddress === '::' ||
+      this.bindAddress === '0.0.0.0'
+    ) {
+      return 'localhost';
     }
 
     return this.bindAddress;

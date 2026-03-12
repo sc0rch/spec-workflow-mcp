@@ -8,8 +8,8 @@ import { writeFile, appendFile, mkdir, readFile } from 'fs/promises';
 import { join } from 'path';
 import { SecurityConfig } from '../types.js';
 
-// Default port for the dashboard
-export const DEFAULT_DASHBOARD_PORT = 5000;
+// Port 5000 is commonly occupied by macOS system services on localhost.
+export const DEFAULT_DASHBOARD_PORT = 5091;
 
 // Default security configuration (secure by default)
 // Note: allowedOrigins should be dynamically generated based on the actual port

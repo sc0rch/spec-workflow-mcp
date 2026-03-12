@@ -65,12 +65,12 @@ Add to your MCP configuration (see client-specific setup below):
 ### Step 2: Choose your interface
 
 **Option A: Web Dashboard** (Required for CLI users)
-Start the dashboard (runs on port 5000 by default):
+Start the dashboard (runs on port 5091 by default):
 ```bash
 npx -y @sc0rch/spec-workflow-mcp@latest --dashboard
 ```
 
-The dashboard will be accessible at: http://localhost:5000
+The dashboard will be accessible at: http://localhost:5091
 
 > **Note:** Only one dashboard instance is needed. All your projects will connect to the same dashboard.
 
@@ -248,10 +248,10 @@ docker-compose up --build
 
 # Or using Docker CLI
 docker build -f containers/Dockerfile -t spec-workflow-mcp .
-docker run -p 5000:5000 -v "./workspace/.spec-workflow:/workspace/.spec-workflow:rw" spec-workflow-mcp
+docker run -p 5091:5091 -v "./workspace/.spec-workflow:/workspace/.spec-workflow:rw" spec-workflow-mcp
 ```
 
-The dashboard will be available at: http://localhost:5000
+The dashboard will be available at: http://localhost:5091
 
 [See Docker setup guide →](containers/README.md)
 
@@ -300,7 +300,7 @@ server {
     auth_basic_user_file /etc/nginx/.htpasswd;
     
     location / {
-        proxy_pass http://127.0.0.1:5000;
+        proxy_pass http://127.0.0.1:5091;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";

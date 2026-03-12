@@ -3,16 +3,15 @@
 import { SpecWorkflowMCPServer } from './server.js';
 import { MultiProjectDashboardServer } from './dashboard/multi-server.js';
 import { DashboardSessionManager } from './core/dashboard-session.js';
+import { DEFAULT_DASHBOARD_PORT } from './core/security-utils.js';
 import { homedir } from 'os';
 import { resolveGitRoot, resolveGitWorkspaceRoot } from './core/git-utils.js';
 import { resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { realpathSync } from 'fs';
 
-// Default dashboard port
-const DEFAULT_DASHBOARD_PORT = 5000;
-
 function showHelp() {
+  const defaultDashboardUrl = `http://localhost:${DEFAULT_DASHBOARD_PORT}`;
   console.error(`
 Spec Workflow MCP Server - A Model Context Protocol server for spec-driven development
 
@@ -27,8 +26,8 @@ OPTIONS:
   --help                  Show this help message
   --dashboard             Run dashboard-only mode (no MCP server)
   --port <number>         Specify dashboard port (1024-65535)
-                         Default: 5000
-                         Only use if port 5000 is unavailable
+                         Default: ${DEFAULT_DASHBOARD_PORT}
+                         Only use if port ${DEFAULT_DASHBOARD_PORT} is unavailable
   --no-open               Don't automatically open browser when starting dashboard
                          Useful in restricted environments where browser launch is blocked
   --no-shared-worktree-specs
@@ -37,7 +36,7 @@ OPTIONS:
 
 IMPORTANT:
   Only ONE dashboard instance runs at a time. All MCP servers connect to the
-  same dashboard. The dashboard runs on port 5000 by default.
+  same dashboard. The dashboard runs on port ${DEFAULT_DASHBOARD_PORT} by default.
 
 MODES OF OPERATION:
 
@@ -52,7 +51,7 @@ MODES OF OPERATION:
    spec-workflow-mcp --dashboard --port 8080
    spec-workflow-mcp --dashboard --no-open
 
-   Runs only the web dashboard without MCP server (default port: 5000).
+   Runs only the web dashboard without MCP server (default port: ${DEFAULT_DASHBOARD_PORT}).
    Projects will automatically appear in the dashboard as MCP servers register.
    Only one dashboard instance is needed for all your projects.
    Use --no-open to prevent automatic browser launch (useful in restricted environments).
@@ -64,10 +63,10 @@ EXAMPLES:
   # Start MCP server in a specific project directory
   spec-workflow-mcp ~/projects/my-app
 
-  # Run dashboard (default port 5000) - START THIS FIRST
+  # Run dashboard (default port ${DEFAULT_DASHBOARD_PORT}) - START THIS FIRST
   spec-workflow-mcp --dashboard
 
-  # Run dashboard on custom port (if 5000 is unavailable)
+  # Run dashboard on custom port (if ${DEFAULT_DASHBOARD_PORT} is unavailable)
   spec-workflow-mcp --dashboard --port 8080
 
 TYPICAL WORKFLOW:
@@ -79,7 +78,7 @@ TYPICAL WORKFLOW:
      spec-workflow-mcp ~/project2
      spec-workflow-mcp ~/project3
 
-  All projects will appear in the same dashboard at http://localhost:5000
+  All projects will appear in the same dashboard at ${defaultDashboardUrl}
 
 PARAMETER FORMATS:
   --port 3456             Space-separated format

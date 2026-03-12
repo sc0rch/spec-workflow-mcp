@@ -47,16 +47,16 @@ ENV NODE_ENV=production
 
 # Docker networking: Bind to 0.0.0.0 inside container (required for port forwarding to work)
 # Security is controlled by Docker's port mapping (see docker-compose.yml)
-# - Default: 127.0.0.1:5000:5000 exposes only to host's localhost (secure)
-# - Optional: 0.0.0.0:5000:5000 or 5000:5000 exposes to all interfaces (use with caution)
+# - Default: 127.0.0.1:5091:5091 exposes only to host's localhost (secure)
+# - Optional: 0.0.0.0:5091:5091 or 5091:5091 exposes to all interfaces (use with caution)
 ENV SPEC_WORKFLOW_BIND_ADDRESS=0.0.0.0
 ENV SPEC_WORKFLOW_ALLOW_EXTERNAL_ACCESS=true
 
-EXPOSE 5000
+EXPOSE 5091
 
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
 # Run as non-root user with secure defaults
 # Use shell form for CMD to enable environment variable expansion
-CMD node /app/dist/index.js ${SPEC_WORKFLOW_PATH:-/workspace} --dashboard --port ${DASHBOARD_PORT:-5000}
+CMD node /app/dist/index.js ${SPEC_WORKFLOW_PATH:-/workspace} --dashboard --port ${DASHBOARD_PORT:-5091}

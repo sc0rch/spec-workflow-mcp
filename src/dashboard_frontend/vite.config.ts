@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react';
 
 // Dashboard port - matches DEFAULT_DASHBOARD_PORT in security-utils.ts
 // Can be overridden via VITE_DASHBOARD_PORT environment variable
-const dashboardPort = process.env.VITE_DASHBOARD_PORT || '5000';
+const dashboardPort = process.env.VITE_DASHBOARD_PORT || '5091';
 
 // Dynamically import Tailwind CSS v4 plugin
 async function createConfig() {
@@ -23,11 +23,11 @@ async function createConfig() {
     server: {
       proxy: {
         '/api': {
-          target: `http://localhost:${dashboardPort}`,
+          target: `http://127.0.0.1:${dashboardPort}`,
           changeOrigin: true,
         },
         '/ws': {
-          target: `ws://localhost:${dashboardPort}`,
+          target: `ws://127.0.0.1:${dashboardPort}`,
           ws: true,
         },
       },

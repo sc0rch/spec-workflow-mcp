@@ -7,6 +7,7 @@ import {
   getSecurityConfig,
   generateAllowedOrigins,
   DEFAULT_SECURITY_CONFIG,
+  DEFAULT_DASHBOARD_PORT,
   VITE_DEV_PORT,
   RateLimiter,
   AuditLogger,
@@ -63,8 +64,8 @@ describe('security-utils', () => {
       expect(DEFAULT_SECURITY_CONFIG.auditLogEnabled).toBe(true);
       expect(DEFAULT_SECURITY_CONFIG.auditLogRetentionDays).toBe(30);
       expect(DEFAULT_SECURITY_CONFIG.corsEnabled).toBe(true);
-      expect(DEFAULT_SECURITY_CONFIG.allowedOrigins).toContain('http://localhost:5000');
-      expect(DEFAULT_SECURITY_CONFIG.allowedOrigins).toContain('http://127.0.0.1:5000');
+      expect(DEFAULT_SECURITY_CONFIG.allowedOrigins).toContain(`http://localhost:${DEFAULT_DASHBOARD_PORT}`);
+      expect(DEFAULT_SECURITY_CONFIG.allowedOrigins).toContain(`http://127.0.0.1:${DEFAULT_DASHBOARD_PORT}`);
     });
   });
 
@@ -76,14 +77,14 @@ describe('security-utils', () => {
     });
 
     it('should include dashboard port origins', () => {
-      const origins = generateAllowedOrigins(5000);
-      expect(origins).toContain('http://localhost:5000');
-      expect(origins).toContain('http://127.0.0.1:5000');
+      const origins = generateAllowedOrigins(DEFAULT_DASHBOARD_PORT);
+      expect(origins).toContain(`http://localhost:${DEFAULT_DASHBOARD_PORT}`);
+      expect(origins).toContain(`http://127.0.0.1:${DEFAULT_DASHBOARD_PORT}`);
     });
 
     it('should include Vite dev port in non-production environments', () => {
       process.env.NODE_ENV = 'development';
-      const origins = generateAllowedOrigins(5000);
+      const origins = generateAllowedOrigins(DEFAULT_DASHBOARD_PORT);
       expect(origins).toContain(`http://localhost:${VITE_DEV_PORT}`);
       expect(origins).toContain(`http://127.0.0.1:${VITE_DEV_PORT}`);
     });
@@ -92,14 +93,14 @@ describe('security-utils', () => {
       // This is the key test - when NODE_ENV is not set, we should still include Vite dev port
       // because we check !== 'production' rather than === 'development'
       delete process.env.NODE_ENV;
-      const origins = generateAllowedOrigins(5000);
+      const origins = generateAllowedOrigins(DEFAULT_DASHBOARD_PORT);
       expect(origins).toContain(`http://localhost:${VITE_DEV_PORT}`);
       expect(origins).toContain(`http://127.0.0.1:${VITE_DEV_PORT}`);
     });
 
     it('should NOT include Vite dev port in production', () => {
       process.env.NODE_ENV = 'production';
-      const origins = generateAllowedOrigins(5000);
+      const origins = generateAllowedOrigins(DEFAULT_DASHBOARD_PORT);
       expect(origins).not.toContain(`http://localhost:${VITE_DEV_PORT}`);
       expect(origins).not.toContain(`http://127.0.0.1:${VITE_DEV_PORT}`);
     });
@@ -121,8 +122,8 @@ describe('security-utils', () => {
       expect(config.auditLogRetentionDays).toBe(DEFAULT_SECURITY_CONFIG.auditLogRetentionDays);
       expect(config.corsEnabled).toBe(DEFAULT_SECURITY_CONFIG.corsEnabled);
       // allowedOrigins includes default port + Vite dev port (5173) in non-production
-      expect(config.allowedOrigins).toContain('http://localhost:5000');
-      expect(config.allowedOrigins).toContain('http://127.0.0.1:5000');
+      expect(config.allowedOrigins).toContain(`http://localhost:${DEFAULT_DASHBOARD_PORT}`);
+      expect(config.allowedOrigins).toContain(`http://127.0.0.1:${DEFAULT_DASHBOARD_PORT}`);
     });
 
     it('should merge user config with defaults', () => {

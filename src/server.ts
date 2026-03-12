@@ -14,24 +14,34 @@ import { validateProjectPath } from './core/path-utils.js';
 import { WorkspaceInitializer } from './core/workspace-initializer.js';
 import { ProjectRegistry } from './core/project-registry.js';
 import { DashboardSessionManager } from './core/dashboard-session.js';
-import { discoverGitWorkspaces } from './core/git-utils.js';
+import { discoverGitWorkspaces, GitWorkspaceDescriptor } from './core/git-utils.js';
+import { buildWorktreeSyncPlan } from './core/worktree-sync.js';
 import { readFileSync } from 'fs';
 import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
 
 export class SpecWorkflowMCPServer {
+  private static readonly WORKTREE_SYNC_INTERVAL_MS = 3000;
+
   private server: Server;
   private projectPath!: string;   // workflowRootPath for .spec-workflow operations
   private workspacePath!: string; // workspace/worktree path for identity in registry
   private projectRegistry: ProjectRegistry;
+  private packageVersion: string;
   private lang?: string;
+  private noSharedWorktreeSpecs: boolean = false;
   private registeredWorkspacePaths: Set<string> = new Set();
+  private initializedWorkflowRoots: Set<string> = new Set();
+  private worktreeSyncTimer?: NodeJS.Timeout;
+  private worktreeSyncPromise?: Promise<void>;
+  private isStopping: boolean = false;
 
   constructor() {
     // Get version from package.json
     const __dirname = dirname(fileURLToPath(import.meta.url));
     const packageJsonPath = join(__dirname, '..', 'package.json');
     const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+    this.packageVersion = packageJson.version;
 
     // Get all registered tools and prompts
     const tools = registerTools();
@@ -69,51 +79,12 @@ export class SpecWorkflowMCPServer {
     this.projectPath = projectPath;
     this.workspacePath = workspacePath;
     this.lang = options.lang;
+    this.noSharedWorktreeSpecs = !!options.noSharedWorktreeSpecs;
+    this.isStopping = false;
 
     try {
-      const discoveredProjects = discoverGitWorkspaces(this.workspacePath, {
-        noSharedWorktreeSpecs: options.noSharedWorktreeSpecs
-      });
-      const validProjects = [];
-
-      for (const descriptor of discoveredProjects) {
-        try {
-          await validateProjectPath(descriptor.workspacePath);
-          await validateProjectPath(descriptor.workflowRootPath);
-          validProjects.push(descriptor);
-        } catch (error: any) {
-          console.error(
-            `Skipping project registration for ${descriptor.workspacePath}: ${error.message}`
-          );
-        }
-      }
-
-      if (validProjects.length === 0) {
-        throw new Error('No valid workspace paths found for MCP registration');
-      }
-
-      // Initialize every unique workflow root so templates exist regardless of
-      // whether a project is the main repo or an isolated worktree.
-      const __dirname = dirname(fileURLToPath(import.meta.url));
-      const packageJsonPath = join(__dirname, '..', 'package.json');
-      const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-      const workflowRoots = Array.from(new Set(validProjects.map(project => project.workflowRootPath)));
-      for (const workflowRootPath of workflowRoots) {
-        const workspaceInitializer = new WorkspaceInitializer(workflowRootPath, packageJson.version);
-        await workspaceInitializer.initializeWorkspace();
-      }
-
-      for (const descriptor of validProjects) {
-        const projectName = descriptor.isMainWorkspace
-          ? descriptor.repoName
-          : `${descriptor.repoName} · ${basename(descriptor.workspacePath)}`;
-        const projectId = await this.projectRegistry.registerProject(descriptor.workspacePath, process.pid, {
-          workflowRootPath: descriptor.workflowRootPath,
-          projectName
-        });
-        this.registeredWorkspacePaths.add(descriptor.workspacePath);
-        console.error(`Project registered: ${projectId} (${projectName})`);
-      }
+      await this.syncDiscoveredWorkspaces({ throwOnEmpty: true });
+      this.startHotWorktreeDiscovery();
 
       // Try to get the dashboard URL from session manager
       let dashboardUrl: string | undefined = undefined;
@@ -170,6 +141,117 @@ export class SpecWorkflowMCPServer {
     }
   }
 
+  private async validateDiscoveredProjects(): Promise<GitWorkspaceDescriptor[]> {
+    const discoveredProjects = discoverGitWorkspaces(this.workspacePath, {
+      noSharedWorktreeSpecs: this.noSharedWorktreeSpecs
+    });
+    const validProjects: GitWorkspaceDescriptor[] = [];
+
+    for (const descriptor of discoveredProjects) {
+      try {
+        await validateProjectPath(descriptor.workspacePath);
+        await validateProjectPath(descriptor.workflowRootPath);
+        validProjects.push(descriptor);
+      } catch (error: any) {
+        console.error(
+          `Skipping project registration for ${descriptor.workspacePath}: ${error.message}`
+        );
+      }
+    }
+
+    return validProjects;
+  }
+
+  private async initializeWorkflowRoots(projects: GitWorkspaceDescriptor[]): Promise<void> {
+    const workflowRoots = Array.from(new Set(projects.map(project => project.workflowRootPath)));
+
+    for (const workflowRootPath of workflowRoots) {
+      if (this.initializedWorkflowRoots.has(workflowRootPath)) {
+        continue;
+      }
+
+      const workspaceInitializer = new WorkspaceInitializer(workflowRootPath, this.packageVersion);
+      await workspaceInitializer.initializeWorkspace();
+      this.initializedWorkflowRoots.add(workflowRootPath);
+    }
+  }
+
+  private async registerProject(descriptor: GitWorkspaceDescriptor): Promise<void> {
+    const projectName = descriptor.isMainWorkspace
+      ? descriptor.repoName
+      : `${descriptor.repoName} · ${basename(descriptor.workspacePath)}`;
+    const projectId = await this.projectRegistry.registerProject(descriptor.workspacePath, process.pid, {
+      workflowRootPath: descriptor.workflowRootPath,
+      projectName
+    });
+    this.registeredWorkspacePaths.add(descriptor.workspacePath);
+    console.error(`Project registered: ${projectId} (${projectName})`);
+  }
+
+  private async unregisterProject(workspacePath: string): Promise<void> {
+    await this.projectRegistry.unregisterProject(workspacePath, process.pid);
+    this.registeredWorkspacePaths.delete(workspacePath);
+    console.error(`Project unregistered: ${workspacePath}`);
+  }
+
+  private async performWorktreeSync(options: { throwOnEmpty?: boolean } = {}): Promise<void> {
+    if (this.isStopping) {
+      return;
+    }
+
+    const validProjects = await this.validateDiscoveredProjects();
+    if (validProjects.length === 0) {
+      if (options.throwOnEmpty) {
+        throw new Error('No valid workspace paths found for MCP registration');
+      }
+      return;
+    }
+
+    await this.initializeWorkflowRoots(validProjects);
+
+    const syncPlan = buildWorktreeSyncPlan(this.registeredWorkspacePaths, validProjects);
+    for (const descriptor of syncPlan.addedProjects) {
+      if (this.isStopping) {
+        return;
+      }
+      await this.registerProject(descriptor);
+    }
+
+    for (const workspacePath of syncPlan.removedWorkspacePaths) {
+      if (this.isStopping) {
+        return;
+      }
+      await this.unregisterProject(workspacePath);
+    }
+  }
+
+  private async syncDiscoveredWorkspaces(options: { throwOnEmpty?: boolean } = {}): Promise<void> {
+    if (this.worktreeSyncPromise) {
+      return this.worktreeSyncPromise;
+    }
+
+    const syncPromise = this.performWorktreeSync(options).finally(() => {
+      if (this.worktreeSyncPromise === syncPromise) {
+        this.worktreeSyncPromise = undefined;
+      }
+    });
+    this.worktreeSyncPromise = syncPromise;
+    return syncPromise;
+  }
+
+  private startHotWorktreeDiscovery(): void {
+    if (this.worktreeSyncTimer) {
+      clearInterval(this.worktreeSyncTimer);
+    }
+
+    this.worktreeSyncTimer = setInterval(() => {
+      void this.syncDiscoveredWorkspaces().catch((error: any) => {
+        console.error(`Worktree discovery sync failed: ${error.message}`);
+      });
+    }, SpecWorkflowMCPServer.WORKTREE_SYNC_INTERVAL_MS);
+    this.worktreeSyncTimer.unref();
+  }
+
   private setupHandlers(context: any) {
     // Tool handlers
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -218,6 +300,15 @@ export class SpecWorkflowMCPServer {
 
   async stop() {
     try {
+      this.isStopping = true;
+      if (this.worktreeSyncTimer) {
+        clearInterval(this.worktreeSyncTimer);
+        this.worktreeSyncTimer = undefined;
+      }
+      if (this.worktreeSyncPromise) {
+        await this.worktreeSyncPromise.catch(() => {});
+      }
+
       // Only unregister when NOT in Docker mode
       // In Docker, projects should persist across sessions since we can't verify host PIDs
       if (!this.isDockerMode()) {
