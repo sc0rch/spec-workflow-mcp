@@ -55,7 +55,7 @@ describe('MultiProjectDashboardServer removed legacy routes', () => {
     await fs.rm(tempDir, { recursive: true, force: true });
   });
 
-  it('keeps removed changelog routes unavailable and treats snapshot as an invalid approval action', async () => {
+  it('keeps removed changelog and browser-automation routes unavailable and treats snapshot as an invalid approval action', async () => {
     const port = await getFreePort();
     server = new MultiProjectDashboardServer({ autoOpen: false, port });
     await server.start();
@@ -63,10 +63,24 @@ describe('MultiProjectDashboardServer removed legacy routes', () => {
     const removedRoutes = [
       { method: 'GET', path: '/api/changelog/2.2.6' },
       { method: 'GET', path: '/api/projects/demo/changelog/2.2.6' },
+      { method: 'GET', path: '/api/projects/demo/steering/product' },
+      { method: 'PUT', path: '/api/projects/demo/steering/product' },
+      { method: 'GET', path: '/api/jobs' },
+      { method: 'POST', path: '/api/jobs' },
+      { method: 'GET', path: '/api/jobs/job-1' },
+      { method: 'PUT', path: '/api/jobs/job-1' },
+      { method: 'DELETE', path: '/api/jobs/job-1' },
+      { method: 'POST', path: '/api/jobs/job-1/run' },
+      { method: 'GET', path: '/api/jobs/job-1/history' },
     ] as const;
 
     for (const route of removedRoutes) {
-      const response = await realFetch(`http://127.0.0.1:${port}${route.path}`, { method: route.method });
+      const hasBody = route.method === 'POST' || route.method === 'PUT';
+      const response = await realFetch(`http://127.0.0.1:${port}${route.path}`, {
+        method: route.method,
+        headers: hasBody ? { 'Content-Type': 'application/json' } : undefined,
+        body: hasBody ? JSON.stringify({}) : undefined,
+      });
       const body = await response.text();
 
       expect(response.status, `${route.method} ${route.path}`).toBe(404);

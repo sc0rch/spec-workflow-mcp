@@ -370,7 +370,6 @@ Fastify-based multi-project server with WebSocket support:
 export class MultiProjectDashboardServer {
   private app: FastifyInstance;
   private projectManager: ProjectManager;
-  private jobScheduler: JobScheduler;
   private clients: Map<string, Set<WebSocket>>;
 }
 ```
@@ -382,7 +381,6 @@ export class MultiProjectDashboardServer {
 - **WebSocket**: Real-time, project-scoped updates
 - **REST API**: Project-scoped CRUD operations
 - **File Watching**: Per-project auto-refresh on changes
-- **Job Scheduling**: Automated task execution
 - **Session Management**: Single dashboard instance enforcement
 
 ### Frontend (`src/dashboard_frontend/`)

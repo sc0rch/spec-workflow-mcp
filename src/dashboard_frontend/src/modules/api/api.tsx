@@ -23,7 +23,6 @@ export type Approval = {
 
 export type ProjectInfo = {
   projectName: string;
-  steering?: any;
   version?: string;
 };
 
@@ -103,7 +102,6 @@ type ApiDataContextType = {
   archivedSpecs: SpecSummary[];
   approvals: Approval[];
   info?: ProjectInfo;
-  steeringDocuments?: any;
   projectId: string | null;
 };
 
@@ -125,8 +123,6 @@ type ApiActionsContextType = {
   saveArchivedSpecDocument: (name: string, document: string, content: string) => Promise<{ ok: boolean; status: number }>;
   archiveSpec: (name: string) => Promise<{ ok: boolean; status: number }>;
   unarchiveSpec: (name: string) => Promise<{ ok: boolean; status: number }>;
-  getSteeringDocument: (name: string) => Promise<{ content: string; lastModified: string }>;
-  saveSteeringDocument: (name: string, content: string) => Promise<{ ok: boolean; status: number }>;
   addImplementationLog: (specName: string, logData: any) => Promise<{ ok: boolean; status: number; data?: any }>;
   getImplementationLogs: (specName: string, query?: { taskId?: string; search?: string }) => Promise<{ entries: ImplementationLogEntry[] }>;
   getImplementationLogStats: (specName: string, taskId: string) => Promise<any>;
@@ -147,7 +143,6 @@ export function ApiProvider({ initial, projectId, children }: ApiProviderProps) 
   const [archivedSpecs, setArchivedSpecs] = useState<SpecSummary[]>(initial?.archivedSpecs || []);
   const [approvals, setApprovals] = useState<Approval[]>(initial?.approvals || []);
   const [info, setInfo] = useState<ProjectInfo | undefined>(undefined);
-  const [steeringDocuments, setSteeringDocuments] = useState<any>(undefined);
 
   const reloadAll = useCallback(async () => {
     if (!projectId) return;
@@ -162,7 +157,6 @@ export function ApiProvider({ initial, projectId, children }: ApiProviderProps) 
     setArchivedSpecs(as);
     setApprovals(a);
     setInfo(i);
-    setSteeringDocuments(i.steering);
   }, [projectId]);
 
   // Load initial data when projectId changes
@@ -175,7 +169,6 @@ export function ApiProvider({ initial, projectId, children }: ApiProviderProps) 
       setArchivedSpecs([]);
       setApprovals([]);
       setInfo(undefined);
-      setSteeringDocuments(undefined);
     }
   }, [projectId, reloadAll]);
 
@@ -240,25 +233,13 @@ export function ApiProvider({ initial, projectId, children }: ApiProviderProps) 
       });
     };
 
-    const handleSteeringUpdate = (data: any) => {
-      setSteeringDocuments((prevDocs: ApiDataContextType['steeringDocuments']) => {
-        // Simple deep equality check for steering documents
-        if (JSON.stringify(prevDocs) === JSON.stringify(data)) {
-          return prevDocs;
-        }
-        return data;
-      });
-    };
-
     // Subscribe to websocket events that contain actual data
     subscribe('spec-update', handleSpecUpdate);
     subscribe('approval-update', handleApprovalUpdate);
-    subscribe('steering-update', handleSteeringUpdate);
 
     return () => {
       unsubscribe('spec-update', handleSpecUpdate);
       unsubscribe('approval-update', handleApprovalUpdate);
-      unsubscribe('steering-update', handleSteeringUpdate);
     };
   }, [subscribe, unsubscribe]);
 
@@ -268,9 +249,8 @@ export function ApiProvider({ initial, projectId, children }: ApiProviderProps) 
     archivedSpecs,
     approvals,
     info,
-    steeringDocuments,
     projectId,
-  }), [specs, archivedSpecs, approvals, info, steeringDocuments, projectId]);
+  }), [specs, archivedSpecs, approvals, info, projectId]);
 
   // Memoize actions context - stable functions that rarely change
   const actionsValue = useMemo<ApiActionsContextType>(() => {
@@ -293,8 +273,6 @@ export function ApiProvider({ initial, projectId, children }: ApiProviderProps) 
         saveArchivedSpecDocument: async () => ({ ok: false, status: 400 }),
         archiveSpec: async () => ({ ok: false, status: 400 }),
         unarchiveSpec: async () => ({ ok: false, status: 400 }),
-        getSteeringDocument: async () => ({ content: '', lastModified: '' }),
-        saveSteeringDocument: async () => ({ ok: false, status: 400 }),
         addImplementationLog: async () => ({ ok: false, status: 400 }),
         getImplementationLogs: async () => ({ entries: [] }),
         getImplementationLogStats: async () => ({}),
@@ -326,8 +304,6 @@ export function ApiProvider({ initial, projectId, children }: ApiProviderProps) 
         putJson(`${prefix}/specs/${encodeURIComponent(name)}/${encodeURIComponent(document)}/archived`, { content }),
       archiveSpec: (name: string) => postJson(`${prefix}/specs/${encodeURIComponent(name)}/archive`, {}),
       unarchiveSpec: (name: string) => postJson(`${prefix}/specs/${encodeURIComponent(name)}/unarchive`, {}),
-      getSteeringDocument: (name: string) => getJson(`${prefix}/steering/${encodeURIComponent(name)}`),
-      saveSteeringDocument: (name: string, content: string) => putJson(`${prefix}/steering/${encodeURIComponent(name)}`, { content }),
       addImplementationLog: (specName: string, logData: any) => postJson(`${prefix}/specs/${encodeURIComponent(specName)}/implementation-log`, logData),
       getImplementationLogs: (specName: string, query?: { taskId?: string; search?: string }) => {
         let url = `${prefix}/specs/${encodeURIComponent(specName)}/implementation-log`;

@@ -11,7 +11,6 @@ import { WebSocket } from 'ws';
 import { validateAndCheckPort, DASHBOARD_TEST_MESSAGE } from './utils.js';
 import { parseTasksFromMarkdown } from '../core/task-parser.js';
 import { ProjectManager } from './project-manager.js';
-import { JobScheduler } from './job-scheduler.js';
 import { ImplementationLogManager } from '../core/implementation-log-manager.js';
 import { SpecDocumentsService } from '../core/spec-documents.js';
 import { DashboardSessionManager } from '../core/dashboard-session.js';
@@ -47,7 +46,6 @@ export interface MultiDashboardOptions {
 export class MultiProjectDashboardServer {
   private app: FastifyInstance;
   private projectManager: ProjectManager;
-  private jobScheduler: JobScheduler;
   private sessionManager: DashboardSessionManager;
   private options: MultiDashboardOptions;
   private bindAddress: string;
@@ -69,7 +67,6 @@ export class MultiProjectDashboardServer {
   constructor(options: MultiDashboardOptions = {}) {
     this.options = options;
     this.projectManager = new ProjectManager();
-    this.jobScheduler = new JobScheduler(this.projectManager);
     this.sessionManager = new DashboardSessionManager();
 
     // Initialize network binding configuration
@@ -163,9 +160,6 @@ export class MultiProjectDashboardServer {
 
     // Initialize project manager
     await this.projectManager.initialize();
-
-    // Initialize job scheduler
-    await this.jobScheduler.initialize();
 
     // Register CORS plugin if enabled
     const corsConfig = getCorsConfig(this.securityConfig);
@@ -365,21 +359,6 @@ export class MultiProjectDashboardServer {
     this.projectManager.on('task-update', (event) => {
       const { projectId, specName } = event;
       this.broadcastTaskUpdate(projectId, specName);
-    });
-
-    // Broadcast steering changes
-    this.projectManager.on('steering-change', async (event) => {
-      try {
-        const { projectId, steeringStatus } = event;
-        this.broadcastToProject(projectId, {
-          type: 'steering-update',
-          projectId,
-          data: steeringStatus
-        });
-      } catch (error) {
-        console.error('Error broadcasting steering changes:', error);
-        // Don't propagate error to prevent event system crash
-      }
     });
 
     // Broadcast approval changes
@@ -958,68 +937,6 @@ export class MultiProjectDashboardServer {
       }
     });
 
-    // Get steering document
-    this.app.get('/api/projects/:projectId/steering/:name', async (request, reply) => {
-      const { projectId, name } = request.params as { projectId: string; name: string };
-      const project = this.projectManager.getProject(projectId);
-
-      if (!project) {
-        return reply.code(404).send({ error: 'Project not found' });
-      }
-
-      const allowedDocs = ['product', 'tech', 'structure'];
-      if (!allowedDocs.includes(name)) {
-        return reply.code(400).send({ error: 'Invalid steering document name' });
-      }
-
-      const docPath = join(project.projectPath, '.spec-workflow', 'steering', `${name}.md`);
-
-      try {
-        const content = await readFile(docPath, 'utf-8');
-        const stats = await fs.stat(docPath);
-        return {
-          content,
-          lastModified: stats.mtime.toISOString()
-        };
-      } catch {
-        return {
-          content: '',
-          lastModified: new Date().toISOString()
-        };
-      }
-    });
-
-    // Save steering document
-    this.app.put('/api/projects/:projectId/steering/:name', async (request, reply) => {
-      const { projectId, name } = request.params as { projectId: string; name: string };
-      const { content } = request.body as { content: string };
-      const project = this.projectManager.getProject(projectId);
-
-      if (!project) {
-        return reply.code(404).send({ error: 'Project not found' });
-      }
-
-      const allowedDocs = ['product', 'tech', 'structure'];
-      if (!allowedDocs.includes(name)) {
-        return reply.code(400).send({ error: 'Invalid steering document name' });
-      }
-
-      if (typeof content !== 'string') {
-        return reply.code(400).send({ error: 'Content must be a string' });
-      }
-
-      const steeringDir = join(project.projectPath, '.spec-workflow', 'steering');
-      const docPath = join(steeringDir, `${name}.md`);
-
-      try {
-        await fs.mkdir(steeringDir, { recursive: true });
-        await fs.writeFile(docPath, content, 'utf-8');
-        return { success: true, message: 'Steering document saved successfully' };
-      } catch (error: any) {
-        return reply.code(500).send({ error: `Failed to save steering document: ${error.message}` });
-      }
-    });
-
     // Get task progress
     this.app.get('/api/projects/:projectId/specs/:name/tasks/progress', async (request, reply) => {
       const { projectId, name } = request.params as { projectId: string; name: string };
@@ -1194,114 +1111,6 @@ export class MultiProjectDashboardServer {
       }
     });
 
-    // Global settings endpoints
-
-    // Get all automation jobs
-    this.app.get('/api/jobs', async () => {
-      return await this.jobScheduler.getAllJobs();
-    });
-
-    // Create a new automation job
-    this.app.post('/api/jobs', async (request, reply) => {
-      const job = request.body as any;
-
-      if (!job.id || !job.name || !job.type || job.config === undefined || !job.schedule) {
-        return reply.code(400).send({ error: 'Missing required fields: id, name, type, config, schedule' });
-      }
-
-      try {
-        await this.jobScheduler.addJob({
-          id: job.id,
-          name: job.name,
-          type: job.type,
-          enabled: job.enabled !== false,
-          config: job.config,
-          schedule: job.schedule,
-          createdAt: new Date().toISOString()
-        });
-        return { success: true, message: 'Job created successfully' };
-      } catch (error: any) {
-        return reply.code(400).send({ error: error.message });
-      }
-    });
-
-    // Get a specific automation job
-    this.app.get('/api/jobs/:jobId', async (request, reply) => {
-      const { jobId } = request.params as { jobId: string };
-      const settingsManager = new (await import('./settings-manager.js')).SettingsManager();
-
-      try {
-        const job = await settingsManager.getJob(jobId);
-        if (!job) {
-          return reply.code(404).send({ error: 'Job not found' });
-        }
-        return job;
-      } catch (error: any) {
-        return reply.code(500).send({ error: error.message });
-      }
-    });
-
-    // Update an automation job
-    this.app.put('/api/jobs/:jobId', async (request, reply) => {
-      const { jobId } = request.params as { jobId: string };
-      const updates = request.body as any;
-
-      try {
-        await this.jobScheduler.updateJob(jobId, updates);
-        return { success: true, message: 'Job updated successfully' };
-      } catch (error: any) {
-        return reply.code(400).send({ error: error.message });
-      }
-    });
-
-    // Delete an automation job
-    this.app.delete('/api/jobs/:jobId', async (request, reply) => {
-      const { jobId } = request.params as { jobId: string };
-
-      try {
-        await this.jobScheduler.deleteJob(jobId);
-        return { success: true, message: 'Job deleted successfully' };
-      } catch (error: any) {
-        return reply.code(400).send({ error: error.message });
-      }
-    });
-
-    // Manually run a job
-    this.app.post('/api/jobs/:jobId/run', async (request, reply) => {
-      const { jobId } = request.params as { jobId: string };
-
-      try {
-        const result = await this.jobScheduler.runJobManually(jobId);
-        return result;
-      } catch (error: any) {
-        return reply.code(400).send({ error: error.message });
-      }
-    });
-
-    // Get job execution history
-    this.app.get('/api/jobs/:jobId/history', async (request, reply) => {
-      const { jobId } = request.params as { jobId: string };
-      const { limit } = request.query as { limit?: string };
-
-      try {
-        const history = await this.jobScheduler.getJobExecutionHistory(jobId, parseInt(limit || '50'));
-        return history;
-      } catch (error: any) {
-        return reply.code(500).send({ error: error.message });
-      }
-    });
-
-    // Get job statistics
-    this.app.get('/api/jobs/:jobId/stats', async (request, reply) => {
-      const { jobId } = request.params as { jobId: string };
-
-      try {
-        const stats = await this.jobScheduler.getJobStats(jobId);
-        return stats;
-      } catch (error: any) {
-        return reply.code(500).send({ error: error.message });
-      }
-    });
   }
 
   private broadcastToAll(message: any) {
@@ -1468,9 +1277,6 @@ export class MultiProjectDashboardServer {
       }
     });
     this.clients.clear();
-
-    // Stop job scheduler
-    await this.jobScheduler.shutdown();
 
     // Stop project manager
     await this.projectManager.stop();

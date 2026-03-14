@@ -4,6 +4,8 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 
+let mockCurrentProjectId: string | null = null;
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, fallbackOrValues?: string | Record<string, string>, values?: Record<string, string>) => {
@@ -37,7 +39,7 @@ vi.mock('../ws/WebSocketProvider', () => ({
 vi.mock('../projects/ProjectProvider', () => ({
   ProjectProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   useProjects: () => ({
-    currentProjectId: null,
+    currentProjectId: mockCurrentProjectId,
   }),
 }));
 
@@ -76,16 +78,15 @@ vi.mock('../theme/HighlightStyles', () => ({
 }));
 
 vi.mock('../pages/SpecsPage', () => ({ SpecsPage: () => <div>specs-page</div> }));
-vi.mock('../pages/SteeringPage', () => ({ SteeringPage: () => <div>steering-page</div> }));
 vi.mock('../pages/TasksPage', () => ({ TasksPage: () => <div>tasks-page</div> }));
 vi.mock('../pages/LogsPage', () => ({ LogsPage: () => <div>logs-page</div> }));
 vi.mock('../pages/ApprovalsPage', () => ({ ApprovalsPage: () => <div>approvals-page</div> }));
 vi.mock('../pages/SpecViewerPage', () => ({ SpecViewerPage: () => <div>viewer-page</div> }));
-vi.mock('../pages/SettingsPage', () => ({ SettingsPage: () => <div>settings-page</div> }));
 
 describe('App', () => {
   beforeEach(() => {
     document.title = 'Spec Workflow MCP';
+    mockCurrentProjectId = null;
   });
 
   it('renders the legacy empty state when no project is selected', () => {
@@ -99,5 +100,28 @@ describe('App', () => {
     expect(screen.getByText('Legacy browser UI')).toBeInTheDocument();
     expect(screen.getByText('v9.9.9')).toBeInTheDocument();
     expect(document.title).toBe('Workspace - Spec Workflow MCP');
+  });
+
+  it('keeps logs as a deep-link route but redirects removed steering routes back to specs', () => {
+    mockCurrentProjectId = 'project-1';
+
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/logs']}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('logs-page')).toBeInTheDocument();
+
+    unmount();
+
+    render(
+      <MemoryRouter initialEntries={['/steering']}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('specs-page')).toBeInTheDocument();
+    expect(screen.queryByText('logs-page')).not.toBeInTheDocument();
   });
 });

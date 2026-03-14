@@ -39,9 +39,12 @@ describe('PageNavigationSidebar', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText('Workflow')).toBeInTheDocument();
-    expect(screen.getByText('Utilities')).toBeInTheDocument();
     expect(screen.getByTestId('language-selector')).toBeInTheDocument();
+    expect(screen.queryByText('Workflow')).not.toBeInTheDocument();
+    expect(screen.queryByText('Utilities')).not.toBeInTheDocument();
+    expect(screen.queryByText('nav.settings')).not.toBeInTheDocument();
+    expect(screen.queryByText('nav.logs')).not.toBeInTheDocument();
+    expect(screen.queryByText('nav.steering')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'theme.dark' }));
     expect(toggleTheme).toHaveBeenCalledTimes(1);

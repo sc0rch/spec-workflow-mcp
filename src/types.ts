@@ -1,21 +1,6 @@
 // Common types for the spec workflow MCP server
 import { encode } from '@toon-format/toon';
 
-// Automation job types
-export interface AutomationJob {
-  id: string;
-  name: string;
-  type: 'cleanup-approvals' | 'cleanup-specs' | 'cleanup-archived-specs';
-  enabled: boolean;
-  config: {
-    daysOld: number; // Number of days to keep; delete older records
-  };
-  schedule: string; // Cron expression (e.g., "0 2 * * *" for daily at 2 AM)
-  lastRun?: string; // ISO timestamp of last execution
-  nextRun?: string; // ISO timestamp of next scheduled execution
-  createdAt: string; // ISO timestamp
-}
-
 export interface SecurityConfig {
   // Rate limiting configuration
   rateLimitEnabled: boolean;
@@ -29,30 +14,6 @@ export interface SecurityConfig {
   // CORS configuration
   corsEnabled: boolean;
   allowedOrigins: string[]; // List of allowed origins for CORS
-}
-
-export interface GlobalSettings {
-  automationJobs: AutomationJob[];
-  security?: SecurityConfig; // Optional for backwards compatibility
-  createdAt?: string;
-  lastModified?: string;
-}
-
-export interface JobExecutionHistory {
-  jobId: string;
-  jobName: string;
-  jobType: string;
-  executedAt: string;
-  success: boolean;
-  duration: number; // in milliseconds
-  itemsProcessed: number;
-  itemsDeleted: number;
-  error?: string;
-}
-
-export interface JobExecutionLog {
-  executions: JobExecutionHistory[];
-  lastUpdated?: string;
 }
 
 export type BoundProjectSource = 'explicit-arg' | 'startup-binding' | 'client-root';

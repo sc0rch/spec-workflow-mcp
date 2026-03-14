@@ -1,8 +1,8 @@
 # Electron Desktop Rewrite
 
 Last updated: 2026-03-14
-Status: Milestone 14 in progress
-Current focus: Re-evaluate the remaining browser-only automation/settings surface now that shell, notification, route-removal, and list-only task flows have explicit regression guardrails.
+Status: Milestone 14 complete
+Current focus: Core rewrite milestones are complete. Further browser-dashboard cleanup is opportunistic maintenance only and should not expand the legacy surface again.
 
 ## Purpose
 
@@ -185,6 +185,35 @@ This document is the working source of truth for the rewrite. Update it after ea
 - Those notes directly drove the next cleanup pass now implemented in Milestone 14.
 - A follow-up cleanup slice also removed notification-audio polish from the legacy browser shell instead of carrying it forward as a pseudo-product feature.
 
+### Latest Opus checkpoint after settings/history simplification
+
+- Opus judged the browser automation utility as directionally correct but still too admin-heavy before the latest pass:
+  - the header card and empty-state illustration were still productized for a legacy utility page
+  - job cards, badge pills, and full-width action bars still read like a mini admin dashboard
+  - `JobExecutionHistory` was the weakest surface:
+    - hardcoded gray/dark classes instead of shell tokens
+    - a six-card stats grid for a secondary accordion panel
+    - duplicated analytics that did not earn their maintenance cost
+- The concrete cleanup it asked for:
+  - flatten settings jobs into compact rows
+  - replace the delete modal with inline confirmation
+  - replace radio-card form chrome with simple selects
+  - gut history stats and keep only a compact recent-runs surface
+  - remove the `/api/jobs/:jobId/stats` dependency entirely
+- Those notes directly drove the latest Milestone 14 cleanup pass now implemented.
+
+### Latest Opus checkpoint after browser-settings removal
+
+- Opus judged the remaining browser information architecture to still overstate the product:
+  - `Logs` and `Steering` were still presented like daily destinations in the sidebar even though the browser shell is now only compatibility/debugging
+  - `LogsPage` may stay useful as a read-only inspection surface, but not as first-class navigation
+  - `SteeringPage` as a rich authoring surface actively undermined the desktop-first product stance
+- The recommended direction was:
+  - collapse browser sidebar to `Specs`, `Approvals`, `Tasks`
+  - keep `Logs` only as a deep-link/debug route
+  - remove browser steering authoring entirely instead of carrying it as a parallel editing surface
+- Those notes directly drove the latest Milestone 14 navigation and route cleanup now implemented.
+
 ### Latest gpt-5.3-codex baseline review
 
 - First whole-repository baseline code review is now part of the rewrite loop and has already been run in headless trust mode.
@@ -206,6 +235,57 @@ This document is the working source of truth for the rewrite. Update it after ea
   - removed the stale `howler` dependency from the root package manifest/lock
 - Remaining review gap to address later:
   - browser dashboard frontend still lacks focused component-level tests, and root `tsc` does not typecheck `src/dashboard_frontend/**`
+
+### Latest gpt-5.3-codex review after settings/history cleanup
+
+- The first code-review pass on this slice found two concrete regressions plus one local UX bug:
+  - manual `Run Now` executions did not persist into job history or `lastRun`
+  - the browser UI treated `200 OK` manual runs as success even when payload returned `success: false`
+  - settings form submit errors were swallowed by the page-level handler, making modal inline error UI unreachable
+- All three issues are now fixed:
+  - `JobScheduler.runJobManually()` now persists execution history and `lastRun` through the same helper used by catch-up and scheduled runs
+  - browser settings now surfaces `result.error` on `success: false` while still updating `lastRun`
+  - settings form submit now rethrows after setting page-level error so the modal stays open and shows inline submit errors
+- New focused coverage now locks these fixes:
+  - backend unit test for manual run persistence
+  - browser test for `Run Now` with `success: false`
+  - browser integration-style test for failed job creation keeping the modal open
+- A short follow-up re-review then found two additional concrete issues:
+  - browser settings still trusted `/api/jobs` JSON without checking `response.ok`
+  - the compact form still exposed Quartz-style weekly/bi-weekly cron presets that `node-cron` cannot schedule
+- Both follow-up issues are now fixed:
+  - `/api/jobs` load now validates HTTP status and payload shape before mapping
+  - the invalid presets were removed/replaced with `node-cron` compatible values and browser coverage now locks that reduced preset set
+
+### Latest gpt-5.3-codex review after full settings removal
+
+- A final deletion-focused review was run after removing the browser settings/automation surface entirely.
+- No concrete bugs or regressions were found in the reviewed areas:
+  - `src/dashboard/multi-server.ts`
+  - `src/dashboard/__tests__/multi-server-removed-routes.test.ts`
+  - `src/dashboard_frontend/src/modules/app/App.tsx`
+  - `src/dashboard_frontend/src/modules/components/PageNavigationSidebar.tsx`
+  - `src/types.ts`
+  - `src/dashboard_frontend/src/types.ts`
+  - `docs/LEGACY-DASHBOARD-AUDIT.md`
+- Residual risk called out by the review:
+  - removed-route coverage is explicit but still narrow, so future accidental route reintroduction would rely on broader suites unless the removed-routes test keeps expanding with deletions
+
+### Latest gpt-5.3-codex review after workflow-only browser shell
+
+- A final follow-up review was run after collapsing the browser shell to workflow-only navigation and deleting browser steering authoring.
+- No concrete bugs or regressions were found in the reviewed areas:
+  - `src/dashboard_frontend/src/modules/app/App.tsx`
+  - `src/dashboard_frontend/src/modules/app/App.test.tsx`
+  - `src/dashboard_frontend/src/modules/components/PageNavigationSidebar.tsx`
+  - `src/dashboard_frontend/src/modules/components/PageNavigationSidebar.test.tsx`
+  - `src/dashboard_frontend/src/modules/api/api.tsx`
+  - `src/dashboard/multi-server.ts`
+  - `src/dashboard/__tests__/multi-server-removed-routes.test.ts`
+  - `docs/LEGACY-DASHBOARD-AUDIT.md`
+- Residual risks called out by the review:
+  - `/logs` remains a deep-link/debug route without browser-level e2e coverage for direct URL entry plus back/forward navigation
+  - removed-route coverage is still representative rather than exhaustive, so future deletions should continue extending the dedicated regression test
 
 ### Review cadence
 
@@ -601,8 +681,8 @@ Exit criteria:
 Goal: Remove the old dashboard as the default path after the desktop app is clearly better.
 
 - [x] Audit which legacy dashboard routes/pages are no longer needed.
-- [-] Remove dead code after desktop replacement is proven.
-- [ ] Keep only the backend pieces that still serve reusable workflow logic.
+- [x] Remove dead code after desktop replacement is proven.
+- [x] Keep only the backend pieces that still serve reusable workflow logic.
 - [x] Update docs, screenshots, and onboarding around the desktop-first product.
 
 Implemented:
@@ -625,7 +705,42 @@ Implemented:
   - removed the unused `captureApprovalSnapshot` browser API contract and the matching manual-snapshot HTTP endpoint
 - Added `src/dashboard/__tests__/multi-server-removed-routes.test.ts` so removed changelog routes stay unavailable and `/approvals/:id/snapshot` is locked to the new `Invalid action` behavior instead of silently surviving behind the generic approval-action route.
 - Added focused `TasksPage` regression coverage for the list-only browser task flow, including status filtering and description sort-order toggling after the Kanban removal.
+- Simplified the legacy browser automation/settings surface:
+  - removed the single-section accordion from `SettingsPage`
+  - switched job toggles/run/delete updates to functional state updates instead of stale closure mutations
+  - removed `JobTemplates.ts` and the browser-only template chooser from `JobFormModal`
+  - replaced the bulky cron helper panel with one compact preset select plus an inline cron hint
+- Flattened the browser automation utility further based on the latest Opus review:
+  - removed the extra header card and illustrated empty state from `SettingsPage`
+  - replaced heavy job cards plus full-width action bars with compact rows and inline actions
+  - replaced the delete confirmation modal with inline confirmation
+  - shrank `JobFormModal`, replaced radio-card job type selection with a simple select, and kept custom cron input behind a `Custom` preset
+  - gutted `JobExecutionHistory` into a compact history-only table using shell tokens instead of a stats dashboard
+  - removed the now-unused `/api/jobs/:jobId/stats` backend route and service path
+- Added focused browser tests for `SettingsPage`, `JobFormModal`, `JobExecutionHistory`, and settings form-error handling so the simplified settings contract is now regression-covered instead of relying on manual inspection.
+- Fixed the concrete regressions found by the subsequent `gpt-5.3-codex` review:
+  - manual `Run Now` now persists execution history and `lastRun`
+  - browser settings now handles `success: false` manual-run payloads without falsely clearing errors
+  - failed job creation/update now keeps the modal open and exposes inline submit errors
+- Fixed the two additional issues found by the follow-up re-review:
+  - browser settings now validates `/api/jobs` failures before mapping the payload
+  - invalid Quartz-style weekly/bi-weekly presets are gone from the browser form
+- Added backend unit coverage for manual job persistence and extended the removed-routes regression test so `/api/jobs/:jobId/stats` stays gone.
+- Removed the legacy browser automation/settings surface completely after deciding it had no real workflow value:
+  - deleted `/settings` from the browser route tree and sidebar navigation
+  - deleted `SettingsPage`, `JobFormModal`, `JobExecutionHistory`, and their browser-only tests
+  - removed `/api/jobs*` endpoints from the dashboard backend
+  - deleted `job-scheduler.ts`, `settings-manager.ts`, and `execution-history-manager.ts`
+  - removed the now-dead automation/history types from shared/browser type files
+  - expanded the removed-routes test so the full `/api/jobs*` surface stays gone
+- Collapsed the remaining browser shell to workflow-only navigation:
+  - flattened the sidebar to `Specs`, `Approvals`, and `Tasks` only
+  - removed `Logs` from first-class navigation while keeping `/logs` as a deep-link/debug route
+  - removed `SteeringPage` from the browser route tree entirely
+  - removed browser steering fetch/save actions and the matching `/api/projects/:projectId/steering/:name` endpoints
+  - extended removed-routes coverage so deleted steering routes stay unavailable
 - Ran scoped `gpt-5.3-codex` reviews after both the hardening pass and the follow-up delete-pass; neither found concrete regressions, and the earlier residual `TasksPage` testing gap is now closed by focused list-flow coverage.
+- Ran one last `gpt-5.3-codex` follow-up review after the workflow-only browser-shell cleanup; it found no concrete regressions, so Milestone 14 closes with browser navigation reduced to `Specs`, `Approvals`, and `Tasks`, while `Logs` remains deep-link/debug only.
 
 Exit criteria:
 - The desktop app is the default documented interface.
@@ -650,7 +765,7 @@ Exit criteria:
 - [x] Complete Milestone 11.
 - [x] Complete Milestone 12.
 - [x] Complete Milestone 13.
-- [-] Start Milestone 14.
+- [x] Complete Milestone 14.
 
 ## Update Protocol
 

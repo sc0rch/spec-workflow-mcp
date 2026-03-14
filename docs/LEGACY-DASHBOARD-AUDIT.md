@@ -1,7 +1,7 @@
 # Legacy Dashboard Audit
 
 Last updated: 2026-03-14
-Status: Active during Milestone 14
+Status: Secondary legacy surface after Milestone 14 completion
 
 ## Position
 
@@ -25,8 +25,6 @@ Frontend routes are still defined in [src/dashboard_frontend/src/modules/app/App
 - `/`
   - redirects to `/specs`
   - no longer owns a dedicated landing page
-- `/steering`
-  - `SteeringPage`
 - `/specs`
   - `SpecsPage`
 - `/specs/view`
@@ -36,15 +34,15 @@ Frontend routes are still defined in [src/dashboard_frontend/src/modules/app/App
   - list-based task flow only; the old Kanban view is retired
 - `/logs`
   - `LogsPage`
+  - deep-link/debug route only; no longer first-class navigation
 - `/approvals`
   - `ApprovalsPage`
-- `/settings`
-  - `SettingsPage`
-
-Navigation still lives in [src/dashboard_frontend/src/modules/components/PageNavigationSidebar.tsx](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/src/dashboard_frontend/src/modules/components/PageNavigationSidebar.tsx).
-The shell no longer has a dedicated landing page, mobile settings drawer, changelog modal, collapsible desktop sidebar, notification-volume controls, a Kanban task board, or browser changelog endpoints.
+Navigation still lives in [src/dashboard_frontend/src/modules/components/PageNavigationSidebar.tsx](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/src/dashboard_frontend/src/modules/components/PageNavigationSidebar.tsx), but it is now reduced to the three browser workflow routes: `Specs`, `Approvals`, and `Tasks`.
+The shell no longer has a dedicated landing page, mobile settings drawer, changelog modal, collapsible desktop sidebar, notification-volume controls, a Kanban task board, browser automation/settings pages, or browser changelog endpoints.
+The browser steering authoring surface is gone, and implementation logs remain available only as a deep-link/debug page rather than a first-class destination.
 Theme and language controls now live in the sidebar footer instead of the header/drawer so they remain reachable on mobile without reintroducing extra shell chrome.
 This legacy shell now also has its own explicit browser-only typecheck/test guardrails instead of relying on the root Node-only TypeScript build.
+The old browser automation utility has now been removed outright, along with the `/api/jobs*` backend surface and its scheduler/settings/history helpers.
 
 ## Keep vs Retire
 
@@ -80,12 +78,12 @@ These areas remain canonical and should stay reusable even if more dashboard UI 
 - [src/core/approval-storage.ts](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/src/core/approval-storage.ts)
 - [src/core/implementation-log-manager.ts](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/src/core/implementation-log-manager.ts)
 
-## Next Removal Candidates
+## Optional Follow-ups
 
-When Milestone 14 moves from audit to deletion, start here:
+Milestone 14 is complete. Any future browser cleanup should stay opportunistic and avoid expanding the legacy surface again.
 
 1. Keep trimming unused dashboard-only UI modules that no longer provide unique value over Electron.
 2. Continue removing browser-only debug noise and incidental admin-panel behavior from still-kept pages.
-3. Re-evaluate older browser-only automation/settings flows that still assume the dashboard is a primary product shell.
-4. Add or expand focused tests for high-churn legacy pages like `TasksPage` when cleanup changes their behavior materially.
-5. Keep backend and shared domain services, but stop treating browser dashboard screenshots and flows as the primary onboarding path.
+3. Add or expand focused tests for any remaining high-churn legacy pages when cleanup changes their behavior materially.
+4. Keep backend and shared domain services, but stop treating browser dashboard screenshots and flows as the primary onboarding path.
+5. Continue questioning whether remaining browser deep-link utilities like `LogsPage` still justify dedicated UI investment in a compatibility/debugging surface.

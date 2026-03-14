@@ -197,7 +197,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     removeNotification,
   }), [showNotification, removeNotification]);
 
-  // Memoize state context - this changes when notifications/settings change
+  // Memoize state context - this changes when notification state changes
   const stateValue = useMemo(() => ({
     notifications,
   }), [notifications]);
