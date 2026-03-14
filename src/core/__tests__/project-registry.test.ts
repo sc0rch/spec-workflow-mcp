@@ -86,4 +86,33 @@ describe('ProjectRegistry worktree identity', () => {
     expect(projects[0].workflowRootPath).toBe(workspacePath);
     expect(projects[0].projectPath).toBe(workspacePath);
   });
+
+  it('supports multiple live instances from the same pid when instance IDs differ', async () => {
+    const registry = new ProjectRegistry();
+    const workspacePath = '/tmp/worktrees/feature-bridge';
+    const workflowRootPath = '/tmp/my-repo';
+
+    await registry.registerProject(workspacePath, process.pid, {
+      workflowRootPath,
+      instanceId: 'bridge-session-a'
+    });
+    const projectId = await registry.registerProject(workspacePath, process.pid, {
+      workflowRootPath,
+      instanceId: 'bridge-session-b'
+    });
+
+    const entry = await registry.getProjectById(projectId);
+
+    expect(entry?.instances).toEqual([
+      expect.objectContaining({ pid: process.pid, instanceId: 'bridge-session-a' }),
+      expect.objectContaining({ pid: process.pid, instanceId: 'bridge-session-b' })
+    ]);
+
+    await registry.unregisterProject(workspacePath, process.pid, 'bridge-session-a');
+    const afterUnregister = await registry.getProjectById(projectId);
+
+    expect(afterUnregister?.instances).toEqual([
+      expect.objectContaining({ pid: process.pid, instanceId: 'bridge-session-b' })
+    ]);
+  });
 });

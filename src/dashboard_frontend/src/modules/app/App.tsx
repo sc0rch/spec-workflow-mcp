@@ -6,7 +6,6 @@ import { WebSocketProvider, useWs } from '../ws/WebSocketProvider';
 import { ProjectProvider, useProjects } from '../projects/ProjectProvider';
 import { ApiProvider } from '../api/api';
 import { HighlightStyles } from '../theme/HighlightStyles';
-import { DashboardStatistics } from '../pages/DashboardStatistics';
 import { SpecsPage } from '../pages/SpecsPage';
 import { SteeringPage } from '../pages/SteeringPage';
 import { TasksPage } from '../pages/TasksPage';
@@ -21,6 +20,7 @@ import { LanguageSelector } from '../../components/LanguageSelector';
 import { I18nErrorBoundary } from '../../components/I18nErrorBoundary';
 import { ProjectDropdown } from '../components/ProjectDropdown';
 import { PageNavigationSidebar } from '../components/PageNavigationSidebar';
+import { LegacyDashboardNotice } from '../components/LegacyDashboardNotice';
 import { ChangelogModal } from '../modals/ChangelogModal';
 
 function Header({ toggleSidebar }: { toggleSidebar: () => void }) {
@@ -254,9 +254,10 @@ function AppInner() {
             <Header toggleSidebar={toggleSidebar} />
             <HighlightStyles />
             <main className="w-full px-6 py-6">
+            <LegacyDashboardNotice />
             {currentProjectId ? (
               <Routes>
-                <Route path="/" element={<DashboardStatistics />} />
+                <Route path="/" element={<Navigate to="/specs" replace />} />
                 <Route path="/steering" element={<SteeringPage />} />
                 <Route path="/specs" element={<SpecsPage />} />
                 <Route path="/specs/view" element={<SpecViewerPage />} />
@@ -310,5 +311,3 @@ export default function App() {
     </I18nErrorBoundary>
   );
 }
-
-

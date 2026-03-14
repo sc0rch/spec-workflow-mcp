@@ -50,6 +50,30 @@ npx -y @pimzino/spec-workflow-mcp@latest ~/projects/app1
 
 Projects appear in the dashboard lazily after the first prompt/tool call that resolves to that workspace or repo family. The dashboard runs at http://localhost:5091 by default.
 
+### Optional Desktop Bridge for Codex
+
+If you want the Electron desktop app to own the effective MCP lifecycle, point Codex at the desktop bridge instead of `spec-workflow-mcp`.
+
+1. Build the desktop app once:
+
+```bash
+npm --prefix apps/desktop run build
+```
+
+2. Update `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.spec-workflow]
+command = "node"
+args = ["/absolute/path/to/spec-workflow-mcp/apps/desktop/dist/apps/desktop/src/bridge/index.js", "--no-shared-worktree-specs"]
+```
+
+Notes:
+- The bridge accepts the same optional startup project path as `spec-workflow-mcp`.
+- It proxies stdio MCP traffic from Codex to the Electron desktop app over a local socket.
+- If the desktop app is not running, the bridge will try to launch it hidden first.
+- If you set `SPEC_WORKFLOW_DESKTOP_STORAGE_ROOT`, use the same value for both the desktop app and the bridge so they resolve the same endpoint file.
+
 ### Dashboard with Custom Port
 
 Only use a custom port if port 5091 is unavailable:

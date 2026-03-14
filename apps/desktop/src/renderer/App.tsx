@@ -1840,6 +1840,8 @@ function getDocumentMeta(
 
 function getIssueHint(issue: StartupIssue): string {
   switch (issue.code) {
+    case 'bridge-unavailable':
+      return 'Restart the desktop app if Codex cannot attach through the local MCP bridge.';
     case 'git-unavailable':
       return 'Install Git or expose it on PATH so branch and workspace metadata can be resolved cleanly.';
     case 'renderer-unavailable':

@@ -6,6 +6,7 @@ import { getGlobalDir, getPermissionErrorHelp } from './global-dir.js';
 
 export interface ProjectInstance {
   pid: number;
+  instanceId?: string;
   registeredAt: string;
 }
 
@@ -20,6 +21,7 @@ export interface ProjectRegistryEntry {
 export interface RegisterProjectOptions {
   workflowRootPath?: string;
   projectName?: string;
+  instanceId?: string;
 }
 
 /**
@@ -52,6 +54,10 @@ export class ProjectRegistry {
   private registryPath: string;
   private registryDir: string;
   private needsInitialization: boolean = false;
+
+  private getInstanceKey(instance: ProjectInstance): string {
+    return instance.instanceId || String(instance.pid);
+  }
 
   constructor() {
     this.registryDir = getGlobalDir();
@@ -111,7 +117,13 @@ export class ProjectRegistry {
           projectPath: normalizedProjectPath,
           workflowRootPath: normalizedWorkflowRootPath,
           projectName: entry.projectName || generateProjectDisplayName(normalizedProjectPath, normalizedWorkflowRootPath),
-          instances: Array.isArray(entry.instances) ? entry.instances : []
+          instances: Array.isArray(entry.instances)
+            ? entry.instances.map((instance) => ({
+              pid: instance.pid,
+              instanceId: instance.instanceId,
+              registeredAt: instance.registeredAt
+            }))
+            : []
         });
       }
 
@@ -191,6 +203,8 @@ export class ProjectRegistry {
     const workflowRootPath = resolve(options.workflowRootPath || projectPath);
     const projectId = generateProjectId(workspacePath);
     const projectName = options.projectName || generateProjectDisplayName(workspacePath, workflowRootPath);
+    const instanceId = options.instanceId;
+    const instanceKey = instanceId || String(pid);
 
     const existing = registry.get(projectId);
 
@@ -198,9 +212,22 @@ export class ProjectRegistry {
       // Self-healing: Filter out dead PIDs
       const liveInstances = existing.instances.filter(i => this.isProcessAlive(i.pid));
 
-      // Check if this PID is already registered (avoid duplicates)
-      if (!liveInstances.some(i => i.pid === pid)) {
-        liveInstances.push({ pid, registeredAt: new Date().toISOString() });
+      const existingInstanceIndex = liveInstances.findIndex(
+        (instance) => this.getInstanceKey(instance) === instanceKey
+      );
+
+      if (existingInstanceIndex === -1) {
+        liveInstances.push({
+          pid,
+          instanceId,
+          registeredAt: new Date().toISOString()
+        });
+      } else {
+        liveInstances[existingInstanceIndex] = {
+          ...liveInstances[existingInstanceIndex],
+          pid,
+          instanceId
+        };
       }
 
       // Update with live instances (no limit on number of instances)
@@ -216,7 +243,11 @@ export class ProjectRegistry {
         projectPath: workspacePath,
         workflowRootPath,
         projectName,
-        instances: [{ pid, registeredAt: new Date().toISOString() }]
+        instances: [{
+          pid,
+          instanceId,
+          registeredAt: new Date().toISOString()
+        }]
       };
       registry.set(projectId, entry);
     }
@@ -230,7 +261,7 @@ export class ProjectRegistry {
    * If pid is provided, only removes that specific instance
    * If no pid provided, removes the entire project (backwards compat)
    */
-  async unregisterProject(projectPath: string, pid?: number): Promise<void> {
+  async unregisterProject(projectPath: string, pid?: number, instanceId?: string): Promise<void> {
     const registry = await this.readRegistry();
     const absolutePath = resolve(projectPath);
     const projectId = generateProjectId(absolutePath);
@@ -238,9 +269,16 @@ export class ProjectRegistry {
     const entry = registry.get(projectId);
     if (!entry) return;
 
-    if (pid !== undefined) {
-      // Remove only this PID's instance
-      entry.instances = entry.instances.filter(i => i.pid !== pid);
+    if (pid !== undefined || instanceId !== undefined) {
+      const targetKey = instanceId;
+
+      entry.instances = entry.instances.filter((instance) => {
+        if (targetKey) {
+          return this.getInstanceKey(instance) !== targetKey;
+        }
+
+        return instance.pid !== pid;
+      });
       if (entry.instances.length === 0) {
         registry.delete(projectId);
       } else {

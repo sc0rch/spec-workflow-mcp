@@ -28,6 +28,8 @@ function createService(options: {
   startupBinding?: ReturnType<typeof createStartupBinding>;
   noSharedWorktreeSpecs?: boolean;
   rootPaths?: string[];
+  registryPid?: number;
+  registryInstanceId?: string;
 }) {
   const listRoots = vi.fn(async () => ({
     roots: (options.rootPaths || []).map(uri => ({ uri }))
@@ -49,7 +51,9 @@ function createService(options: {
     rememberedProjects: { upsertProject } as unknown as RememberedProjectsStore,
     packageVersion: 'test',
     noSharedWorktreeSpecs: !!options.noSharedWorktreeSpecs,
-    startupBinding: options.startupBinding
+    startupBinding: options.startupBinding,
+    registryPid: options.registryPid,
+    registryInstanceId: options.registryInstanceId
   });
 
   return { service, listRoots, registerProject, upsertProject };
@@ -178,6 +182,22 @@ describe('project-binding', () => {
       otherRepoPath,
       process.pid,
       expect.objectContaining({ workflowRootPath: otherRepoPath })
+    );
+  });
+
+  it('passes an explicit registry instance id through to project registration', async () => {
+    const { service, registerProject } = createService({
+      rootPaths: [`file://${mainRepoPath}`],
+      registryPid: 424242,
+      registryInstanceId: 'desktop-bridge-session'
+    });
+
+    await service.resolveBoundProject();
+
+    expect(registerProject).toHaveBeenCalledWith(
+      mainRepoPath,
+      424242,
+      expect.objectContaining({ instanceId: 'desktop-bridge-session' })
     );
   });
 });

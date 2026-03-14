@@ -11,7 +11,8 @@ if (!hasSingleInstanceLock) {
   const shell = new DesktopShell({
     rendererUrl: process.env.SPEC_WORKFLOW_DESKTOP_RENDERER_URL,
     runtimeInfo: createRuntimeInfo(),
-    storageRoot
+    storageRoot,
+    startHidden: process.env.SPEC_WORKFLOW_DESKTOP_START_HIDDEN === '1'
   });
 
   app.on('second-instance', () => {

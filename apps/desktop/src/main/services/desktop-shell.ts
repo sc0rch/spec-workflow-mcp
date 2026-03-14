@@ -20,11 +20,13 @@ import { createMainWindow } from '../window.js';
 import { SettingsStore, type WindowState } from './settings-store.js';
 import { runStartupChecks } from './startup-checks.js';
 import { createTrayController, type TrayController } from './tray.js';
+import { McpBridgeService } from './mcp-bridge-service.js';
 
 export interface DesktopShellOptions {
   readonly rendererUrl?: string | undefined;
   readonly runtimeInfo: DesktopRuntimeInfo;
   readonly storageRoot: string;
+  readonly startHidden?: boolean;
 }
 
 export class DesktopShell {
@@ -33,6 +35,7 @@ export class DesktopShell {
   private readonly approvalReview: ApprovalReviewService;
   private readonly projectWorkspace: ProjectWorkspaceService;
   private readonly specDocuments: SpecDocumentsService;
+  private readonly mcpBridge: McpBridgeService;
   private mainWindow: BrowserWindow | null = null;
   private trayController: TrayController | null = null;
   private isIpcRegistered = false;
@@ -44,6 +47,9 @@ export class DesktopShell {
     this.approvalReview = new ApprovalReviewService();
     this.projectWorkspace = new ProjectWorkspaceService();
     this.specDocuments = new SpecDocumentsService();
+    this.mcpBridge = new McpBridgeService({
+      storageRoot: options.storageRoot
+    });
     this.shellState = {
       runtime: options.runtimeInfo,
       selectedProjectPath: null,
@@ -72,19 +78,22 @@ export class DesktopShell {
 
     this.registerIpcHandlers();
     this.trayController = this.createTrayIfAvailable();
+    await this.startMcpBridge();
     await this.projectCatalog.cleanupStaleProjects();
     await this.refreshProjectCatalog({
       selectedProjectPath: settings.lastSelectedProjectPath,
       lastSelectedAt: settings.lastSelectedAt
     });
-    this.mainWindow = this.createOrRestoreWindow(settings.window);
+    if (!this.options.startHidden) {
+      this.mainWindow = this.createOrRestoreWindow(settings.window, false);
+    }
     this.broadcastShellState();
   }
 
   focusWindow(): void {
     const window = this.mainWindow?.isDestroyed() ? null : this.mainWindow;
     if (!window) {
-      this.mainWindow = this.createOrRestoreWindow(this.settingsStore.getSettings().window);
+      this.mainWindow = this.createOrRestoreWindow(this.settingsStore.getSettings().window, false);
       return;
     }
 
@@ -100,6 +109,7 @@ export class DesktopShell {
   dispose(): void {
     this.trayController?.destroy();
     this.trayController = null;
+    void this.mcpBridge.stop();
 
     if (this.isIpcRegistered) {
       ipcMain.removeHandler(desktopChannels.getShellState);
@@ -111,6 +121,19 @@ export class DesktopShell {
       ipcMain.removeHandler(desktopChannels.rememberProjectPath);
       ipcMain.removeHandler(desktopChannels.forgetProject);
       this.isIpcRegistered = false;
+    }
+  }
+
+  private async startMcpBridge(): Promise<void> {
+    try {
+      await this.mcpBridge.start();
+      this.clearIssue('bridge-unavailable');
+    } catch (error) {
+      this.upsertIssue({
+        code: 'bridge-unavailable',
+        severity: 'warning',
+        message: createBridgeIssueMessage(error)
+      });
     }
   }
 
@@ -183,9 +206,10 @@ export class DesktopShell {
     }
   }
 
-  private createOrRestoreWindow(initialState: WindowState): BrowserWindow {
+  private createOrRestoreWindow(initialState: WindowState, startHidden = this.options.startHidden ?? false): BrowserWindow {
     const window = createMainWindow({
       initialState,
+      startHidden,
       rendererUrl: this.options.rendererUrl,
       onWindowStateChanged: async (windowState) => {
         await this.persistWindowState(windowState);
@@ -477,6 +501,14 @@ function createTrayIssueMessage(error: unknown): string {
   }
 
   return 'Tray menu is unavailable.';
+}
+
+function createBridgeIssueMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return `Desktop MCP bridge is unavailable. ${error.message}`;
+  }
+
+  return 'Desktop MCP bridge is unavailable.';
 }
 
 function mapProjectSummary(project: Awaited<ReturnType<ProjectCatalogService['getProjects']>>[number]): DesktopProjectSummary {

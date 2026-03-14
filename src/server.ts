@@ -18,7 +18,17 @@ import { RememberedProjectsStore } from './core/remembered-projects.js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { StartupBinding, ToolContext } from './types.js';
+
+export interface InitializeServerOptions {
+  lang?: string;
+  noSharedWorktreeSpecs?: boolean;
+  transport?: Transport;
+  manageProcessLifecycle?: boolean;
+  registryPid?: number;
+  registryInstanceId?: string;
+}
 
 export class SpecWorkflowMCPServer {
   private server: Server;
@@ -29,6 +39,25 @@ export class SpecWorkflowMCPServer {
   private lang?: string;
   private noSharedWorktreeSpecs: boolean = false;
   private isStopping: boolean = false;
+  private registryPid: number = process.pid;
+  private registryInstanceId?: string;
+  private readonly stdinEndHandler = async () => {
+    if (this.isStopping) {
+      return;
+    }
+
+    await this.stop();
+    process.exit(0);
+  };
+  private readonly stdinErrorHandler = async (error: Error) => {
+    if (this.isStopping) {
+      return;
+    }
+
+    console.error('stdin error:', error);
+    await this.stop();
+    process.exit(1);
+  };
 
   constructor() {
     // Get version from package.json
@@ -65,14 +94,15 @@ export class SpecWorkflowMCPServer {
 
   async initialize(
     startupBinding: StartupBinding | undefined,
-    options: {
-      lang?: string;
-      noSharedWorktreeSpecs?: boolean;
-    } = {}
+    options: InitializeServerOptions = {}
   ) {
     this.lang = options.lang;
     this.noSharedWorktreeSpecs = !!options.noSharedWorktreeSpecs;
     this.isStopping = false;
+    this.registryPid = options.registryPid ?? process.pid;
+    this.registryInstanceId = options.registryInstanceId;
+    const transport = options.transport ?? new StdioServerTransport();
+    const manageProcessLifecycle = options.manageProcessLifecycle ?? !options.transport;
 
     try {
       // Try to get the dashboard URL from session manager
@@ -93,7 +123,9 @@ export class SpecWorkflowMCPServer {
         rememberedProjects: this.rememberedProjects,
         packageVersion: this.packageVersion,
         noSharedWorktreeSpecs: this.noSharedWorktreeSpecs,
-        startupBinding
+        startupBinding,
+        registryPid: this.registryPid,
+        registryInstanceId: this.registryInstanceId
       });
 
       const context: ToolContext = {
@@ -113,30 +145,24 @@ export class SpecWorkflowMCPServer {
       // Register handlers
       this.setupHandlers(context);
 
-      // Connect to stdio transport
-      const transport = new StdioServerTransport();
-
-      // Handle client disconnection - exit gracefully when transport closes
       transport.onclose = async () => {
+        if (this.isStopping) {
+          return;
+        }
+
         await this.stop();
-        process.exit(0);
+        if (manageProcessLifecycle) {
+          process.exit(0);
+        }
       };
 
       await this.server.connect(transport);
       await this.projectBindingService.refreshClientRoots();
 
-      // Monitor stdin for client disconnection (additional safety net)
-      process.stdin.on('end', async () => {
-        await this.stop();
-        process.exit(0);
-      });
-
-      // Handle stdin errors
-      process.stdin.on('error', async (error) => {
-        console.error('stdin error:', error);
-        await this.stop();
-        process.exit(1);
-      });
+      if (manageProcessLifecycle) {
+        process.stdin.on('end', this.stdinEndHandler);
+        process.stdin.on('error', this.stdinErrorHandler);
+      }
 
       // MCP server initialized successfully
 
@@ -201,7 +227,13 @@ export class SpecWorkflowMCPServer {
 
   async stop() {
     try {
+      if (this.isStopping) {
+        return;
+      }
+
       this.isStopping = true;
+      process.stdin.off('end', this.stdinEndHandler);
+      process.stdin.off('error', this.stdinErrorHandler);
 
       // Only unregister when NOT in Docker mode
       // In Docker, projects should persist across sessions since we can't verify host PIDs
@@ -210,7 +242,7 @@ export class SpecWorkflowMCPServer {
           const workspacePaths = this.projectBindingService?.getRegisteredWorkspacePaths() || [];
 
           for (const workspacePath of workspacePaths) {
-            await this.projectRegistry.unregisterProject(workspacePath, process.pid);
+            await this.projectRegistry.unregisterProject(workspacePath, this.registryPid, this.registryInstanceId);
           }
           console.error('Project instance unregistered from global registry');
         } catch (error) {

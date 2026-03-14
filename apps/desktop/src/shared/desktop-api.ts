@@ -10,6 +10,7 @@ export interface DesktopRuntimeInfo {
 }
 
 export type StartupIssueCode =
+  | 'bridge-unavailable'
   | 'git-unavailable'
   | 'renderer-unavailable'
   | 'storage-unwritable'

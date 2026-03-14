@@ -24,6 +24,8 @@ export interface ProjectBindingServiceOptions {
   packageVersion: string;
   noSharedWorktreeSpecs: boolean;
   startupBinding?: StartupBinding;
+  registryPid?: number;
+  registryInstanceId?: string;
 }
 
 export function createStartupBinding(
@@ -49,6 +51,8 @@ export class ProjectBindingService {
   private readonly packageVersion: string;
   private readonly noSharedWorktreeSpecs: boolean;
   private readonly startupBinding?: StartupBinding;
+  private readonly registryPid: number;
+  private readonly registryInstanceId?: string;
   private readonly initializedWorkflowRoots = new Set<string>();
   private readonly registeredWorkspacePaths = new Set<string>();
   private clientRootPaths?: string[];
@@ -61,6 +65,8 @@ export class ProjectBindingService {
     this.packageVersion = options.packageVersion;
     this.noSharedWorktreeSpecs = options.noSharedWorktreeSpecs;
     this.startupBinding = options.startupBinding;
+    this.registryPid = options.registryPid ?? process.pid;
+    this.registryInstanceId = options.registryInstanceId;
   }
 
   getStartupBinding(): StartupBinding | undefined {
@@ -204,7 +210,8 @@ export class ProjectBindingService {
         source: 'mcp'
       });
 
-      const projectId = await this.projectRegistry.registerProject(validatedWorkspacePath, process.pid, {
+      const projectId = await this.projectRegistry.registerProject(validatedWorkspacePath, this.registryPid, {
+        instanceId: this.registryInstanceId,
         workflowRootPath: validatedWorkflowRootPath,
         projectName
       });

@@ -3,7 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/@sc0rch/spec-workflow-mcp)](https://www.npmjs.com/package/@sc0rch/spec-workflow-mcp)
 [![VSCode Extension](https://vsmarketplacebadges.dev/version-short/Pimzino.spec-workflow-mcp.svg)](https://marketplace.visualstudio.com/items?itemName=Pimzino.spec-workflow-mcp)
 
-A Model Context Protocol (MCP) server for structured spec-driven development with real-time dashboard and VSCode extension.
+A Model Context Protocol (MCP) server for structured spec-driven development with an Electron desktop shell, optional legacy web dashboard, and VS Code extension.
 
 This fork is published to npm as `@sc0rch/spec-workflow-mcp`.
 
@@ -30,7 +30,8 @@ This fork is published to npm as `@sc0rch/spec-workflow-mcp`.
 ## ✨ Key Features
 
 - **Structured Development Workflow** - Sequential spec creation (Requirements → Design → Tasks)
-- **Real-Time Web Dashboard** - Monitor specs, tasks, and progress with live updates
+- **Electron Desktop Shell** - Native project picker, approval inbox, spec workspace, and optional Codex bridge
+- **Legacy Web Dashboard** - Secondary browser surface for compatibility and debugging
 - **VSCode Extension** - Integrated sidebar dashboard for VSCode users
 - **Approval Workflow** - Complete approval process with revisions
 - **Task Progress Tracking** - Visual progress bars and detailed status
@@ -71,30 +72,32 @@ If your client exposes multiple roots, pass `projectPath` explicitly on stateful
 
 ### Step 2: Choose your interface
 
-**Option A: Web Dashboard** (Required for CLI users)
-Start the dashboard (runs on port 5091 by default):
-```bash
-npx -y @sc0rch/spec-workflow-mcp@latest --dashboard
-```
-
-The dashboard will be accessible at: http://localhost:5091
-
-> **Note:** Only one dashboard instance is needed. Projects appear lazily after the first prompt/tool call that resolves to that workspace or repo.
-
-**Option B: VSCode Extension** (Recommended for VSCode users)
-
-Install [Spec Workflow MCP Extension](https://marketplace.visualstudio.com/items?itemName=Pimzino.spec-workflow-mcp) from the VSCode marketplace.
-
-**Option C: Electron Desktop Shell** (Rewrite preview)
+**Option A: Electron Desktop Shell** (Preferred local interface)
 
 Run the desktop shell from the repository root:
 ```bash
 npm --prefix apps/desktop run dev
 ```
 
-The current desktop app is a local control surface for remembered projects, approvals, specs, and diagnostics.
+The current desktop app is the preferred local control surface for remembered projects, approvals, specs, diagnostics, and the optional Codex bridge.
 
 > **Lifecycle note:** In `v1`, Codex still launches the MCP server over stdio. The Electron desktop app observes that state, shows live vs remembered workspaces, and complements Codex with native desktop UX instead of replacing Codex's MCP lifecycle yet.
+
+> **Bridge note:** The repository now also includes an optional `spec-workflow-codex-bridge` executable under `apps/desktop/dist/apps/desktop/src/bridge/index.js`. When Codex points to that bridge instead of `spec-workflow-mcp`, the bridge proxies stdio MCP traffic to the Electron desktop app over a local socket and auto-starts the desktop app hidden if needed.
+
+**Option B: VSCode Extension** (Recommended for VSCode users)
+
+Install [Spec Workflow MCP Extension](https://marketplace.visualstudio.com/items?itemName=Pimzino.spec-workflow-mcp) from the VSCode marketplace.
+
+**Option C: Web Dashboard** (Legacy browser interface)
+
+Start the dashboard (runs on port 5091 by default):
+```bash
+npx -y @sc0rch/spec-workflow-mcp@latest --dashboard
+```
+
+The dashboard will be accessible at: http://localhost:5091
+Only one dashboard instance is needed. Projects appear lazily after the first prompt/tool call that resolves to that workspace or repo.
 
 ## 📝 How to Use
 
@@ -253,6 +256,23 @@ Add to your `~/.codex/config.toml` configuration file:
 command = "npx"
 args = ["-y", "@sc0rch/spec-workflow-mcp@latest"]
 ```
+
+Optional desktop-owned bridge flow from this repository:
+```toml
+[mcp_servers.spec-workflow]
+command = "node"
+args = ["/absolute/path/to/spec-workflow-mcp/apps/desktop/dist/apps/desktop/src/bridge/index.js", "--no-shared-worktree-specs"]
+```
+
+Build the desktop app once before using the bridge:
+```bash
+npm --prefix apps/desktop run build
+```
+
+Notes:
+- The bridge keeps the same optional startup path behavior as `spec-workflow-mcp`.
+- If the Electron desktop app is not running, the bridge will try to launch it hidden and then attach Codex to the desktop-managed MCP session.
+- If you override `SPEC_WORKFLOW_DESKTOP_STORAGE_ROOT`, use the same value for both the desktop app and the bridge so they resolve the same local endpoint file.
 </details>
 
 ## 🐳 Docker Deployment

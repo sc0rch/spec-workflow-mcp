@@ -5,6 +5,9 @@
   "type": "module",
   "main": "dist/apps/desktop/src/main/index.js",
   "description": "Electron-first desktop shell for Spec Workflow",
+  "bin": {
+    "spec-workflow-codex-bridge": "dist/apps/desktop/src/bridge/index.js"
+  },
   "engines": {
     "node": ">=22.0.0"
   },
@@ -13,6 +16,7 @@
     "dev": "node ./scripts/dev.mjs",
     "build": "npm run clean && npm run build:electron && npm run build:renderer",
     "build:electron": "tsc -p tsconfig.electron.json",
+    "bridge": "node dist/apps/desktop/src/bridge/index.js",
     "build:renderer": "vite build --config vite.config.ts",
     "lint": "eslint .",
     "test": "vitest run --config vitest.config.ts",

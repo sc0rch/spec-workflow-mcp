@@ -3,8 +3,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { resolve } from 'path';
 import {
+  DESKTOP_PRODUCT_NAME,
   DESKTOP_STORAGE_ROOT_ENV,
   configureDesktopStorageRoot,
+  getDefaultDesktopStorageRoot,
   resolveDesktopStorageRoot
 } from './storage-root.js';
 
@@ -47,5 +49,15 @@ describe('storage root configuration', () => {
         [DESKTOP_STORAGE_ROOT_ENV]: './.tmp-desktop-user-data'
       })
     ).toBe(resolve(process.cwd(), '.tmp-desktop-user-data'));
+  });
+
+  it('derives the default storage root consistently outside Electron', () => {
+    expect(getDefaultDesktopStorageRoot('darwin')).toContain(`/Library/Application Support/${DESKTOP_PRODUCT_NAME}`);
+    expect(getDefaultDesktopStorageRoot('linux', { XDG_CONFIG_HOME: '/tmp/xdg-config-home' })).toBe(
+      `/tmp/xdg-config-home/${DESKTOP_PRODUCT_NAME}`
+    );
+    expect(getDefaultDesktopStorageRoot('win32', { APPDATA: 'C:\\Users\\Test\\AppData\\Roaming' })).toBe(
+      `C:\\Users\\Test\\AppData\\Roaming\\${DESKTOP_PRODUCT_NAME}`
+    );
   });
 });

@@ -1,8 +1,8 @@
 # Electron Desktop Rewrite
 
 Last updated: 2026-03-14
-Status: Milestone 12 complete
-Current focus: Start the optional Codex bridge milestone from a stable desktop shell with dense diagnostics, command palette routing, and validated restart recovery.
+Status: Milestone 13 complete
+Current focus: Advance Milestone 14 by removing more browser-only landing/admin surface and keeping the legacy dashboard as a narrow compatibility/debugging interface.
 
 ## Purpose
 
@@ -26,7 +26,7 @@ This document is the working source of truth for the rewrite. Update it after ea
 
 - `v1` keeps Codex App launching MCP directly through stdio.
 - `v1` Electron owns desktop UX, native dialogs, project recovery UX, and dashboard lifecycle.
-- `v2` may add a small `spec-workflow-codex-bridge` executable so Codex can still spawn stdio MCP while Electron owns the real lifecycle behind a local bridge.
+- `v2` bridge support now exists as an optional `spec-workflow-codex-bridge` executable so Codex can still spawn stdio MCP while Electron owns the real lifecycle behind a local bridge.
 - Design benchmark for the desktop rewrite is closer to `Linear`, `Raycast`, and `Warp` than to a generic web admin dashboard.
 - The main shell must be inbox-first and keyboard-heavy:
   - dense left rail for projects and navigation
@@ -159,6 +159,18 @@ This document is the working source of truth for the rewrite. Update it after ea
   - flatten the live/remembered split into one list
   - drop extra bordered cards around hints and empty states
 - Those notes directly drove the final MCP density pass that is now implemented.
+
+### Latest Opus checkpoint after legacy-dashboard de-emphasis
+
+- Opus agreed with the product direction:
+  - the web dashboard should be clearly secondary
+  - docs should be desktop-first
+  - the browser surface should signal "legacy" without competing with the desktop product
+- The critique was about density and shape, not direction:
+  - a full-width migration-style banner in the browser UI is too loud
+  - launch commands belong in docs, not in a persistent browser banner
+  - the legacy signal should behave like a compact status marker, not a campaign panel
+- Those notes directly drove the density pass that reduced the browser notice to a compact inline legacy marker and removed terminal instructions from the UI surface.
 
 ### Review cadence
 
@@ -521,10 +533,17 @@ Exit criteria:
 
 Goal: Make Electron the lifecycle owner later without blocking `v1`.
 
-- [ ] Define local bridge transport between stdio bridge and Electron-managed service.
-- [ ] Implement `spec-workflow-codex-bridge`.
-- [ ] Add settings/docs for updating Codex config to use the bridge executable.
-- [ ] Add resilience tests around bridge reconnect/restart behavior.
+- [x] Define local bridge transport between stdio bridge and Electron-managed service.
+- [x] Implement `spec-workflow-codex-bridge`.
+- [x] Add settings/docs for updating Codex config to use the bridge executable.
+- [x] Add resilience tests around bridge reconnect/restart behavior.
+
+Implemented:
+- Added a local socket bridge contract in `apps/desktop/src/shared/mcp-bridge.ts` plus `SocketMcpTransport` so Electron can host real MCP server instances behind a newline-delimited local transport instead of stdio.
+- Added `McpBridgeService` in the Electron main process, backed by an endpoint file under the desktop storage root, handshake token validation, per-session MCP server instances, and per-session registry instance IDs so multiple bridge sessions inside one Electron pid do not unregister each other.
+- Added `spec-workflow-codex-bridge` in `apps/desktop/src/bridge/`, including hidden desktop auto-launch, endpoint discovery/retry logic, and raw stdio-to-socket proxying for Codex.
+- Added hidden-start support to the desktop app so the bridge can launch Electron without forcing a visible window before the user asks for one.
+- Documented the bridge-based Codex config path in `README.md` and added focused coverage for storage-root resolution, socket transport I/O, bridge-service handshake behavior, and bridge reconnect/launch retry logic.
 
 Exit criteria:
 - Codex can talk to Electron-managed MCP through a spawned stdio bridge.
@@ -533,10 +552,16 @@ Exit criteria:
 
 Goal: Remove the old dashboard as the default path after the desktop app is clearly better.
 
-- [ ] Audit which legacy dashboard routes/pages are no longer needed.
-- [ ] Remove dead code after desktop replacement is proven.
+- [x] Audit which legacy dashboard routes/pages are no longer needed.
+- [-] Remove dead code after desktop replacement is proven.
 - [ ] Keep only the backend pieces that still serve reusable workflow logic.
-- [ ] Update docs, screenshots, and onboarding around the desktop-first product.
+- [x] Update docs, screenshots, and onboarding around the desktop-first product.
+
+Implemented:
+- Added `docs/LEGACY-DASHBOARD-AUDIT.md` as the canonical route inventory and cleanup map for the browser dashboard, including which routes are now legacy-only and which backend/domain modules remain canonical.
+- Updated `README.md` to make the Electron desktop shell the preferred documented interface, move the browser dashboard into a legacy/secondary position, and keep bridge-based Codex setup in the primary onboarding path.
+- Added an explicit legacy notice inside the browser dashboard UI plus a secondary-label treatment in the sidebar so contributors and testers no longer confuse the browser surface for the primary product direction.
+- Removed the old browser `DashboardStatistics` landing page, redirected `/` to `/specs`, and dropped the statistics nav item so the legacy browser surface no longer opens like an admin overview by default.
 
 Exit criteria:
 - The desktop app is the default documented interface.
@@ -560,7 +585,8 @@ Exit criteria:
 - [x] Complete Milestone 10.
 - [x] Complete Milestone 11.
 - [x] Complete Milestone 12.
-- [-] Start Milestone 13.
+- [x] Complete Milestone 13.
+- [-] Start Milestone 14.
 
 ## Update Protocol
 

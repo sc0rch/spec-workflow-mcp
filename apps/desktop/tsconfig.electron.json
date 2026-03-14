@@ -13,9 +13,14 @@
     "types": [
       "node",
       "electron"
-    ]
+    ],
+    "exactOptionalPropertyTypes": false,
+    "noUncheckedIndexedAccess": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
   },
   "include": [
+    "src/bridge/**/*.ts",
     "src/main/**/*.ts",
     "src/preload/**/*.ts",
     "src/shared/**/*.ts"

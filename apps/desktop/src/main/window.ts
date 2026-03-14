@@ -5,6 +5,7 @@ import { getPreloadEntryPath, getRendererEntryPath } from './runtime-paths.js';
 export interface MainWindowOptions {
   readonly initialState: WindowState;
   readonly rendererUrl?: string | undefined;
+  readonly startHidden?: boolean;
   readonly onWindowStateChanged?: (windowState: WindowState) => void | Promise<void>;
 }
 
@@ -36,9 +37,11 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
     ...(typeof bounds?.y === 'number' ? { y: bounds.y } : {})
   });
 
-  window.once('ready-to-show', () => {
-    window.show();
-  });
+  if (!options.startHidden) {
+    window.once('ready-to-show', () => {
+      window.show();
+    });
+  }
 
   window.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url);
