@@ -151,7 +151,7 @@ export function CommandPalette(props: {
                 onClose();
               }
             }}
-            placeholder="Jump to project, spec, approval, or action"
+            placeholder="Search projects, specs, reviews, and actions"
             ref={inputRef}
             role="combobox"
             spellCheck={false}
@@ -170,7 +170,7 @@ export function CommandPalette(props: {
           </button>
         </div>
         {items.length === 0 ? (
-          <p className="command-empty">No matching actions.</p>
+          <p className="command-empty">No matches.</p>
         ) : (
           <div aria-label="Command results" className="command-list" id={listboxId} role="listbox">
             {items.map((item, index) => (

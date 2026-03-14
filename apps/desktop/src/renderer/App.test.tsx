@@ -127,6 +127,31 @@ const projectWorkspace: DesktopProjectWorkspace = {
         inProgress: 1
       },
       pendingApprovalCount: 1,
+      tasks: [
+        {
+          id: '1.1',
+          description: 'Build desktop shell',
+          status: 'in-progress',
+          lineNumber: 0,
+          indentLevel: 0,
+          isHeader: false,
+          purposes: ['Introduce Electron shell'],
+          implementationDetails: ['Keep project recovery obvious.'],
+          prompt: 'Role: Desktop engineer | Task: Build shell'
+        },
+        {
+          id: '1.2',
+          description: 'Add approval inbox',
+          status: 'pending',
+          lineNumber: 1,
+          indentLevel: 0,
+          isHeader: false,
+          requirements: ['REQ-1'],
+          files: ['apps/desktop/src/renderer/App.tsx'],
+          purposes: ['Show approval queue state'],
+          prompt: 'Role: UI engineer | Task: Add queue-first review'
+        }
+      ],
       activeTask: {
         id: '1.1',
         description: 'Build desktop shell',
@@ -182,6 +207,16 @@ const projectWorkspace: DesktopProjectWorkspace = {
         inProgress: 0
       },
       pendingApprovalCount: 1,
+      tasks: [
+        {
+          id: '2.1',
+          description: 'Add queue-first review',
+          status: 'pending',
+          lineNumber: 0,
+          indentLevel: 0,
+          isHeader: true
+        }
+      ],
       nextTask: {
         id: '2.1',
         description: 'Add queue-first review',
@@ -322,11 +357,7 @@ describe('App', () => {
     expect(
       screen.getByRole('button', { name: 'repo-a' })
     ).toBeInTheDocument();
-    expect(screen.getAllByText('feature/demo').length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Latest spec: Desktop Rewrite/).length).toBeGreaterThan(0);
-    expect(
-      screen.getByText(/2 approvals/)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/feature\/demo · Desktop Rewrite/i)).toBeInTheDocument();
     expect(
       screen.getAllByText('Review desktop shell')
     ).toHaveLength(1);
@@ -432,15 +463,14 @@ describe('App', () => {
     await screen.findByRole('heading', { name: 'Inbox' });
     fireEvent.keyDown(window, { key: '2' });
 
-    expect(await screen.findByText('Spec editor')).toBeInTheDocument();
-    expect(await screen.findByText('Press Cmd/Ctrl+S to save. Press Esc to return to Inbox.')).toBeInTheDocument();
-    expect(await screen.findByText(/Current task: 1\.1 Build desktop shell/)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Specs' })).toBeInTheDocument();
+    expect(await screen.findByRole('document', { name: 'Desktop Rewrite Requirements' })).toBeInTheDocument();
+    expect(await screen.findByText('Keep restart recovery obvious.')).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: 'l' });
 
-    expect(await screen.findByLabelText('Approval Inbox Requirements')).toHaveValue(
-      '# Requirements\nMake review fast.'
-    );
+    expect(await screen.findByRole('document', { name: 'Approval Inbox Requirements' })).toBeInTheDocument();
+    expect(await screen.findByText('Make review fast.')).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: 'Escape' });
 
@@ -449,12 +479,12 @@ describe('App', () => {
     fireEvent.keyDown(window, { key: '3' });
 
     expect(await screen.findByRole('heading', { name: 'Approvals' })).toBeInTheDocument();
-    expect(await screen.findByText('Select text to comment on a specific passage.')).toBeInTheDocument();
+    expect(await screen.findByText('Select text, then add a comment.')).toBeInTheDocument();
     expect(await screen.findByText(/Keep restart recovery obvious/)).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: 'l' });
 
-    expect(await screen.findByRole('button', { name: /Reject/i })).toBeDisabled();
+    expect(await screen.findByRole('button', { name: /^Reject$/i })).toBeEnabled();
     expect(
       await screen.findByText('+ export const approvalStorage = true;')
     ).toBeInTheDocument();
@@ -478,9 +508,8 @@ describe('App', () => {
     await user.type(commandSearch, 'design document');
     await user.keyboard('{Enter}');
 
-    expect(await screen.findByLabelText('Desktop Rewrite Design')).toHaveValue(
-      '# Design\nUse a left rail and detail panel.'
-    );
+    expect(await screen.findByRole('document', { name: 'Desktop Rewrite Design' })).toBeInTheDocument();
+    expect(await screen.findByText('Use a left rail and detail panel.')).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
     await user.type(screen.getByRole('combobox', { name: 'Command search' }), 'review approval inbox');
@@ -627,43 +656,36 @@ describe('App', () => {
     await screen.findByRole('heading', { name: 'Inbox' });
     fireEvent.keyDown(window, { key: '2' });
 
-    expect(await screen.findByLabelText('Desktop Rewrite Requirements')).toBeInTheDocument();
+    expect(await screen.findByRole('document', { name: 'Desktop Rewrite Requirements' })).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: 'Tab' });
 
-    expect(await screen.findByLabelText('Desktop Rewrite Design')).toBeInTheDocument();
+    expect(await screen.findByRole('document', { name: 'Desktop Rewrite Design' })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: 'Tab' });
+
+    expect(await screen.findByRole('document', { name: 'Desktop Rewrite Tasks (Markdown)' })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: 'Tab' });
+
+    expect(await screen.findByRole('button', { name: 'Tasks (Kanban)' })).toHaveAttribute('aria-pressed', 'true');
+    expect(await screen.findByRole('heading', { name: 'Pending' })).toBeInTheDocument();
+    expect(screen.queryByText('Read only')).not.toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
 
-    expect(await screen.findByLabelText('Desktop Rewrite Requirements')).toBeInTheDocument();
+    expect(await screen.findByRole('document', { name: 'Desktop Rewrite Tasks (Markdown)' })).toBeInTheDocument();
   });
 
-  it('saves spec documents through the desktop bridge with a keyboard shortcut', async () => {
-    const user = userEvent.setup();
-    const saveSpecDocument = vi.fn<DesktopApi['saveSpecDocument']>().mockResolvedValue({
-      filePath: '/tmp/repo-a/.spec-workflow/specs/desktop-rewrite/requirements.md',
-      savedAt: '2026-03-14T12:40:00.000Z'
-    });
-    window.desktop = createDesktopApiMock({
-      saveSpecDocument
-    });
-
+  it('keeps specs read-only in the workspace view', async () => {
     render(<App />);
 
     await screen.findByRole('heading', { name: 'Inbox' });
     fireEvent.keyDown(window, { key: '2' });
-    const editor = await screen.findByLabelText('Desktop Rewrite Requirements');
-    await user.clear(editor);
-    await user.type(editor, '# Requirements\n\nPersist save state');
-    fireEvent.keyDown(window, { key: 's', ctrlKey: true });
 
-    expect(saveSpecDocument).toHaveBeenCalledWith(
-      'project-a',
-      'desktop-rewrite',
-      'requirements',
-      '# Requirements\n\nPersist save state'
-    );
-    expect(await screen.findByText(/Saved/)).toBeInTheDocument();
+    expect(await screen.findByRole('document', { name: 'Desktop Rewrite Requirements' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Save/i })).not.toBeInTheDocument();
   });
 
   it('responds to approvals through keyboard shortcuts and auto-advances to the next item', async () => {
@@ -701,10 +723,10 @@ describe('App', () => {
       []
     );
     expect(await screen.findByText(/src\/core\/approval-storage\.ts/)).toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: /Reject/i })).toBeDisabled();
+    expect(await screen.findByRole('button', { name: /^Reject$/i })).toBeEnabled();
   });
 
-  it('keeps reject disabled until a comment is saved and sends comments with the review action', async () => {
+  it('allows rejecting an approval without comments', async () => {
     const user = userEvent.setup();
     const respondToApproval = vi.fn<DesktopApi['respondToApproval']>().mockResolvedValue(undefined);
     window.desktop = createDesktopApiMock({
@@ -717,10 +739,35 @@ describe('App', () => {
     fireEvent.keyDown(window, { key: '3' });
     await screen.findByRole('heading', { name: 'Approvals' });
 
-    const rejectButton = screen.getByRole('button', { name: /Reject/i });
-    expect(rejectButton).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: /^Reject$/i }));
 
-    await user.click(screen.getByRole('button', { name: 'Add note' }));
+    expect(respondToApproval).toHaveBeenCalledWith(
+      'project-a',
+      'approval-1',
+      'reject',
+      'Rejected.',
+      []
+    );
+  });
+
+  it('switches from approve/reject to request revisions after a comment is saved', async () => {
+    const user = userEvent.setup();
+    const respondToApproval = vi.fn<DesktopApi['respondToApproval']>().mockResolvedValue(undefined);
+    window.desktop = createDesktopApiMock({
+      respondToApproval
+    });
+
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Inbox' });
+    fireEvent.keyDown(window, { key: '3' });
+    await screen.findByRole('heading', { name: 'Approvals' });
+
+    expect(screen.getByRole('button', { name: /^Approve$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Reject$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Request revisions/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Add comment' }));
     const commentField = await screen.findByLabelText('Approval comment');
     await user.type(
       commentField,
@@ -728,9 +775,11 @@ describe('App', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Save comment' }));
 
-    expect(screen.getByRole('button', { name: /Reject/i })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: /^Approve$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Reject$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Request revisions/i })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /Reject/i }));
+    await user.click(screen.getByRole('button', { name: /Request revisions/i }));
 
     expect(respondToApproval).toHaveBeenCalledWith(
       'project-a',
@@ -754,7 +803,7 @@ describe('App', () => {
     await screen.findByRole('heading', { name: 'Inbox' });
     fireEvent.keyDown(window, { key: '3' });
     await screen.findByRole('heading', { name: 'Approvals' });
-    await user.click(screen.getByRole('button', { name: 'Add note' }));
+    await user.click(screen.getByRole('button', { name: 'Add comment' }));
 
     const commentField = await screen.findByLabelText('Approval comment');
     await user.type(commentField, 'Keep this draft.');

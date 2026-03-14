@@ -10,6 +10,9 @@ import {
 } from 'react';
 import { CommandPalette, type CommandPaletteItem } from './CommandPalette.js';
 import { ApprovalReviewPanel } from './approvals/ApprovalReviewPanel.js';
+import { MarkdownDocumentView } from './specs/MarkdownDocumentView.js';
+import { TaskKanbanBoard } from './specs/TaskKanbanBoard.js';
+import { getApprovalDisplayTitle } from './approvals/approval-display.js';
 import type {
   DesktopApprovalComment,
   DesktopApprovalReview,
@@ -20,16 +23,10 @@ import type {
 } from '../shared/desktop-api.js';
 
 type WorkMode = 'inbox' | 'workspace' | 'approvals';
+type WorkspaceTabId = DesktopSpecDocumentName | 'tasks-kanban';
 
 type ProjectSummary = DesktopShellState['projects'][number];
 type WorkspaceSpec = DesktopProjectWorkspace['specs'][number];
-type DraftState = Record<string, Record<DesktopSpecDocumentName, string>>;
-type SaveIndicator = {
-  status: 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
-  message?: string | undefined;
-  savedAt?: string | undefined;
-};
-type SaveStateMap = Record<string, Partial<Record<DesktopSpecDocumentName, SaveIndicator>>>;
 type InboxItem = {
   id: string;
   kind: 'approval' | 'spec' | 'implementation';
@@ -51,12 +48,12 @@ type CommandItemContext = {
   projectWorkspace: DesktopProjectWorkspace | null;
   activeSpec: WorkspaceSpec | null;
   activeMode: WorkMode;
-  activeDocument: DesktopSpecDocumentName;
+  activeTab: WorkspaceTabId;
   onPickProject: () => Promise<void>;
   onSelectProject: (workspacePath: string) => void;
   onSelectMode: (mode: WorkMode) => void;
   onSelectSpec: (specName: string) => void;
-  onSelectDocument: (document: DesktopSpecDocumentName) => void;
+  onSelectTab: (document: WorkspaceTabId) => void;
   onSelectApproval: (approvalId: string) => void;
 };
 
@@ -66,14 +63,15 @@ const workModes: Array<{ id: WorkMode; label: string; shortcut: string }> = [
   { id: 'approvals', label: 'Approvals', shortcut: '3' }
 ];
 
-const documentTabs: Array<{
-  id: DesktopSpecDocumentName;
+const workspaceTabs: Array<{
+  id: WorkspaceTabId;
   label: string;
   emptyLabel: string;
 }> = [
   { id: 'requirements', label: 'Requirements', emptyLabel: 'No requirements.md yet.' },
   { id: 'design', label: 'Design', emptyLabel: 'No design.md yet.' },
-  { id: 'tasks', label: 'Tasks', emptyLabel: 'No tasks.md yet.' }
+  { id: 'tasks', label: 'Tasks (Markdown)', emptyLabel: 'No tasks.md yet.' },
+  { id: 'tasks-kanban', label: 'Tasks (Kanban)', emptyLabel: 'No tasks yet.' }
 ];
 
 function getRuntimeInfo(): DesktopRuntimeInfo {
@@ -97,10 +95,8 @@ export function App() {
   const [isLoadingWorkspace, setIsLoadingWorkspace] = useState(false);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [activeSpecName, setActiveSpecName] = useState<string | null>(null);
-  const [activeDocument, setActiveDocument] = useState<DesktopSpecDocumentName>('requirements');
+  const [activeTab, setActiveTab] = useState<WorkspaceTabId>('requirements');
   const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(null);
-  const [specDrafts, setSpecDrafts] = useState<DraftState>({});
-  const [documentSaveState, setDocumentSaveState] = useState<SaveStateMap>({});
   const [approvalReview, setApprovalReview] = useState<DesktopApprovalReview | null>(null);
   const [isLoadingApprovalReview, setIsLoadingApprovalReview] = useState(false);
   const [approvalReviewError, setApprovalReviewError] = useState<string | null>(null);
@@ -184,13 +180,13 @@ export function App() {
       return;
     }
 
-    const currentIndex = documentTabs.findIndex((document) => document.id === activeDocument);
+    const currentIndex = workspaceTabs.findIndex((document) => document.id === activeTab);
     const fallbackIndex = currentIndex >= 0 ? currentIndex : 0;
-    const nextIndex = (fallbackIndex + offset + documentTabs.length) % documentTabs.length;
-    const nextDocument = documentTabs[nextIndex];
+    const nextIndex = (fallbackIndex + offset + workspaceTabs.length) % workspaceTabs.length;
+    const nextDocument = workspaceTabs[nextIndex];
 
     if (nextDocument) {
-      setActiveDocument(nextDocument.id);
+      setActiveTab(nextDocument.id);
     }
   });
 
@@ -301,16 +297,6 @@ export function App() {
   }, [projectWorkspace]);
 
   useEffect(() => {
-    if (!projectWorkspace) {
-      setSpecDrafts({});
-      setDocumentSaveState({});
-      return;
-    }
-
-    setSpecDrafts(createDraftState(projectWorkspace));
-  }, [projectWorkspace]);
-
-  useEffect(() => {
     if (!window.desktop || !activeProject || !selectedApprovalId || activeMode !== 'approvals') {
       setApprovalReview(null);
       setApprovalReviewError(null);
@@ -397,7 +383,7 @@ export function App() {
       projectWorkspace,
       activeSpec,
       activeMode,
-      activeDocument,
+      activeTab,
       onPickProject: handlePickProject,
       onSelectProject: (workspacePath) => {
         setActiveProjectPath(workspacePath);
@@ -406,7 +392,7 @@ export function App() {
       onSelectSpec: (specName) => {
         setActiveSpecName(specName);
       },
-      onSelectDocument: setActiveDocument,
+      onSelectTab: setActiveTab,
       onSelectApproval: (approvalId) => {
         setSelectedApprovalId(approvalId);
 
@@ -507,84 +493,6 @@ export function App() {
     };
   }, [isProjectMenuOpen]);
 
-  const handleDocumentChange = (
-    specName: string,
-    document: DesktopSpecDocumentName,
-    content: string
-  ) => {
-    setSpecDrafts((currentDrafts) => ({
-      ...currentDrafts,
-      [specName]: {
-        ...currentDrafts[specName],
-        [document]: content
-      }
-    }));
-    setDocumentSaveState((currentState) => ({
-      ...currentState,
-      [specName]: {
-        ...currentState[specName],
-        [document]: {
-          status: 'dirty'
-        }
-      }
-    }));
-  };
-
-  const handleSaveDocument = async (
-    specName: string,
-    document: DesktopSpecDocumentName
-  ) => {
-    if (!window.desktop || !activeProject) {
-      return;
-    }
-
-    const content = specDrafts[specName]?.[document] ?? '';
-    setDocumentSaveState((currentState) => ({
-      ...currentState,
-      [specName]: {
-        ...currentState[specName],
-        [document]: {
-          status: 'saving'
-        }
-      }
-    }));
-
-    try {
-      const result = await window.desktop.saveSpecDocument(
-        activeProject.projectId,
-        specName,
-        document,
-        content
-      );
-      const nextWorkspace = await window.desktop.getProjectWorkspace(activeProject.projectId);
-
-      setDocumentSaveState((currentState) => ({
-        ...currentState,
-        [specName]: {
-          ...currentState[specName],
-          [document]: {
-            status: 'saved',
-            savedAt: result.savedAt,
-            message: 'Saved'
-          }
-        }
-      }));
-      setWorkspaceError(null);
-      setProjectWorkspace(nextWorkspace);
-    } catch (error) {
-      setDocumentSaveState((currentState) => ({
-        ...currentState,
-        [specName]: {
-          ...currentState[specName],
-          [document]: {
-            status: 'error',
-            message: error instanceof Error ? error.message : 'Save failed.'
-          }
-        }
-      }));
-    }
-  };
-
   const handleApprovalAction = async (
     action: 'approve' | 'reject',
     comments: DesktopApprovalComment[]
@@ -593,10 +501,10 @@ export function App() {
       return;
     }
 
-    if (action === 'reject' && comments.length === 0) {
+    if (action === 'approve' && comments.length > 0) {
       setApprovalActionState({
         status: 'error',
-        message: 'Add at least one comment before rejecting.'
+        message: 'Remove comments before approving.'
       });
       return;
     }
@@ -605,8 +513,8 @@ export function App() {
 
     try {
       const response = action === 'approve'
-        ? (comments.length > 0 ? formatApprovalCommentsResponse(comments) : 'Approved.')
-        : formatApprovalCommentsResponse(comments);
+        ? 'Approved.'
+        : (comments.length > 0 ? formatApprovalCommentsResponse(comments) : 'Rejected.');
 
       await window.desktop.respondToApproval(
         activeProject.projectId,
@@ -625,7 +533,7 @@ export function App() {
       const nextPending = nextWorkspace.pendingApprovals[0] ?? null;
       const successMessage = action === 'approve'
         ? 'Approval marked as approved.'
-        : 'Approval marked as rejected.';
+        : (comments.length > 0 ? 'Revision request sent.' : 'Approval marked as rejected.');
 
       applyShellState(nextShellState);
       setProjectWorkspace(nextWorkspace);
@@ -680,14 +588,6 @@ export function App() {
       closeProjectMenu();
       return;
     }
-
-      if (isModifierKey && key === 's') {
-        if (activeMode === 'workspace' && activeSpec) {
-          event.preventDefault();
-          void handleSaveDocument(activeSpec.name, activeDocument);
-        }
-        return;
-      }
 
       if (event.key === 'Escape' && isTextEditingTarget(event.target)) {
         return;
@@ -753,13 +653,11 @@ export function App() {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [
-    activeDocument,
+    activeTab,
     closeProjectMenu,
     activeMode,
-    activeSpec,
     closePalette,
     handleApprovalAction,
-    handleSaveDocument,
     isProjectMenuOpen,
     isPaletteOpen,
     openPalette,
@@ -826,7 +724,7 @@ export function App() {
                   <h2 className="sr-only" id={projectMenuTitleId}>Project picker</h2>
                   {shellState.projects.length === 0 ? (
                     <p className="panel-copy project-menu-empty">
-                      No projects yet. Add a repository once and it will still be here after restart.
+                      No saved projects yet. Add a folder once and it stays here after restart.
                     </p>
                   ) : (
                     <div aria-label="Projects" className="project-list" role="list">
@@ -895,7 +793,7 @@ export function App() {
             </div>
             <button
               aria-label="Add folder"
-              className="secondary-action icon-action"
+              className="secondary-action icon-action header-utility-action"
               disabled={!canPickProject || isPickingProject}
               onClick={() => {
                 void handlePickProject();
@@ -910,18 +808,18 @@ export function App() {
           <div className="shell-header-group shell-header-group-end">
             <button
               aria-label="Search"
-              className="secondary-action command-trigger"
+              className="secondary-action command-trigger header-utility-action"
               onClick={() => {
                 openPalette();
               }}
               type="button"
             >
-              <span className="utility-label">Search</span>
+              <span className="header-action-label">Search</span>
               <kbd>⌘K</kbd>
             </button>
             <div
               aria-label={`MCP ${mcpStatus.label}`}
-              className={`mcp-indicator mcp-indicator-${mcpStatus.tone}`}
+              className={`mcp-indicator mcp-indicator-${mcpStatus.tone} header-status-indicator`}
               role="status"
               title={`MCP ${mcpStatus.label}`}
             >
@@ -951,19 +849,6 @@ export function App() {
         {activeProject ? (
           <>
             <div className="workspace-head">
-              <div className="workspace-head-copy">
-                <h2>{activeProject.projectName}</h2>
-                <div className="workspace-head-meta">
-                  {activeProject.gitBranch ? (
-                    <span className="badge badge-neutral">{activeProject.gitBranch}</span>
-                  ) : null}
-                  <span className="helper-copy">
-                    {activeProject.latestSpec
-                      ? `Latest spec: ${activeProject.latestSpec.displayName}`
-                      : 'No specs yet'}
-                  </span>
-                </div>
-              </div>
               <nav aria-label="Work modes" className="mode-tabs">
                 {workModes.map((mode) => (
                   <button
@@ -991,17 +876,15 @@ export function App() {
                 isLoadingWorkspace,
                 workspaceError,
                 activeSpecName,
-                activeDocument,
+                activeTab,
                 selectedApprovalId,
-                specDrafts,
-                documentSaveState,
                 approvalReview,
                 isLoadingApprovalReview,
                 approvalReviewError,
                 approvalActionState,
                 onChangeMode: setActiveMode,
                 onSelectSpec: setActiveSpecName,
-                onSelectDocument: setActiveDocument,
+                onSelectTab: setActiveTab,
                 onSelectApproval: (approvalId) => {
                   setSelectedApprovalId(approvalId);
 
@@ -1012,8 +895,6 @@ export function App() {
                     setActiveSpecName(approval.categoryName);
                   }
                 },
-                onDocumentChange: handleDocumentChange,
-                onSaveDocument: handleSaveDocument,
                 onApprovalAction: handleApprovalAction
               })}
             </div>
@@ -1021,7 +902,7 @@ export function App() {
         ) : (
           <article className="panel workspace-empty">
             <h2>No project selected</h2>
-            <p className="panel-copy">Choose a project to open its inbox, spec files, and approvals.</p>
+            <p className="panel-copy">Pick a project to open reviews, specs, and recent work.</p>
           </article>
         )}
       </section>
@@ -1049,10 +930,8 @@ function renderWorkspaceContent(options: {
   isLoadingWorkspace: boolean;
   workspaceError: string | null;
   activeSpecName: string | null;
-  activeDocument: DesktopSpecDocumentName;
+  activeTab: WorkspaceTabId;
   selectedApprovalId: string | null;
-  specDrafts: DraftState;
-  documentSaveState: SaveStateMap;
   approvalReview: DesktopApprovalReview | null;
   isLoadingApprovalReview: boolean;
   approvalReviewError: string | null;
@@ -1062,14 +941,8 @@ function renderWorkspaceContent(options: {
   };
   onChangeMode: (mode: WorkMode) => void;
   onSelectSpec: (specName: string) => void;
-  onSelectDocument: (document: DesktopSpecDocumentName) => void;
+  onSelectTab: (document: WorkspaceTabId) => void;
   onSelectApproval: (approvalId: string) => void;
-  onDocumentChange: (
-    specName: string,
-    document: DesktopSpecDocumentName,
-    content: string
-  ) => void;
-  onSaveDocument: (specName: string, document: DesktopSpecDocumentName) => Promise<void>;
   onApprovalAction: (
     action: 'approve' | 'reject',
     comments: DesktopApprovalComment[]
@@ -1082,29 +955,25 @@ function renderWorkspaceContent(options: {
     isLoadingWorkspace,
     workspaceError,
     activeSpecName,
-    activeDocument,
+    activeTab,
     selectedApprovalId,
-    specDrafts,
-    documentSaveState,
     approvalReview,
     isLoadingApprovalReview,
     approvalReviewError,
     approvalActionState,
     onChangeMode,
     onSelectSpec,
-    onSelectDocument,
+    onSelectTab,
     onSelectApproval,
-    onDocumentChange,
-    onSaveDocument,
     onApprovalAction
   } = options;
 
   if (isLoadingWorkspace) {
     return (
-      <article className="panel workspace-card workspace-span-2">
-        <h2>Loading project</h2>
+      <article className="panel workspace-message-card workspace-span-2">
+        <h2>Loading workspace</h2>
         <p className="panel-copy">
-          Reading specs, approvals, and implementation logs for {project.projectName}.
+          Loading specs, reviews, and recent implementation work for {project.projectName}.
         </p>
       </article>
     );
@@ -1112,7 +981,7 @@ function renderWorkspaceContent(options: {
 
   if (workspaceError) {
     return (
-      <article className="panel workspace-card workspace-span-2">
+      <article className="panel workspace-message-card workspace-span-2">
         <h2>Workspace unavailable</h2>
         <p className="issue issue-error">{workspaceError}</p>
       </article>
@@ -1121,10 +990,10 @@ function renderWorkspaceContent(options: {
 
   if (!projectWorkspace) {
     return (
-      <article className="panel workspace-card workspace-span-2">
-        <h2>Project not loaded yet</h2>
+      <article className="panel workspace-message-card workspace-span-2">
+        <h2>Workspace not ready yet</h2>
         <p className="panel-copy">
-          Choose a project or reconnect Codex to load its specs, approvals, and logs.
+          Pick a project to load its specs, reviews, and recent work.
         </p>
       </article>
     );
@@ -1134,13 +1003,9 @@ function renderWorkspaceContent(options: {
     return renderWorkspaceMode(
       projectWorkspace,
       activeSpecName,
-      activeDocument,
-      specDrafts,
-      documentSaveState,
+      activeTab,
       onSelectSpec,
-      onSelectDocument,
-      onDocumentChange,
-      onSaveDocument
+      onSelectTab
     );
   }
 
@@ -1173,7 +1038,6 @@ function renderInboxMode(
   onSelectSpec: (specName: string) => void,
   onSelectApproval: (approvalId: string) => void
 ): ReactNode {
-  const activeSpecs = projectWorkspace.specs.filter((spec) => spec.phaseState === 'active');
   const recentImplementations = getRecentImplementationEntries(projectWorkspace);
   const actionableSpecs = [...projectWorkspace.specs]
     .filter((spec) => spec.phaseState !== 'implemented' || spec.pendingApprovalCount > 0)
@@ -1193,9 +1057,9 @@ function renderInboxMode(
       id: approval.approvalId,
       kind: 'approval' as const,
       kindLabel: 'Approval',
-      title: approval.title,
+      title: getApprovalDisplayTitle(approval),
       summary: `${formatDisplayName(approval.categoryName)} · ${approval.filePath}`,
-      meta: `${formatTimestamp(approval.createdAt, 'Unknown time')} · ${approval.type}`,
+      meta: formatTimestamp(approval.createdAt, 'Unknown time'),
       actionLabel: 'Review',
       badgeClassName: approval.type === 'action' ? 'badge-warning' : 'badge-neutral',
       onSelect: () => {
@@ -1213,7 +1077,7 @@ function renderInboxMode(
         : spec.nextTask
           ? `Next ${spec.nextTask.id} ${spec.nextTask.description}`
           : 'Open this spec',
-      meta: `${formatPhaseState(spec.phaseState)} · ${spec.taskSummary.completed}/${spec.taskSummary.total || 0} complete · ${spec.pendingApprovalCount} approvals`,
+      meta: formatTimestamp(spec.lastModified, 'Unknown update'),
       actionLabel: 'Open',
       badgeClassName: `badge-phase-${spec.phaseState}`,
       onSelect: () => {
@@ -1227,7 +1091,7 @@ function renderInboxMode(
       kindLabel: 'Implementation',
       title: `${entry.specDisplayName} · ${entry.taskId}`,
       summary: entry.summary,
-      meta: `${formatTimestamp(entry.timestamp, 'Unknown timestamp')} · ${formatFileDelta(entry.filesModified, entry.filesCreated)}`,
+      meta: formatTimestamp(entry.timestamp, 'Unknown timestamp'),
       actionLabel: 'Open',
       badgeClassName: 'badge-neutral',
       onSelect: () => {
@@ -1240,12 +1104,9 @@ function renderInboxMode(
   const visibleInboxItems = nextAction ? inboxItems.slice(1) : inboxItems;
 
   return (
-    <article className="panel workspace-card workspace-span-2">
+    <article className="workspace-card workspace-span-2 workspace-mode workspace-mode-inbox">
       <div className="section-header">
         <h2>Inbox</h2>
-        <span className="section-meta">
-          {projectWorkspace.pendingApprovals.length} approvals · {activeSpecs.length} active specs
-        </span>
       </div>
       {nextAction ? (
         <div
@@ -1268,7 +1129,7 @@ function renderInboxMode(
         </div>
       ) : (
         <p className="panel-copy">
-          Nothing needs attention right now.
+          No reviews or active specs need attention right now.
         </p>
       )}
 
@@ -1306,24 +1167,16 @@ function renderInboxMode(
 function renderWorkspaceMode(
   projectWorkspace: DesktopProjectWorkspace,
   activeSpecName: string | null,
-  activeDocument: DesktopSpecDocumentName,
-  specDrafts: DraftState,
-  documentSaveState: SaveStateMap,
+  activeTab: WorkspaceTabId,
   onSelectSpec: (specName: string) => void,
-  onSelectDocument: (document: DesktopSpecDocumentName) => void,
-  onDocumentChange: (
-    specName: string,
-    document: DesktopSpecDocumentName,
-    content: string
-  ) => void,
-  onSaveDocument: (specName: string, document: DesktopSpecDocumentName) => Promise<void>
+  onSelectTab: (document: WorkspaceTabId) => void
 ): ReactNode {
   if (projectWorkspace.specs.length === 0) {
     return (
-      <article className="panel workspace-card workspace-span-2">
+      <article className="panel workspace-message-card workspace-span-2">
         <h2>No specs yet</h2>
         <p className="panel-copy">
-          This project is connected, but there are no spec files here yet.
+          This project is connected, but it does not have any spec files yet.
         </p>
       </article>
     );
@@ -1331,19 +1184,17 @@ function renderWorkspaceMode(
 
   const activeSpec = projectWorkspace.specs.find((spec) => spec.name === activeSpecName)
     ?? projectWorkspace.specs[0];
-  const selectedDocument = documentTabs.find((document) => document.id === activeDocument)
-    ?? documentTabs[0];
-  const draft = specDrafts[activeSpec.name]?.[selectedDocument.id] ?? '';
-  const saveState = documentSaveState[activeSpec.name]?.[selectedDocument.id] ?? { status: 'idle' as const };
-  const hasContent = draft.trim().length > 0;
+  const selectedTab = workspaceTabs.find((document) => document.id === activeTab)
+    ?? workspaceTabs[0];
+  const selectedDocument = selectedTab.id === 'tasks-kanban' ? null : selectedTab;
+  const documentContent = selectedDocument
+    ? activeSpec.phases[selectedDocument.id].content ?? ''
+    : null;
 
   return (
-    <article className="panel workspace-card workspace-span-2 workspace-detail-card">
+    <article className="workspace-card workspace-span-2 workspace-detail-card workspace-mode workspace-mode-specs">
       <div className="section-header">
-        <div>
-          <h2>Spec editor</h2>
-        </div>
-        <span className={`badge badge-phase-${activeSpec.phaseState}`}>{formatPhaseState(activeSpec.phaseState)}</span>
+        <h2>Specs</h2>
       </div>
 
       <div aria-label="Specs" className="spec-tabs" role="tablist">
@@ -1363,29 +1214,25 @@ function renderWorkspaceMode(
         ))}
       </div>
 
-      <p className="spec-meta">{formatSpecMeta(activeSpec)}</p>
-
       <div className="phase-stack">
         <section className="phase-card document-shell">
           <div aria-label="Spec documents" className="document-tabs" role="tablist">
-            {documentTabs.map((document) => {
-              const documentSave = documentSaveState[activeSpec.name]?.[document.id] ?? { status: 'idle' as const };
-              const phase = activeSpec.phases[document.id];
-
+            {workspaceTabs.map((document) => {
+              const phase = document.id === 'tasks-kanban'
+                ? activeSpec.phases.tasks
+                : activeSpec.phases[document.id];
               return (
                 <button
-                  aria-pressed={selectedDocument.id === document.id}
-                  className={`spec-tab ${selectedDocument.id === document.id ? 'spec-tab-active' : ''}`}
+                  aria-pressed={selectedTab.id === document.id}
+                  className={`spec-tab ${selectedTab.id === document.id ? 'spec-tab-active' : ''}`}
                   key={document.id}
                   onClick={() => {
-                    onSelectDocument(document.id);
+                    onSelectTab(document.id);
                   }}
                   type="button"
                 >
                   <span>{document.label}</span>
-                  {documentSave.status === 'dirty' ? (
-                    <span aria-hidden="true" className="dirty-dot" />
-                  ) : !phase.exists ? (
+                  {!phase.exists ? (
                     <span className="document-tab-meta">Missing</span>
                   ) : null}
                 </button>
@@ -1393,40 +1240,18 @@ function renderWorkspaceMode(
             })}
           </div>
 
-          <div className="phase-header">
-            <div>
-              <h3>{selectedDocument.label}</h3>
-              <p className="panel-copy">
-                {getDocumentMeta(activeSpec, selectedDocument.id)}
-              </p>
+          {selectedTab.id === 'tasks-kanban' ? (
+            <TaskKanbanBoard spec={activeSpec} />
+          ) : selectedDocument && activeSpec.phases[selectedDocument.id].exists ? (
+            <MarkdownDocumentView
+              ariaLabel={`${activeSpec.displayName} ${selectedTab.label}`}
+              content={documentContent ?? ''}
+            />
+          ) : (
+            <div className="document-empty-state">
+              <p className="panel-copy">{selectedTab.emptyLabel}</p>
             </div>
-            <span className={`editor-status editor-status-${saveState.status}`}>
-              {getSaveStateLabel(saveState)}
-            </span>
-          </div>
-          <textarea
-            aria-label={`${activeSpec.displayName} ${selectedDocument.label}`}
-            className="phase-editor"
-            onChange={(event) => {
-              onDocumentChange(activeSpec.name, selectedDocument.id, event.target.value);
-            }}
-            placeholder={selectedDocument.emptyLabel}
-            spellCheck={false}
-            value={draft}
-          />
-          <div className="editor-footer">
-            <span className="helper-copy">Press Cmd/Ctrl+S to save. Press Esc to return to Inbox.</span>
-            <button
-              className="secondary-action"
-              disabled={saveState.status === 'saving' || (saveState.status !== 'dirty' && !hasContent)}
-              onClick={() => {
-                void onSaveDocument(activeSpec.name, selectedDocument.id);
-              }}
-              type="button"
-            >
-              {saveState.status === 'saving' ? 'Saving...' : `Save ${selectedDocument.label}`}
-            </button>
-          </div>
+          )}
         </section>
 
         <details className="phase-card history-details">
@@ -1469,19 +1294,6 @@ function createFallbackShellState(): DesktopShellState {
     issues: [],
     projects: []
   };
-}
-
-function createDraftState(projectWorkspace: DesktopProjectWorkspace): DraftState {
-  return Object.fromEntries(
-    projectWorkspace.specs.map((spec) => [
-      spec.name,
-      {
-        requirements: spec.phases.requirements.content ?? '',
-        design: spec.phases.design.content ?? '',
-        tasks: spec.phases.tasks.content ?? ''
-      }
-    ])
-  );
 }
 
 function formatTimestamp(value: string | null, fallback: string): string {
@@ -1605,57 +1417,13 @@ function createMcpStatus(shellState: DesktopShellState, bridgeError: string | nu
   };
 }
 
-function getSaveStateLabel(saveState: SaveIndicator): string {
-  if (saveState.status === 'saved') {
-    return saveState.savedAt
-      ? `Saved ${formatTimestamp(saveState.savedAt, 'Saved')}`
-      : 'Saved';
-  }
-
-  if (saveState.status === 'saving') {
-    return 'Saving changes...';
-  }
-
-  if (saveState.status === 'error') {
-    return saveState.message ?? 'Save failed.';
-  }
-
-  if (saveState.status === 'dirty') {
-    return 'Unsaved changes';
-  }
-
-  return 'No changes yet';
-}
-
-function formatSpecMeta(spec: WorkspaceSpec): string {
-  const segments = [
-    spec.activeTask ? `Current task: ${spec.activeTask.id} ${spec.activeTask.description}` : null,
-    spec.nextTask ? `Next task: ${spec.nextTask.id} ${spec.nextTask.description}` : null,
-    `${spec.taskSummary.completed}/${spec.taskSummary.total || 0} tasks`,
-    `${spec.pendingApprovalCount} approvals`
-  ].filter((segment): segment is string => segment !== null);
-
-  return segments.join(' · ');
-}
-
-function getDocumentMeta(
-  spec: WorkspaceSpec,
-  document: DesktopSpecDocumentName
-): string {
-  if (document === 'tasks') {
-    return `${spec.taskSummary.completed}/${spec.taskSummary.total || 0} tasks complete`;
-  }
-
-  return formatTimestamp(spec.phases[document].lastModified ?? null, 'No file yet');
-}
-
 function createCommandPaletteItems(context: CommandItemContext): CommandPaletteItem[] {
   const items: CommandPaletteItem[] = [
     {
       id: 'action:add-project',
       category: 'Action',
       title: 'Add folder',
-      meta: 'Open the folder picker and save a repository for later.',
+      meta: 'Pick a project folder and keep it in the app.',
       keywords: ['folder', 'picker', 'remember', 'repo'],
       onSelect: async () => {
         await context.onPickProject();
@@ -1667,7 +1435,7 @@ function createCommandPaletteItems(context: CommandItemContext): CommandPaletteI
       title: `Open ${mode.label}`,
       meta: context.activeProject
         ? `${context.activeProject.projectName} · ${mode.label.toLowerCase()}`
-        : 'Select a project first.',
+        : 'Pick a project first.',
       shortcut: mode.shortcut,
       keywords: ['mode', mode.id, mode.label.toLowerCase()],
       onSelect: () => {
@@ -1681,7 +1449,7 @@ function createCommandPaletteItems(context: CommandItemContext): CommandPaletteI
       id: `project:${project.projectId}`,
       category: 'Project',
       title: project.projectName,
-      meta: `${project.connectionState === 'live' ? 'Live in Codex' : 'Saved locally'}${project.gitBranch ? ` · ${project.gitBranch}` : ''}`,
+      meta: `${project.connectionState === 'live' ? 'Live now' : 'Saved in app'}${project.gitBranch ? ` · ${project.gitBranch}` : ''}`,
       keywords: [
         project.projectName,
         project.workspacePath,
@@ -1720,11 +1488,11 @@ function createCommandPaletteItems(context: CommandItemContext): CommandPaletteI
 
   if (context.activeSpec) {
     items.push(
-      ...documentTabs.map((document) => ({
+      ...workspaceTabs.map((document) => ({
         id: `document:${document.id}`,
         category: 'Document',
-        title: `${document.label} document`,
-        meta: `${context.activeSpec.displayName}${context.activeDocument === document.id ? ' · current' : ''}`,
+        title: document.id === 'tasks-kanban' ? 'Tasks board' : `${document.label} document`,
+        meta: `${context.activeSpec.displayName}${context.activeTab === document.id ? ' · current' : ''}`,
         keywords: [
           document.id,
           document.label.toLowerCase(),
@@ -1733,7 +1501,7 @@ function createCommandPaletteItems(context: CommandItemContext): CommandPaletteI
         ],
         onSelect: () => {
           context.onSelectMode('workspace');
-          context.onSelectDocument(document.id);
+          context.onSelectTab(document.id);
         }
       }))
     );
@@ -1743,7 +1511,7 @@ function createCommandPaletteItems(context: CommandItemContext): CommandPaletteI
     ...context.projectWorkspace.pendingApprovals.map((approval) => ({
       id: `approval:${approval.approvalId}`,
       category: 'Approval',
-      title: approval.title,
+      title: getApprovalDisplayTitle(approval),
       meta: `${formatDisplayName(approval.categoryName)} · ${approval.filePath}`,
       keywords: [
         approval.title,

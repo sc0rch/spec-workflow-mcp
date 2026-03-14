@@ -81,6 +81,20 @@ export interface DesktopProjectWorkspace {
       readonly inProgress: number;
     };
     readonly pendingApprovalCount: number;
+    readonly tasks: Array<{
+      readonly id: string;
+      readonly description: string;
+      readonly status: 'pending' | 'in-progress' | 'completed';
+      readonly lineNumber: number;
+      readonly indentLevel: number;
+      readonly isHeader: boolean;
+      readonly requirements?: string[] | undefined;
+      readonly leverage?: string | undefined;
+      readonly files?: string[] | undefined;
+      readonly purposes?: string[] | undefined;
+      readonly implementationDetails?: string[] | undefined;
+      readonly prompt?: string | undefined;
+    }>;
     readonly activeTask?: {
       readonly id: string;
       readonly description: string;

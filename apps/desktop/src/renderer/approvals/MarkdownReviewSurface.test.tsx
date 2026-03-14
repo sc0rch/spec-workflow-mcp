@@ -48,8 +48,7 @@ describe('MarkdownReviewSurface', () => {
     );
 
     expect(screen.getByRole('document', { name: 'Approval review content' })).toBeInTheDocument();
-    const toolbarButton = screen.getByRole('button', { name: 'Comment selection' });
-    expect(toolbarButton).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Add comment' })).not.toBeInTheDocument();
 
     const selectedParagraph = await screen.findByText('Keep restart recovery obvious.');
     const textNode = selectedParagraph.firstChild;
@@ -86,9 +85,9 @@ describe('MarkdownReviewSurface', () => {
     fireEvent.mouseUp(reviewSurface as HTMLElement);
     fireEvent(document, new Event('selectionchange'));
 
-    expect(await screen.findByRole('button', { name: 'Comment selection' })).toBeEnabled();
+    expect(await screen.findByRole('button', { name: 'Add comment' })).toBeEnabled();
 
-    await user.click(await screen.findByRole('button', { name: 'Comment selection' }));
+    await user.click(await screen.findByRole('button', { name: 'Add comment' }));
 
     expect(onRequestSelectionComment).toHaveBeenCalledTimes(1);
     const selection = onRequestSelectionComment.mock.calls[0]?.[0];
@@ -150,6 +149,6 @@ describe('MarkdownReviewSurface', () => {
     fireEvent.keyUp(reviewSurface, { key: 'ArrowRight', shiftKey: true });
     document.dispatchEvent(new Event('selectionchange'));
 
-    expect(await screen.findByRole('button', { name: 'Comment selection' })).toBeEnabled();
+    expect(await screen.findByRole('button', { name: 'Add comment' })).toBeEnabled();
   });
 });

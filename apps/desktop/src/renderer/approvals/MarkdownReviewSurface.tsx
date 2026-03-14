@@ -1,8 +1,6 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
-import MarkdownIt from 'markdown-it';
-import hljs from 'highlight.js';
-import 'highlight.js/styles/github-dark.css';
 import type { DesktopApprovalComment } from '../../shared/desktop-api.js';
+import { renderMarkdownToHtml } from '../markdown.js';
 
 export interface ApprovalSelectionDraft {
   readonly selectedText: string;
@@ -18,18 +16,6 @@ interface MarkdownReviewSurfaceProps {
   readonly onSelectComment: (commentId: string) => void;
 }
 
-const markdown = new MarkdownIt({
-  html: false,
-  linkify: true,
-  highlight(code, language) {
-    if (language && hljs.getLanguage(language)) {
-      return `<pre class="hljs"><code>${hljs.highlight(code, { language, ignoreIllegals: true }).value}</code></pre>`;
-    }
-
-    return `<pre class="hljs"><code>${markdown.utils.escapeHtml(code)}</code></pre>`;
-  }
-});
-
 export function MarkdownReviewSurface({
   content,
   comments,
@@ -42,7 +28,7 @@ export function MarkdownReviewSurface({
     top: number;
     left: number;
   }) | null>(null);
-  const renderedHtml = useMemo(() => markdown.render(content), [content]);
+  const renderedHtml = useMemo(() => renderMarkdownToHtml(content), [content]);
 
   const refreshSelectionDraft = useEffectEvent(() => {
     const container = containerRef.current;
@@ -140,17 +126,6 @@ export function MarkdownReviewSurface({
 
   return (
     <div className="approval-markdown-shell">
-      <div className="approval-review-toolbar">
-        <p className="helper-copy">Select text to comment on a specific passage.</p>
-        <button
-          className="secondary-action"
-          disabled={!selectionDraft}
-          onClick={handleAddComment}
-          type="button"
-        >
-          Comment selection
-        </button>
-      </div>
       <div
         aria-label="Approval review content"
         className="approval-render-surface"

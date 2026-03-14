@@ -33,6 +33,16 @@ const projectWorkspace: DesktopProjectWorkspace = {
         inProgress: 1
       },
       pendingApprovalCount: 1,
+      tasks: [
+        {
+          id: '1.1',
+          description: 'Review the requirements copy',
+          status: 'in-progress',
+          lineNumber: 0,
+          indentLevel: 0,
+          isHeader: false
+        }
+      ],
       activeTask: {
         id: '1.1',
         description: 'Review the requirements copy',
@@ -96,5 +106,22 @@ describe('ApprovalReviewPanel', () => {
 
     expect(await screen.findByText('Tighten this sentence.')).toBeInTheDocument();
     expect(container.querySelector('.approval-inline-comment')).not.toBeNull();
+  });
+
+  it('does not render redundant queue meta for document approvals', () => {
+    const { container } = render(
+      <ApprovalReviewPanel
+        approvalActionState={{ status: 'idle' }}
+        approvalReview={approvalReview}
+        approvalReviewError={null}
+        isLoadingApprovalReview={false}
+        onSelectApproval={vi.fn()}
+        onSubmitDecision={vi.fn().mockResolvedValue(undefined)}
+        projectWorkspace={projectWorkspace}
+        selectedApprovalId="approval-1"
+      />
+    );
+
+    expect(container.querySelector('.approval-queue-meta')).toBeNull();
   });
 });

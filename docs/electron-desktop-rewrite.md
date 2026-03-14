@@ -1,8 +1,8 @@
 # Electron Desktop Rewrite
 
 Last updated: 2026-03-14
-Status: Milestone 14 complete; post-roadmap approval review rewrite, desktop refresh hardening, and accessibility hardening implemented
-Current focus: Core rewrite milestones are complete. Post-roadmap Electron refinements are now focused on approval-flow polish, accessibility cleanup, bundle-weight reduction, and targeted desktop UX cleanup while browser cleanup stays opportunistic only.
+Status: Milestone 14 complete; post-roadmap approval review rewrite, desktop refresh hardening, accessibility hardening, inbox recency fixes, and spec-viewer kanban rework implemented
+Current focus: Core rewrite milestones are complete. Post-roadmap Electron refinements are now focused on approval-flow polish, accessibility cleanup, bundle-weight reduction, and targeted desktop UX cleanup while browser cleanup stays opportunistic only. Keep inbox prioritization aligned with the most recent MCP activity and keep Specs optimized for review rather than editing.
 
 ## Purpose
 
@@ -977,6 +977,80 @@ Implemented:
   - raised primary, secondary, and muted text significantly
   - made panels, controls, editor surfaces, and palette layers more solid and less translucent
   - strengthened borders so cards, controls, and inputs separate cleanly from the app background
+
+### Workbench Simplification Pass
+
+Goal: Apply a coordinated `colorize -> distill -> quieter -> bolder -> clarify` pass to the Electron shell instead of making isolated cosmetic tweaks.
+
+Implemented:
+- Quieted the desktop chrome in `apps/desktop/src/renderer/App.tsx` and `apps/desktop/src/renderer/styles.css`:
+  - search and add-folder controls now read as utility actions instead of primary boxed buttons
+  - MCP status remains visible but no longer competes with the workspace
+- Distilled the main work surfaces:
+  - top-level inbox, specs, and approvals articles now render as flatter workspace sections instead of another layer of panels
+  - inbox queue items were flattened from card rows into lighter list rows so the `Next` callout becomes the single primary focal point
+  - document shell and implementation history were flattened so the editor surface does more of the visual work
+  - approval comments rail is now a lighter sticky aside instead of another large boxed panel
+- Added bolder hierarchy where it actually matters:
+  - stronger project title in the workspace head
+  - larger `Next` callout title
+  - larger selected approval title inside the review surface
+  - work-mode headings became quieter labels so active content dominates instead of section chrome
+- Clarified user-facing copy:
+  - shorter loading / empty-state messages
+  - clearer approval helper text and comment labels
+  - shorter editor help text
+  - clearer command-palette action metadata
+
+### Inbox Recency Fix
+
+Goal: Make the desktop inbox `Next` action track the latest approval request instead of getting stuck on the oldest pending item.
+
+Implemented:
+- flipped `ProjectWorkspaceService` approval queue ordering to newest-first in `src/core/project-workspace.ts`
+- added explicit timestamp-controlled coverage in `src/core/__tests__/project-workspace.test.ts`
+- locked the desktop behavior to the latest MCP approval request because the inbox callout is derived from `pendingApprovals[0]`
+
+### Specs Viewer and Kanban Pass
+
+Goal: Rework the desktop `Specs` mode for review-oriented reading instead of inline editing.
+
+Implemented:
+- removed inline document editing from the desktop specs surface and replaced it with a read-only markdown viewer with code-block highlighting
+- renamed the old tasks document tab to `Tasks (Markdown)`
+- added a separate `Tasks (Kanban)` tab driven by canonical task data from `ProjectWorkspaceService`
+- enriched workspace snapshots with parsed task metadata so kanban cards can expose prompt, purpose, requirements, files, and implementation details without reparsing markdown in the renderer
+- made kanban columns independently scrollable and preserved column scroll positions across live board updates
+- removed duplicate per-tab headings and helper copy from the specs body so the active tab itself is the only title source
+- strengthened the active document tab indicator and flattened the kanban layout from boxed lanes to columns separated by vertical rules
+
+### Noise Reduction Distill Pass
+
+Goal: Remove any desktop copy and metadata that does not directly help spec review, task reading, or approval actions.
+
+Implemented:
+- removed duplicate project context from the workspace body because the active project dropdown already carries branch and latest-spec context
+- removed inbox header counters and reduced inbox row footer metadata to timestamps only
+- removed redundant spec-view meta such as the right-side phase badge and task/approval summary line
+- removed kanban lane count badges and kept the board focused on tasks themselves instead of counts about tasks
+- shortened approval titles derived from `Approve <phase> for <spec>` into compact `Phase · Spec` labels
+- removed duplicate spec-name metadata from document approval tabs so the queue only shows the compact title once
+- removed the fixed `Comment selection` action from approval review and kept only the floating selection affordance
+- moved the `Select text, then add a comment.` helper under `Review decision`, where it supports the actual action instead of competing with the review surface
+- removed diff summary noise such as `+99 / -0` from the approvals header
+
+### Approval Sidebar Compaction Pass
+
+Goal: Move approval actions into the comments column and remove the redundant bottom decision strip.
+
+Implemented:
+- removed the bottom `Review decision` bar from the main approval surface
+- moved approval actions into the right comments sidebar and kept them visible beneath the scrolling comments list
+- changed the empty-comments state to show `No review comments yet.` plus the selection hint inline in the sidebar
+- changed approval actions to this UX contract:
+  - no comments: `Approve` and `Reject`
+  - one or more comments: only `Request revisions`, which submits a reject with the saved comments
+- aligned keyboard behavior so approve is no longer available once comments exist
 
 ## Current Progress Checklist
 

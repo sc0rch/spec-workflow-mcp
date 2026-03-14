@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { ApprovalStorage } from '../approval-storage.js';
@@ -22,6 +22,7 @@ describe('ProjectWorkspaceService', () => {
   });
 
   afterEach(async () => {
+    vi.useRealTimers();
     await fs.rm(tempDir, { recursive: true, force: true });
   });
 
@@ -44,7 +45,10 @@ describe('ProjectWorkspaceService', () => {
     const approvalStorage = new ApprovalStorage(workflowRootPath, {
       fileResolutionPath: workspacePath
     });
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-14T12:00:00.000Z'));
     await approvalStorage.createApproval('Review desktop shell', 'src/desktop.ts', 'spec', 'desktop-rewrite');
+    vi.setSystemTime(new Date('2026-03-14T12:05:00.000Z'));
     await approvalStorage.createApproval('Review steering docs', 'src/desktop.ts', 'steering', 'tech');
 
     const logManager = new ImplementationLogManager(
@@ -72,6 +76,13 @@ describe('ProjectWorkspaceService', () => {
     expect(snapshot.pendingApprovals).toHaveLength(2);
     expect(snapshot.pendingApprovals[0]).toEqual(
       expect.objectContaining({
+        category: 'steering',
+        categoryName: 'tech',
+        title: 'Review steering docs'
+      })
+    );
+    expect(snapshot.pendingApprovals[1]).toEqual(
+      expect.objectContaining({
         category: 'spec',
         categoryName: 'desktop-rewrite',
         title: 'Review desktop shell'
@@ -82,6 +93,20 @@ describe('ProjectWorkspaceService', () => {
         name: 'desktop-rewrite',
         phaseState: 'active',
         pendingApprovalCount: 1,
+        tasks: [
+          expect.objectContaining({
+            id: '1.1',
+            description: 'Build desktop shell',
+            status: 'in-progress',
+            purposes: ['Introduce Electron shell']
+          }),
+          expect.objectContaining({
+            id: '1.2',
+            description: 'Add workspace view',
+            status: 'pending',
+            purposes: ['Show specs and approvals']
+          })
+        ],
         phases: expect.objectContaining({
           requirements: expect.objectContaining({
             exists: true,

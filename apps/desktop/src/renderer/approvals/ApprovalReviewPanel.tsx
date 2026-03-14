@@ -8,6 +8,7 @@ import {
   MarkdownReviewSurface,
   type ApprovalSelectionDraft
 } from './MarkdownReviewSurface.js';
+import { getApprovalDisplayTitle } from './approval-display.js';
 
 interface ApprovalReviewPanelProps {
   readonly projectWorkspace: DesktopProjectWorkspace;
@@ -65,17 +66,21 @@ export function ApprovalReviewPanel({
 
       const isModifierKey = event.metaKey || event.ctrlKey;
       const key = event.key.toLowerCase();
+      const hasComments = comments.length > 0;
       if (!isModifierKey || approvalActionState.status === 'saving') {
         return;
       }
 
-      if (event.key === 'Enter' && !event.shiftKey) {
+      if (!hasComments && event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         void onSubmitDecision('approve', comments);
         return;
       }
 
-      if (event.shiftKey && key === 'x' && comments.length > 0) {
+      if (
+        event.shiftKey
+        && ((hasComments && (key === 'x' || key === 'r')) || (!hasComments && key === 'x'))
+      ) {
         event.preventDefault();
         void onSubmitDecision('reject', comments);
       }
@@ -89,7 +94,7 @@ export function ApprovalReviewPanel({
 
   if (projectWorkspace.pendingApprovals.length === 0) {
     return (
-      <article className="panel workspace-card workspace-span-2">
+      <article className="panel workspace-message-card workspace-span-2">
         <h2>Approvals</h2>
         <p className="panel-copy">Nothing is waiting for review right now.</p>
       </article>
@@ -102,19 +107,16 @@ export function ApprovalReviewPanel({
   const relatedSpec = selectedApproval.category === 'spec'
     ? projectWorkspace.specs.find((spec) => spec.name === selectedApproval.categoryName)
     : null;
-  const canReject = comments.length > 0 && approvalActionState.status !== 'saving';
+  const hasComments = comments.length > 0;
+  const isSavingDecision = approvalActionState.status === 'saving';
   const isMarkdownReview = approvalReview?.currentContent
     ? isMarkdownFile(selectedApproval.filePath)
     : false;
-  const commentHelperText = comments.length > 0
-    ? 'Reject sends this back with your comments.'
-    : 'Reject stays disabled until you add at least one comment.';
 
   return (
-    <article className="panel workspace-card workspace-span-2 workspace-detail-card approval-workspace">
+    <article className="workspace-card workspace-span-2 workspace-detail-card approval-workspace workspace-mode workspace-mode-approvals">
       <div className="section-header">
         <h2>Approvals</h2>
-        <span className="section-meta">{projectWorkspace.pendingApprovals.length} pending</span>
       </div>
 
       <div aria-label="Approval queue" className="approval-queue" role="list">
@@ -128,12 +130,12 @@ export function ApprovalReviewPanel({
             }}
             type="button"
           >
-            <strong>{approval.title}</strong>
-            <span className="approval-queue-meta">
-              {approval.type === 'action'
-                ? `${formatDisplayName(approval.categoryName)} · action`
-                : formatDisplayName(approval.categoryName)}
-            </span>
+            <strong>{getApprovalDisplayTitle(approval)}</strong>
+            {approval.type === 'action' ? (
+              <span className="approval-queue-meta">
+                {`${formatDisplayName(approval.categoryName)} · action`}
+              </span>
+            ) : null}
           </button>
         ))}
       </div>
@@ -142,21 +144,18 @@ export function ApprovalReviewPanel({
         <article className="approval-review-shell">
           <div className="section-header">
             <div>
-              <h2>{selectedApproval.title}</h2>
+              <h2>{getApprovalDisplayTitle(selectedApproval)}</h2>
               <p className="approval-meta">
                 {selectedApproval.filePath} · {formatDisplayName(selectedApproval.categoryName)} · {formatTimestamp(selectedApproval.createdAt, 'Unknown time')}
               </p>
             </div>
-            {approvalReview?.diff ? (
-              <span className="section-meta">+{approvalReview.diff.additions} / -{approvalReview.diff.deletions}</span>
-            ) : null}
           </div>
 
           <details className="review-context">
             <summary>
               {relatedSpec
                 ? `${relatedSpec.displayName} · ${formatDisplayName(relatedSpec.phaseState)}`
-                : 'Spec details unavailable'}
+                : 'Spec context unavailable'}
             </summary>
             {relatedSpec ? (
               <ul className="focus-list">
@@ -178,7 +177,7 @@ export function ApprovalReviewPanel({
               </ul>
             ) : (
               <p className="panel-copy">
-                This approval only points to a file, so spec details are not available here.
+                This review points to a file only, so spec context is not available here.
               </p>
             )}
           </details>
@@ -209,7 +208,7 @@ export function ApprovalReviewPanel({
               }}
               type="button"
             >
-              Add note
+              Add comment
             </button>
           </div>
 
@@ -266,7 +265,14 @@ export function ApprovalReviewPanel({
 
           <div className="approval-comments-list">
             {comments.length === 0 ? (
-              <p className="panel-copy">No comments yet.</p>
+              <div className="approval-comments-empty">
+                <p className="panel-copy">No review comments yet.</p>
+                {isMarkdownReview ? (
+                  <p className="panel-copy approval-comments-helper">
+                    Select text, then add a comment.
+                  </p>
+                ) : null}
+              </div>
             ) : (
               comments.map((comment) => (
                 <article
@@ -311,43 +317,51 @@ export function ApprovalReviewPanel({
               ))
             )}
           </div>
+
+          <section className="approval-sidebar-actions">
+            {approvalActionState.message ? (
+              <p className="panel-copy approval-action-status">{approvalActionState.message}</p>
+            ) : null}
+            <div className="action-row approval-action-row">
+              {hasComments ? (
+                <button
+                  className="primary-action"
+                  disabled={isSavingDecision}
+                  onClick={() => {
+                    void onSubmitDecision('reject', comments);
+                  }}
+                  type="button"
+                >
+                  {isSavingDecision ? 'Saving decision...' : 'Request revisions'}
+                </button>
+              ) : (
+                <>
+                  <button
+                    className="primary-action"
+                    disabled={isSavingDecision}
+                    onClick={() => {
+                      void onSubmitDecision('approve', comments);
+                    }}
+                    type="button"
+                  >
+                    {isSavingDecision ? 'Saving decision...' : 'Approve'}
+                  </button>
+                  <button
+                    className="secondary-action"
+                    disabled={isSavingDecision}
+                    onClick={() => {
+                      void onSubmitDecision('reject', comments);
+                    }}
+                    type="button"
+                  >
+                    Reject
+                  </button>
+                </>
+              )}
+            </div>
+          </section>
         </aside>
       </div>
-
-      <section className="approval-decision">
-        <div className="phase-header">
-          <h3>Decision</h3>
-          <span className="section-meta">{approvalActionState.message ?? commentHelperText}</span>
-        </div>
-        <div className="action-row approval-action-row">
-          <button
-            className="primary-action"
-            disabled={approvalActionState.status === 'saving'}
-            onClick={() => {
-              void onSubmitDecision('approve', comments);
-            }}
-            type="button"
-          >
-            {approvalActionState.status === 'saving' ? 'Saving decision...' : (
-              <>
-                <span>Approve</span>
-                <kbd>⌘↵</kbd>
-              </>
-            )}
-          </button>
-          <button
-            className="secondary-action"
-            disabled={!canReject}
-            onClick={() => {
-              void onSubmitDecision('reject', comments);
-            }}
-            type="button"
-          >
-            <span>Reject</span>
-            <kbd>⌘⇧X</kbd>
-          </button>
-        </div>
-      </section>
     </article>
   );
 }

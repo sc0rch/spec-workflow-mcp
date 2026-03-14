@@ -21,6 +21,17 @@ export interface ProjectWorkspaceTaskPreview {
   requirements?: string[] | undefined;
 }
 
+export interface ProjectWorkspaceTaskDetail extends ProjectWorkspaceTaskPreview {
+  lineNumber: number;
+  indentLevel: number;
+  isHeader: boolean;
+  leverage?: string | undefined;
+  files?: string[] | undefined;
+  purposes?: string[] | undefined;
+  implementationDetails?: string[] | undefined;
+  prompt?: string | undefined;
+}
+
 export interface ProjectWorkspacePhaseDetail {
   exists: boolean;
   lastModified?: string | undefined;
@@ -53,6 +64,7 @@ export interface ProjectWorkspaceSpecSummary {
     inProgress: number;
   };
   pendingApprovalCount: number;
+  tasks: ProjectWorkspaceTaskDetail[];
   activeTask?: ProjectWorkspaceTaskPreview | undefined;
   nextTask?: ProjectWorkspaceTaskPreview | undefined;
   latestImplementation?: {
@@ -99,7 +111,8 @@ export class ProjectWorkspaceService {
       specs: sortSpecSummaries(specSummaries),
       pendingApprovals: pendingApprovals
         .map(mapApprovalQueueItem)
-        .sort((left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt))
+        // Inbox "Next" should follow the most recent approval request, not the oldest pending item.
+        .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
     };
   }
 
@@ -154,6 +167,7 @@ export class ProjectWorkspaceService {
         inProgress: taskResult.summary.inProgress
       },
       pendingApprovalCount: pendingApprovals.length,
+      tasks: taskResult.tasks.map(mapTaskDetail),
       activeTask: activeTask ? mapTaskPreview(activeTask) : undefined,
       nextTask: nextTask ? mapTaskPreview(nextTask) : undefined,
       latestImplementation,
@@ -202,6 +216,20 @@ function mapTaskPreview(task: ParsedTask): ProjectWorkspaceTaskPreview {
     description: task.description,
     status: task.status,
     requirements: task.requirements
+  };
+}
+
+function mapTaskDetail(task: ParsedTask): ProjectWorkspaceTaskDetail {
+  return {
+    ...mapTaskPreview(task),
+    lineNumber: task.lineNumber,
+    indentLevel: task.indentLevel,
+    isHeader: task.isHeader,
+    leverage: task.leverage,
+    files: task.files,
+    purposes: task.purposes,
+    implementationDetails: task.implementationDetails,
+    prompt: task.prompt
   };
 }
 
