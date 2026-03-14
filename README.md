@@ -1,413 +1,250 @@
 # Spec Workflow MCP
 
-[![npm version](https://img.shields.io/npm/v/@sc0rch/spec-workflow-mcp)](https://www.npmjs.com/package/@sc0rch/spec-workflow-mcp)
-[![VSCode Extension](https://vsmarketplacebadges.dev/version-short/Pimzino.spec-workflow-mcp.svg)](https://marketplace.visualstudio.com/items?itemName=Pimzino.spec-workflow-mcp)
+Spec Workflow MCP is a local-first toolchain for spec-driven development.
 
-A Model Context Protocol (MCP) server for structured spec-driven development with an Electron desktop shell, optional legacy web dashboard, and VS Code extension.
+This repository currently contains four main parts:
 
-This fork is published to npm as `@sc0rch/spec-workflow-mcp`.
+- `src/`: the MCP server
+- `apps/desktop/`: the Electron desktop app
+- `src/dashboard_frontend/` + `src/dashboard/`: the legacy browser dashboard
+- `vscode-extension/`: the VS Code extension
 
-## ☕ Support This Project
+The desktop app is the primary local UI.
+The browser dashboard is still available, but it is now a secondary compatibility/debug surface.
 
-<a href="https://buymeacoffee.com/Pimzino" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
+## What To Run
 
-## 📺 Showcase
-
-### 🔄 Approval System in Action
-<a href="https://www.youtube.com/watch?v=C-uEa3mfxd0" target="_blank">
-  <img src="https://img.youtube.com/vi/C-uEa3mfxd0/maxresdefault.jpg" alt="Approval System Demo" width="600">
-</a>
-
-*See how the approval system works: create documents, request approval through the dashboard, provide feedback, and track revisions.*
-
-### 📊 Dashboard & Spec Management
-<a href="https://www.youtube.com/watch?v=g9qfvjLUWf8" target="_blank">
-  <img src="https://img.youtube.com/vi/g9qfvjLUWf8/maxresdefault.jpg" alt="Dashboard Demo" width="600">
-</a>
-
-*Explore the real-time dashboard: view specs, track progress, navigate documents, and monitor your development workflow.*
-
-## ✨ Key Features
-
-- **Structured Development Workflow** - Sequential spec creation (Requirements → Design → Tasks)
-- **Electron Desktop Shell** - Native project picker, approval inbox, spec workspace, and optional Codex bridge
-- **Legacy Web Dashboard** - Secondary browser surface for compatibility and debugging
-- **VSCode Extension** - Integrated sidebar dashboard for VSCode users
-- **Approval Workflow** - Complete approval process with revisions
-- **Task Progress Tracking** - Visual progress bars and detailed status
-- **Implementation Logs** - Searchable logs of all task implementations with code statistics
-- **Multi-Language Support** - Available in 11 languages
-
-## 🌍 Supported Languages
-
-🇺🇸 English • 🇯🇵 日本語 • 🇨🇳 中文 • 🇪🇸 Español • 🇧🇷 Português • 🇩🇪 Deutsch • 🇫🇷 Français • 🇷🇺 Русский • 🇮🇹 Italiano • 🇰🇷 한국어 • 🇸🇦 العربية
-
-**📖 Documentation in your language:**
-
-[English](README.md) | [日本語](README.ja.md) | [中文](README.zh.md) | [Español](README.es.md) | [Português](README.pt.md) | [Deutsch](README.de.md) | [Français](README.fr.md) | [Русский](README.ru.md) | [Italiano](README.it.md) | [한국어](README.ko.md) | [العربية](README.ar.md)
-
-## 🚀 Quick Start
-
-### Step 1: Add to your AI tool
-
-Add to your MCP configuration (see client-specific setup below):
-
-```json
-{
-  "mcpServers": {
-    "spec-workflow": {
-      "command": "npx",
-      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest"]
-    }
-  }
-}
-```
-
-By default the server runs in project-agnostic mode. It binds each request to a project using:
-1. an explicit `projectPath` argument;
-2. an optional startup path passed on the command line;
-3. exactly one MCP client filesystem root.
-
-If your client exposes multiple roots, pass `projectPath` explicitly on stateful calls or add a startup path to the server command.
-
-### Step 2: Choose your interface
-
-**Option A: Electron Desktop Shell** (Preferred local interface)
-
-Run the desktop shell from the repository root:
-```bash
-npm --prefix apps/desktop run dev
-```
-
-The current desktop app is the preferred local control surface for remembered projects, approvals, specs, diagnostics, and the optional Codex bridge.
-
-> **Lifecycle note:** In `v1`, Codex still launches the MCP server over stdio. The Electron desktop app observes that state, shows live vs remembered workspaces, and complements Codex with native desktop UX instead of replacing Codex's MCP lifecycle yet.
-
-> **Bridge note:** The repository now also includes an optional `spec-workflow-codex-bridge` executable under `apps/desktop/dist/apps/desktop/src/bridge/index.js`. When Codex points to that bridge instead of `spec-workflow-mcp`, the bridge proxies stdio MCP traffic to the Electron desktop app over a local socket and auto-starts the desktop app hidden if needed.
-
-**Option B: VSCode Extension** (Recommended for VSCode users)
-
-Install [Spec Workflow MCP Extension](https://marketplace.visualstudio.com/items?itemName=Pimzino.spec-workflow-mcp) from the VSCode marketplace.
-
-**Option C: Web Dashboard** (Legacy browser interface)
-
-Start the dashboard (runs on port 5091 by default):
-```bash
-npx -y @sc0rch/spec-workflow-mcp@latest --dashboard
-```
-
-The dashboard will be accessible at: http://localhost:5091
-Only one dashboard instance is needed. Projects appear lazily after the first prompt/tool call that resolves to that workspace or repo.
-
-## 📝 How to Use
-
-Simply mention spec-workflow in your conversation:
-
-- **"Create a spec for user authentication"** - Creates complete spec workflow
-- **"List my specs"** - Shows all specs and their status
-- **"Execute task 1.2 in spec user-auth"** - Runs a specific task
-
-[See more examples →](docs/PROMPTING-GUIDE.md)
-
-## 🔧 MCP Client Setup
-
-<details>
-<summary><strong>Augment Code</strong></summary>
-
-Configure in your Augment settings:
-```json
-{
-  "mcpServers": {
-    "spec-workflow": {
-      "command": "npx",
-      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest"]
-    }
-  }
-}
-```
-</details>
-
-<details>
-<summary><strong>Claude Code CLI</strong></summary>
-
-Add to your MCP configuration:
-```bash
-claude mcp add spec-workflow npx @sc0rch/spec-workflow-mcp@latest
-```
-
-**Important Notes:**
-- The `-y` flag bypasses npm prompts for smoother installation
-- Add `-- /path/to/your/project` only if you want a fixed startup binding
-- Without a startup path, the server resolves the project from a single client root or explicit `projectPath`
-
-**Alternative for Windows (if the above doesn't work):**
-```bash
-claude mcp add spec-workflow cmd.exe /c "npx @sc0rch/spec-workflow-mcp@latest"
-```
-</details>
-
-<details>
-<summary><strong>Claude Desktop</strong></summary>
-
-Add to `claude_desktop_config.json`:
-```json
-{
-  "mcpServers": {
-    "spec-workflow": {
-      "command": "npx",
-      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest"]
-    }
-  }
-}
-```
-
-> **Important:** Run the dashboard separately with `--dashboard` before starting the MCP server.
-
-</details>
-
-<details>
-<summary><strong>Cline/Claude Dev</strong></summary>
-
-Add to your MCP server configuration:
-```json
-{
-  "mcpServers": {
-    "spec-workflow": {
-      "command": "npx",
-      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest"]
-    }
-  }
-}
-```
-</details>
-
-<details>
-<summary><strong>Continue IDE Extension</strong></summary>
-
-Add to your Continue configuration:
-```json
-{
-  "mcpServers": {
-    "spec-workflow": {
-      "command": "npx",
-      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest"]
-    }
-  }
-}
-```
-</details>
-
-<details>
-<summary><strong>Cursor IDE</strong></summary>
-
-Add to your Cursor settings (`settings.json`):
-```json
-{
-  "mcpServers": {
-    "spec-workflow": {
-      "command": "npx",
-      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest"]
-    }
-  }
-}
-```
-</details>
-
-<details>
-<summary><strong>OpenCode</strong></summary>
-
-Add to your `opencode.json` configuration file:
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "spec-workflow": {
-      "type": "local",
-      "command": ["npx", "-y", "@sc0rch/spec-workflow-mcp@latest"],
-      "enabled": true
-    }
-  }
-}
-```
-</details>
-
-<details>
-<summary><strong>Windsurf</strong></summary>
-
-Add to your `~/.codeium/windsurf/mcp_config.json` configuration file:
-```json
-{
-  "mcpServers": {
-    "spec-workflow": {
-      "command": "npx",
-      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest"]
-    }
-  }
-}
-```
-</details>
-
-<details>
-<summary><strong>Codex</strong></summary>
-
-Add to your `~/.codex/config.toml` configuration file:
-```toml
-[mcp_servers.spec-workflow]
-command = "npx"
-args = ["-y", "@sc0rch/spec-workflow-mcp@latest"]
-```
-
-Optional desktop-owned bridge flow from this repository:
-```toml
-[mcp_servers.spec-workflow]
-command = "node"
-args = ["/absolute/path/to/spec-workflow-mcp/apps/desktop/dist/apps/desktop/src/bridge/index.js", "--no-shared-worktree-specs"]
-```
-
-Build the desktop app once before using the bridge:
-```bash
-npm --prefix apps/desktop run build
-```
-
-Notes:
-- The bridge keeps the same optional startup path behavior as `spec-workflow-mcp`.
-- If the Electron desktop app is not running, the bridge will try to launch it hidden and then attach Codex to the desktop-managed MCP session.
-- If you override `SPEC_WORKFLOW_DESKTOP_STORAGE_ROOT`, use the same value for both the desktop app and the bridge so they resolve the same local endpoint file.
-</details>
-
-## 🐳 Docker Deployment
-
-Run the dashboard in a Docker container for isolated deployment:
+If you only want to know how to launch the app from this repository:
 
 ```bash
-# Using Docker Compose (recommended)
-cd containers
-docker-compose up --build
-
-# Or using Docker CLI
-docker build -f containers/Dockerfile -t spec-workflow-mcp .
-docker run -p 5091:5091 -v "./workspace/.spec-workflow:/workspace/.spec-workflow:rw" spec-workflow-mcp
-```
-
-The dashboard will be available at: http://localhost:5091
-
-[See Docker setup guide →](containers/README.md)
-
-## 🔒 Security
-
-Spec-Workflow MCP includes enterprise-grade security features suitable for corporate environments:
-
-### ✅ Implemented Security Controls
-
-| Feature | Description |
-|---------|-------------|
-| **Localhost Binding** | Binds to `127.0.0.1` by default, preventing network exposure |
-| **Rate Limiting** | 120 requests/minute per client with automatic cleanup |
-| **Audit Logging** | Structured JSON logs with timestamp, actor, action, and result |
-| **Security Headers** | X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, CSP, Referrer-Policy |
-| **CORS Protection** | Restricted to localhost origins by default |
-| **Docker Hardening** | Non-root user, read-only filesystem, dropped capabilities, resource limits |
-
-### ⚠️ Not Yet Implemented
-
-| Feature | Workaround |
-|---------|------------|
-| **HTTPS/TLS** | Use a reverse proxy (nginx, Apache) with TLS certificates |
-| **User Authentication** | Use a reverse proxy with Basic Auth or OAuth2 Proxy for SSO |
-
-### For External/Network Access
-
-If you need to expose the dashboard beyond localhost, we recommend:
-
-1. **Keep dashboard on localhost** (`127.0.0.1`)
-2. **Use nginx or Apache** as a reverse proxy with:
-   - TLS/HTTPS termination
-   - Basic authentication or OAuth2
-3. **Configure firewall rules** to restrict access
-
-```nginx
-# Example nginx reverse proxy with auth
-server {
-    listen 443 ssl;
-    server_name dashboard.example.com;
-    
-    ssl_certificate /path/to/cert.pem;
-    ssl_certificate_key /path/to/key.pem;
-    
-    auth_basic "Dashboard Access";
-    auth_basic_user_file /etc/nginx/.htpasswd;
-    
-    location / {
-        proxy_pass http://127.0.0.1:5091;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-```
-
-[See Docker security guide →](containers/README.md#security-configuration)
-
-## 🔒 Sandboxed Environments
-
-For sandboxed environments (e.g., Codex CLI with `sandbox_mode=workspace-write`) where `$HOME` is read-only, use the `SPEC_WORKFLOW_HOME` environment variable to redirect global state files to a writable location:
-
-```bash
-SPEC_WORKFLOW_HOME=/workspace/.spec-workflow-mcp npx -y @sc0rch/spec-workflow-mcp@latest /workspace
-```
-
-[See Configuration Guide →](docs/CONFIGURATION.md#environment-variables)
-
-## 📚 Documentation
-
-- [Configuration Guide](docs/CONFIGURATION.md) - Command-line options, config files
-- [User Guide](docs/USER-GUIDE.md) - Comprehensive usage examples
-- [Workflow Process](docs/WORKFLOW.md) - Development workflow and best practices
-- [Interfaces Guide](docs/INTERFACES.md) - Dashboard and VSCode extension details
-- [Prompting Guide](docs/PROMPTING-GUIDE.md) - Advanced prompting examples
-- [Tools Reference](docs/TOOLS-REFERENCE.md) - Complete tools documentation
-- [Development](docs/DEVELOPMENT.md) - Contributing and development setup
-- [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
-
-## 📁 Project Structure
-
-```
-your-project/
-  .spec-workflow/
-    approvals/
-    archive/
-    specs/
-    steering/
-    templates/
-    user-templates/
-    config.example.toml
-```
-
-## 🛠️ Development
-
-```bash
-# Install dependencies
 npm install
+npm run desktop:install
+npm run desktop:dev
+```
 
-# Build the project
+Run those commands from the repository root.
+
+That starts the Electron desktop app in development mode.
+
+## Prerequisites
+
+- Node.js 22+
+- npm
+- macOS, Linux, or Windows with Electron support
+
+## Quick Start
+
+### 1. Install dependencies
+
+Root dependencies:
+
+```bash
+npm install
+```
+
+Desktop app dependencies:
+
+```bash
+npm run desktop:install
+```
+
+### 2. Launch the desktop app
+
+Development mode:
+
+```bash
+npm run desktop:dev
+```
+
+What this does:
+
+- compiles the Electron `main` and `preload` processes in watch mode
+- starts the renderer with Vite on `127.0.0.1:5174`
+- launches the Electron window automatically
+
+### 3. Build the desktop app
+
+```bash
+npm run desktop:build
+```
+
+### 4. Create a packaged desktop build
+
+```bash
+npm run desktop:package
+```
+
+The packaged output is written under [apps/desktop/release](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/apps/desktop/release).
+
+## Run Modes
+
+### Desktop app
+
+Preferred local UI for:
+
+- remembered projects
+- approvals
+- spec editing
+- MCP visibility
+- optional Codex bridge
+
+Commands:
+
+```bash
+npm run desktop:dev
+npm run desktop:build
+npm run desktop:package
+```
+
+### MCP server
+
+Build first:
+
+```bash
 npm run build
+```
 
-# Run in development mode
+Run in project-agnostic mode:
+
+```bash
+npm start
+```
+
+Run with a fixed startup project binding:
+
+```bash
+npm start -- ~/projects/my-app
+```
+
+You can also run the TypeScript entry directly during development:
+
+```bash
 npm run dev
 ```
 
-[See development guide →](docs/DEVELOPMENT.md)
+### Legacy browser dashboard
 
-## 📄 License
+The browser dashboard is no longer the main UI, but it still exists.
 
-GPL-3.0
+Run it directly from TypeScript:
 
-## ⭐ Star History
+```bash
+npm run dev -- --dashboard
+```
 
-<a href="https://www.star-history.com/#sc0rch/spec-workflow-mcp&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=sc0rch/spec-workflow-mcp&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=sc0rch/spec-workflow-mcp&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=sc0rch/spec-workflow-mcp&type=Date" />
- </picture>
-</a>
+Or from the built output:
+
+```bash
+npm run build
+npm start -- --dashboard
+```
+
+By default it listens on `http://localhost:5091`.
+
+## How The Pieces Fit Together
+
+Current default lifecycle:
+
+- Codex launches the MCP server over stdio
+- the desktop app observes and complements that state
+- the browser dashboard is optional and legacy
+
+So if you open the desktop app by itself, it works as a local shell, but you will only see live MCP sessions after your MCP client is configured and running.
+
+## Codex Setup
+
+There are two practical ways to use this repository with Codex.
+
+### Option A: Codex launches the MCP server directly
+
+This is the simplest setup.
+
+1. Build the server:
+
+```bash
+npm run build
+```
+
+2. Point Codex at the built server:
+
+```toml
+[mcp_servers.spec-workflow]
+command = "node"
+args = ["/Users/sc0rch/Documents/Develop/spec-workflow-mcp/dist/index.js"]
+```
+
+If you want workspace-local `.spec-workflow` state inside git worktrees:
+
+```toml
+[mcp_servers.spec-workflow]
+command = "node"
+args = ["/Users/sc0rch/Documents/Develop/spec-workflow-mcp/dist/index.js", "--no-shared-worktree-specs"]
+```
+
+### Option B: Codex launches the desktop bridge
+
+Use this if you want Electron to own the effective MCP lifecycle behind a stdio bridge.
+
+1. Build the desktop app:
+
+```bash
+npm run desktop:build
+```
+
+2. Point Codex at the bridge executable:
+
+```toml
+[mcp_servers.spec-workflow]
+command = "node"
+args = ["/Users/sc0rch/Documents/Develop/spec-workflow-mcp/apps/desktop/dist/apps/desktop/src/bridge/index.js"]
+```
+
+The bridge will:
+
+- start the desktop app hidden if needed
+- connect to the Electron-managed local MCP socket
+- proxy stdio traffic from Codex
+
+## Most Useful Commands
+
+From the repository root:
+
+```bash
+npm install
+npm run build
+npm run test
+npm run test:dashboard-frontend
+npm run desktop:install
+npm run desktop:dev
+npm run desktop:build
+npm run desktop:test
+npm run desktop:test:e2e
+```
+
+## Repository Map
+
+- [src/index.ts](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/src/index.ts): CLI entrypoint
+- [src/server.ts](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/src/server.ts): MCP server wiring
+- [src/core/project-binding.ts](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/src/core/project-binding.ts): canonical project binding
+- [apps/desktop/src/main/index.ts](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/apps/desktop/src/main/index.ts): Electron app entry
+- [apps/desktop/src/bridge/index.ts](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/apps/desktop/src/bridge/index.ts): Codex bridge entry
+- [docs/electron-desktop-rewrite.md](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/docs/electron-desktop-rewrite.md): rewrite roadmap
+- [docs/LEGACY-DASHBOARD-AUDIT.md](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/docs/LEGACY-DASHBOARD-AUDIT.md): browser-surface cleanup map
+
+## Additional Docs
+
+- [docs/CONFIGURATION.md](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/docs/CONFIGURATION.md)
+- [docs/USER-GUIDE.md](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/docs/USER-GUIDE.md)
+- [docs/WORKFLOW.md](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/docs/WORKFLOW.md)
+- [docs/PROMPTING-GUIDE.md](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/docs/PROMPTING-GUIDE.md)
+- [docs/TOOLS-REFERENCE.md](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/docs/TOOLS-REFERENCE.md)
+- [docs/TROUBLESHOOTING.md](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/docs/TROUBLESHOOTING.md)
+- [docs/DEVELOPMENT.md](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/docs/DEVELOPMENT.md)
+
+## Status
+
+- Desktop app: primary interface
+- MCP server: active and supported
+- Codex bridge: available
+- Browser dashboard: legacy
+- VS Code extension: available
