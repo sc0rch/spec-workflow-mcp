@@ -90,12 +90,16 @@ export class SpecParser {
       const requirementsPath = join(specDir, 'requirements.md');
       const designPath = join(specDir, 'design.md');
       const tasksPath = join(specDir, 'tasks.md');
+      let hasAnyDocument = false;
 
       // Check requirements
       try {
-        await access(requirementsPath);
-        spec.phases.requirements.exists = true;
         const reqStats = await stat(requirementsPath);
+        if (!reqStats.isFile()) {
+          throw new Error('not-a-file');
+        }
+        hasAnyDocument = true;
+        spec.phases.requirements.exists = true;
         spec.phases.requirements.lastModified = reqStats.mtime.toISOString();
         
         // Update overall last modified if this is newer
@@ -106,9 +110,12 @@ export class SpecParser {
 
       // Check design
       try {
-        await access(designPath);
-        spec.phases.design.exists = true;
         const designStats = await stat(designPath);
+        if (!designStats.isFile()) {
+          throw new Error('not-a-file');
+        }
+        hasAnyDocument = true;
+        spec.phases.design.exists = true;
         spec.phases.design.lastModified = designStats.mtime.toISOString();
         
         if (designStats.mtime > new Date(spec.lastModified)) {
@@ -118,9 +125,12 @@ export class SpecParser {
 
       // Check tasks
       try {
-        await access(tasksPath);
-        spec.phases.tasks.exists = true;
         const tasksStats = await stat(tasksPath);
+        if (!tasksStats.isFile()) {
+          throw new Error('not-a-file');
+        }
+        hasAnyDocument = true;
+        spec.phases.tasks.exists = true;
         spec.phases.tasks.lastModified = tasksStats.mtime.toISOString();
         
         if (tasksStats.mtime > new Date(spec.lastModified)) {
@@ -136,6 +146,10 @@ export class SpecParser {
           pending: taskProgress.pending
         };
       } catch {}
+
+      if (!hasAnyDocument) {
+        return null;
+      }
 
       // Implementation phase is always considered "exists" since it's ongoing manual work
       spec.phases.implementation.exists = true;
@@ -173,12 +187,16 @@ export class SpecParser {
       const requirementsPath = join(specDir, 'requirements.md');
       const designPath = join(specDir, 'design.md');
       const tasksPath = join(specDir, 'tasks.md');
+      let hasAnyDocument = false;
 
       // Check requirements
       try {
-        await access(requirementsPath);
-        spec.phases.requirements.exists = true;
         const reqStats = await stat(requirementsPath);
+        if (!reqStats.isFile()) {
+          throw new Error('not-a-file');
+        }
+        hasAnyDocument = true;
+        spec.phases.requirements.exists = true;
         spec.phases.requirements.lastModified = reqStats.mtime.toISOString();
         
         // Update overall last modified if this is newer
@@ -189,9 +207,12 @@ export class SpecParser {
 
       // Check design
       try {
-        await access(designPath);
-        spec.phases.design.exists = true;
         const designStats = await stat(designPath);
+        if (!designStats.isFile()) {
+          throw new Error('not-a-file');
+        }
+        hasAnyDocument = true;
+        spec.phases.design.exists = true;
         spec.phases.design.lastModified = designStats.mtime.toISOString();
         
         if (designStats.mtime > new Date(spec.lastModified)) {
@@ -201,9 +222,12 @@ export class SpecParser {
 
       // Check tasks
       try {
-        await access(tasksPath);
-        spec.phases.tasks.exists = true;
         const tasksStats = await stat(tasksPath);
+        if (!tasksStats.isFile()) {
+          throw new Error('not-a-file');
+        }
+        hasAnyDocument = true;
+        spec.phases.tasks.exists = true;
         spec.phases.tasks.lastModified = tasksStats.mtime.toISOString();
         
         if (tasksStats.mtime > new Date(spec.lastModified)) {
@@ -219,6 +243,10 @@ export class SpecParser {
           pending: taskProgress.pending
         };
       } catch {}
+
+      if (!hasAnyDocument) {
+        return null;
+      }
 
       // Implementation phase is always considered "exists" since it's ongoing manual work
       spec.phases.implementation.exists = true;

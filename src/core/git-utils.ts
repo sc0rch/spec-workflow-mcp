@@ -161,3 +161,29 @@ export function discoverGitWorkspaces(
     return [buildDescriptor(workspacePath)];
   }
 }
+
+/**
+ * Returns the currently checked-out branch name for the given workspace path.
+ * If in detached HEAD state, returns "detached@<shortSha>".
+ * Returns undefined when git is unavailable or the branch cannot be determined.
+ */
+export function getCurrentGitBranch(workspacePath: string): string | undefined {
+  try {
+    const branch = execSync('git branch --show-current', {
+      cwd: workspacePath,
+      ...GIT_EXEC_OPTIONS
+    }).trim();
+
+    if (branch) return branch;
+
+    // Detached HEAD: show short SHA for readability.
+    const sha = execSync('git rev-parse --short HEAD', {
+      cwd: workspacePath,
+      ...GIT_EXEC_OPTIONS
+    }).trim();
+
+    return sha ? `detached@${sha}` : undefined;
+  } catch {
+    return undefined;
+  }
+}

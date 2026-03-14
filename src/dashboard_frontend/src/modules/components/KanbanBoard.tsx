@@ -31,6 +31,8 @@ interface Task {
   prompt?: string;
 }
 
+type KanbanStatus = 'pending' | 'in-progress' | 'completed';
+
 interface KanbanBoardProps {
   tasks: Task[];
   specName: string;
@@ -39,6 +41,136 @@ interface KanbanBoardProps {
   copiedTaskId: string | null;
   data: any;
   statusFilter?: 'all' | 'pending' | 'in-progress' | 'completed';
+}
+
+function KanbanColumn({
+  status,
+  columnTasks,
+  specName,
+  onCopyTaskPrompt,
+  copiedTaskId,
+  inProgressTaskId,
+}: {
+  status: KanbanStatus;
+  columnTasks: Task[];
+  specName: string;
+  onCopyTaskPrompt: (task: Task) => void;
+  copiedTaskId: string | null;
+  inProgressTaskId?: string | null;
+}) {
+  const { t } = useTranslation();
+
+  const getColumnConfig = (s: KanbanStatus) => {
+    const configs = {
+      pending: {
+        title: t('tasksPage.statusPill.pending', 'Pending'),
+        bgColor: 'bg-[var(--surface-base)]',
+        borderColor: 'border-[var(--border-default)]',
+        headerBg: 'bg-[var(--surface-panel)]',
+        textColor: 'text-[var(--text-secondary)]',
+        dotColor: 'bg-gray-400',
+      },
+      'in-progress': {
+        title: t('tasksPage.statusPill.inProgress', 'In Progress'),
+        bgColor: 'bg-[var(--surface-base)]',
+        borderColor: 'border-[var(--border-default)]',
+        headerBg: 'bg-[var(--surface-panel)]',
+        textColor: 'text-[var(--text-secondary)]',
+        dotColor: 'bg-orange-500',
+      },
+      completed: {
+        title: t('tasksPage.statusPill.completed', 'Completed'),
+        bgColor: 'bg-[var(--surface-base)]',
+        borderColor: 'border-[var(--border-default)]',
+        headerBg: 'bg-[var(--surface-panel)]',
+        textColor: 'text-[var(--text-secondary)]',
+        dotColor: 'bg-green-500',
+      },
+    } as const;
+
+    return configs[s];
+  };
+
+  const config = getColumnConfig(status);
+
+  const { isOver, setNodeRef } = useDroppable({
+    id: status,
+    data: {
+      type: 'column',
+      status,
+    },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`
+        w-72 snap-center flex-shrink-0 rounded-md border flex flex-col
+        sm:w-80 md:w-80
+        lg:flex-1 lg:min-w-80
+        ${config.borderColor} ${config.bgColor}
+        ${isOver ? 'ring-2 ring-blue-400 ring-opacity-50' : ''}
+      `}
+    >
+      {/* Column Header */}
+      <div className={`px-4 py-3 rounded-t-md ${config.headerBg} border-b ${config.borderColor}`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${config.dotColor}`} />
+            <h3 className={`text-sm font-medium ${config.textColor}`}>
+              {config.title}
+            </h3>
+          </div>
+          <span className={`text-sm ${config.textColor} bg-[var(--surface-base)] px-2 py-1 rounded-md`}>
+            {columnTasks.length}
+          </span>
+        </div>
+      </div>
+
+      {/* Drop Zone */}
+      <SortableContext
+        id={`${status}-sortable`}
+        items={columnTasks.map(task => task.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        <div
+          className={`
+            flex-1 p-2 sm:p-3 space-y-2 transition-all duration-200
+            max-h-[70vh] overflow-y-auto
+            ${/* Enhanced mobile drop zone feedback */ ''}
+            ${isOver
+              ? 'bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-400 ring-opacity-75 scale-[1.02]'
+              : ''
+            }
+          `}
+          style={{
+            touchAction: 'pan-y', /* Allow vertical scrolling within columns */
+          }}
+        >
+          {columnTasks.length === 0 ? (
+            <div className="flex items-center justify-center min-h-[120px] text-center py-4 text-gray-400 dark:text-gray-500">
+              <div className="text-xs">
+                {status === 'pending' && t('tasksPage.kanban.noPendingTasks', 'No pending tasks')}
+                {status === 'in-progress' && t('tasksPage.kanban.noInProgressTasks', 'No tasks in progress')}
+                {status === 'completed' && t('tasksPage.kanban.noCompletedTasks', 'No completed tasks')}
+              </div>
+            </div>
+          ) : (
+            columnTasks.map((task) => (
+              <KanbanTaskCard
+                key={task.id}
+                task={task}
+                specName={specName}
+                onCopyTaskPrompt={() => onCopyTaskPrompt(task)}
+                copiedTaskId={copiedTaskId}
+                isInProgress={inProgressTaskId === task.id}
+              />
+            ))
+          )}
+        </div>
+      </SortableContext>
+    </div>
+  );
 }
 
 export function KanbanBoard({
@@ -52,7 +184,6 @@ export function KanbanBoard({
 }: KanbanBoardProps) {
   const { t } = useTranslation();
   const [activeTask, setActiveTask] = React.useState<Task | null>(null);
-  const scrollPositionRef = useRef({ x: 0, y: 0 });
   const [currentScrollIndex, setCurrentScrollIndex] = React.useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -163,144 +294,6 @@ export function KanbanBoard({
     onTaskStatusChange(taskId, newStatus);
   };
 
-  const getColumnConfig = (status: 'pending' | 'in-progress' | 'completed') => {
-    const configs = {
-      pending: {
-        title: t('tasksPage.statusPill.pending', 'Pending'),
-        bgColor: 'bg-[var(--surface-base)]',
-        borderColor: 'border-[var(--border-default)]',
-        headerBg: 'bg-[var(--surface-panel)]',
-        textColor: 'text-[var(--text-secondary)]',
-        dotColor: 'bg-gray-400',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        ),
-      },
-      'in-progress': {
-        title: t('tasksPage.statusPill.inProgress', 'In Progress'),
-        bgColor: 'bg-[var(--surface-base)]',
-        borderColor: 'border-[var(--border-default)]',
-        headerBg: 'bg-[var(--surface-panel)]',
-        textColor: 'text-[var(--text-secondary)]',
-        dotColor: 'bg-orange-500',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        ),
-      },
-      completed: {
-        title: t('tasksPage.statusPill.completed', 'Completed'),
-        bgColor: 'bg-[var(--surface-base)]',
-        borderColor: 'border-[var(--border-default)]',
-        headerBg: 'bg-[var(--surface-panel)]',
-        textColor: 'text-[var(--text-secondary)]',
-        dotColor: 'bg-green-500',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        ),
-      },
-    };
-    return configs[status];
-  };
-
-  // Droppable Column Component
-  const DroppableColumn = ({ status }: { status: 'pending' | 'in-progress' | 'completed' }) => {
-    const config = getColumnConfig(status);
-    const columnTasks = tasksByStatus[status];
-
-    const {
-      isOver,
-      setNodeRef,
-    } = useDroppable({
-      id: status,
-      data: {
-        type: 'column',
-        status: status,
-      },
-    });
-
-    return (
-      <div
-        ref={setNodeRef}
-        key={status}
-        className={`
-          w-72 snap-center flex-shrink-0 rounded-md border flex flex-col
-          sm:w-80 md:w-80
-          lg:flex-1 lg:min-w-80
-          ${config.borderColor} ${config.bgColor}
-          ${isOver ? 'ring-2 ring-blue-400 ring-opacity-50' : ''}
-        `}
-      >
-        {/* Column Header */}
-        <div className={`px-4 py-3 rounded-t-md ${config.headerBg} border-b ${config.borderColor}`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${config.dotColor}`} />
-              <h3 className={`text-sm font-medium ${config.textColor}`}>
-                {config.title}
-              </h3>
-            </div>
-            <span className={`text-sm ${config.textColor} bg-[var(--surface-base)] px-2 py-1 rounded-md`}>
-              {columnTasks.length}
-            </span>
-          </div>
-        </div>
-
-        {/* Drop Zone */}
-        <SortableContext
-          id={`${status}-sortable`}
-          items={columnTasks.map(task => task.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <div
-            className={`
-              flex-1 p-2 sm:p-3 space-y-2 transition-all duration-200
-              max-h-[70vh] overflow-y-auto
-              ${/* Enhanced mobile drop zone feedback */ ''}
-              ${isOver
-                ? 'bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-400 ring-opacity-75 scale-[1.02]'
-                : ''
-              }
-            `}
-            style={{
-              touchAction: 'pan-y', /* Allow vertical scrolling within columns */
-            }}
-          >
-            {columnTasks.length === 0 ? (
-              <div className="flex items-center justify-center min-h-[120px] text-center py-4 text-gray-400 dark:text-gray-500">
-                <div className="text-xs">
-                  {status === 'pending' && t('tasksPage.kanban.noPendingTasks', 'No pending tasks')}
-                  {status === 'in-progress' && t('tasksPage.kanban.noInProgressTasks', 'No tasks in progress')}
-                  {status === 'completed' && t('tasksPage.kanban.noCompletedTasks', 'No completed tasks')}
-                </div>
-              </div>
-            ) : (
-              columnTasks.map((task) => (
-                <KanbanTaskCard
-                  key={task.id}
-                  task={task}
-                  specName={specName}
-                  onCopyTaskPrompt={() => onCopyTaskPrompt(task)}
-                  copiedTaskId={copiedTaskId}
-                  isInProgress={data?.inProgress === task.id}
-                />
-              ))
-            )}
-          </div>
-        </SortableContext>
-      </div>
-    );
-  };
-
-  const renderColumn = (status: 'pending' | 'in-progress' | 'completed') => {
-    return <DroppableColumn key={status} status={status} />;
-  };
-
   // Determine which columns to show based on status filter
   const columnsToShow = useMemo(() => {
     if (statusFilter === 'all') {
@@ -394,7 +387,17 @@ export function KanbanBoard({
               touchAction: 'pan-x', /* Horizontal scroll only for this container */
             }}
           >
-            {columnsToShow.map(status => renderColumn(status))}
+            {columnsToShow.map(status => (
+              <KanbanColumn
+                key={status}
+                status={status}
+                columnTasks={tasksByStatus[status]}
+                specName={specName}
+                onCopyTaskPrompt={onCopyTaskPrompt}
+                copiedTaskId={copiedTaskId}
+                inProgressTaskId={data?.inProgress}
+              />
+            ))}
           </div>
         </div>
 

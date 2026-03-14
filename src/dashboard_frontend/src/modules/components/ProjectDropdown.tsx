@@ -42,7 +42,7 @@ export function ProjectDropdown() {
 
   // Filter projects based on search query
   const filteredProjects = projects.filter(project =>
-    project.projectName.toLowerCase().includes(searchQuery.toLowerCase())
+    `${project.projectName} ${project.gitBranch || ''} ${project.latestSpec?.displayName || ''}`.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleProjectSelect = (projectId: string) => {
@@ -71,7 +71,10 @@ export function ProjectDropdown() {
           {t('projects.label', 'Projects')}:
         </span>
         <span className="text-sm font-semibold">
-          {currentProject?.projectName || t('projects.none', 'No Project')}
+          {currentProject?.projectName
+            ? `${currentProject.projectName}${currentProject.gitBranch ? ` (${currentProject.gitBranch})` : ''}`
+            : t('projects.none', 'No Project')
+          }
         </span>
         <svg
           className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
@@ -87,7 +90,7 @@ export function ProjectDropdown() {
       {isOpen && (
         <div
           data-testid="project-dropdown-menu"
-          className="absolute left-0 mt-2 w-72 bg-[var(--surface-panel)] border border-[var(--border-default)] rounded-lg shadow-lg z-50 max-h-96 flex flex-col"
+          className="absolute left-0 mt-2 w-[36rem] max-w-[calc(100vw-2rem)] bg-[var(--surface-panel)] border border-[var(--border-default)] rounded-lg shadow-lg z-50 max-h-96 flex flex-col"
         >
           {/* Search Input */}
           <div className="p-3 border-b border-[var(--border-default)]">
@@ -135,23 +138,41 @@ export function ProjectDropdown() {
                               : 'bg-[var(--text-muted)]'
                           }`}
                         />
-                        <span
-                          className={`text-sm truncate ${
-                            isCurrent
-                              ? 'font-semibold text-indigo-900 dark:text-indigo-100'
-                              : 'text-[var(--text-primary)]'
-                          }`}
-                          title={project.projectName}
-                        >
-                          {project.projectName}
-                          {project.instances?.length > 0 && (
-                            <span className="text-[var(--text-muted)] ml-1 font-normal">
-                              ({project.instances.length === 1
-                                ? `PID: ${project.instances[0].pid}`
-                                : `${project.instances.length} instances`})
-                            </span>
+                        <div className="min-w-0 flex-1">
+                          <div
+                            className={`text-sm truncate ${
+                              isCurrent
+                                ? 'font-semibold text-indigo-900 dark:text-indigo-100'
+                                : 'text-[var(--text-primary)]'
+                            }`}
+                            title={project.projectName}
+                          >
+                            {project.projectName}
+                            {project.instances?.length > 0 && (
+                              <span className="text-[var(--text-muted)] ml-1 font-normal">
+                                ({project.instances.length === 1
+                                  ? `PID: ${project.instances[0].pid}`
+                                  : `${project.instances.length} instances`})
+                              </span>
+                            )}
+                          </div>
+                          {project.gitBranch && (
+                            <div
+                              className="text-xs text-[var(--text-muted)] truncate"
+                              title={project.gitBranch}
+                            >
+                              {project.gitBranch}
+                            </div>
                           )}
-                        </span>
+                          {project.latestSpec?.displayName && (
+                            <div
+                              className="text-xs text-[var(--text-muted)] truncate"
+                              title={project.latestSpec.displayName}
+                            >
+                              Latest spec: {project.latestSpec.displayName}
+                            </div>
+                          )}
+                        </div>
                       </div>
                       {isCurrent && (
                         <svg

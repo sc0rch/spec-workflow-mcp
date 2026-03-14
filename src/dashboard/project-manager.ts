@@ -6,7 +6,7 @@ import { ApprovalStorage } from './approval-storage.js';
 import { SpecArchiveService } from '../core/archive-service.js';
 import { ProjectRegistry, ProjectRegistryEntry, ProjectInstance } from '../core/project-registry.js';
 import { PathUtils } from '../core/path-utils.js';
-import { resolveGitRoot, resolveGitWorkspaceRoot } from '../core/git-utils.js';
+import { resolveGitRoot, resolveGitWorkspaceRoot, getCurrentGitBranch } from '../core/git-utils.js';
 
 export interface ProjectContext {
   projectId: string;
@@ -15,6 +15,8 @@ export interface ProjectContext {
   originalProjectPath: string;   // Original workspace path for display/registry
   workflowRootPath: string;      // Original workflow root path for display/debugging
   projectName: string;
+  gitBranch?: string;
+  latestSpec?: { name: string; displayName: string; createdAt: string };
   instances: ProjectInstance[];  // Active MCP server instances for this project
   parser: SpecParser;
   watcher: SpecWatcher;
@@ -26,6 +28,7 @@ export class ProjectManager extends EventEmitter {
   private registry: ProjectRegistry;
   private projects: Map<string, ProjectContext> = new Map();
   private registryWatcher?: chokidar.FSWatcher;
+  private pendingLatestSpecUpdates: Map<string, NodeJS.Timeout> = new Map();
 
   constructor() {
     super();
@@ -115,6 +118,7 @@ export class ProjectManager extends EventEmitter {
             project.workflowRootPath = entry.workflowRootPath;
             project.projectPath = PathUtils.translatePath(entry.workflowRootPath);
             project.workspacePath = PathUtils.translatePath(entry.projectPath);
+            project.gitBranch = getCurrentGitBranch(project.workspacePath) || project.gitBranch;
             project.instances = entry.instances || [];
           }
         }
@@ -158,6 +162,7 @@ export class ProjectManager extends EventEmitter {
       // Forward events with projectId
       watcher.on('change', (event) => {
         this.emit('spec-change', { projectId: entry.projectId, ...event });
+        this.scheduleLatestSpecUpdate(entry.projectId);
       });
 
       watcher.on('task-update', (event) => {
@@ -179,6 +184,8 @@ export class ProjectManager extends EventEmitter {
         originalProjectPath: entry.projectPath, // Keep workspace path for display/registry
         workflowRootPath: entry.workflowRootPath,
         projectName: entry.projectName,
+        gitBranch: getCurrentGitBranch(translatedWorkspacePath),
+        latestSpec: await this.computeLatestSpec(parser),
         instances: entry.instances || [],       // Track MCP server instances
         parser,
         watcher,
@@ -243,14 +250,60 @@ export class ProjectManager extends EventEmitter {
     projectId: string;
     projectName: string;
     projectPath: string;
+    gitBranch?: string;
+    latestSpec?: { name: string; displayName: string; createdAt: string };
     instances: ProjectInstance[];
   }> {
     return Array.from(this.projects.values()).map(p => ({
       projectId: p.projectId,
       projectName: p.projectName,
       projectPath: p.originalProjectPath,  // Return original path for display
+      gitBranch: p.gitBranch,
+      latestSpec: p.latestSpec,
       instances: p.instances
     }));
+  }
+
+  private async computeLatestSpec(parser: SpecParser): Promise<{ name: string; displayName: string; createdAt: string } | undefined> {
+    try {
+      const specs = await parser.getAllSpecs();
+      if (!specs.length) return undefined;
+
+      let best = specs[0];
+      let bestTs = Date.parse(best.createdAt || '') || 0;
+
+      for (const spec of specs.slice(1)) {
+        const ts = Date.parse(spec.createdAt || '') || 0;
+        if (ts > bestTs) {
+          best = spec;
+          bestTs = ts;
+        }
+      }
+
+      return { name: best.name, displayName: best.displayName, createdAt: best.createdAt };
+    } catch {
+      return undefined;
+    }
+  }
+
+  private scheduleLatestSpecUpdate(projectId: string): void {
+    const existing = this.pendingLatestSpecUpdates.get(projectId);
+    if (existing) clearTimeout(existing);
+
+    const timer = setTimeout(async () => {
+      this.pendingLatestSpecUpdates.delete(projectId);
+      const ctx = this.projects.get(projectId);
+      if (!ctx) return;
+
+      const latestSpec = await this.computeLatestSpec(ctx.parser);
+      if (latestSpec) {
+        ctx.latestSpec = latestSpec;
+      } else {
+        ctx.latestSpec = undefined;
+      }
+    }, 350);
+
+    this.pendingLatestSpecUpdates.set(projectId, timer);
   }
 
   /**

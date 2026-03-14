@@ -272,7 +272,7 @@ function SpecModal({ spec, isOpen, onClose, isArchived }: { spec: any; isOpen: b
 }
 
 function SpecCard({ spec, onOpenModal, isArchived }: { spec: any; onOpenModal: (spec: any) => void; isArchived: boolean }) {
-  const { archiveSpec, unarchiveSpec } = useApi();
+  const { archiveSpec, unarchiveSpec, reloadAll } = useApi();
   const { t } = useTranslation();
   const [isArchiving, setIsArchiving] = useState(false);
   const progress = spec.taskProgress?.total
@@ -289,6 +289,7 @@ function SpecCard({ spec, onOpenModal, isArchived }: { spec: any; onOpenModal: (
       } else {
         await archiveSpec(spec.name);
       }
+      await reloadAll();
     } catch (error) {
       console.error('Failed to toggle archive status:', error);
     } finally {
@@ -389,7 +390,7 @@ function SpecCard({ spec, onOpenModal, isArchived }: { spec: any; onOpenModal: (
 }
 
 function SpecTableRow({ spec, onOpenModal, isArchived }: { spec: any; onOpenModal: (spec: any) => void; isArchived: boolean }) {
-  const { archiveSpec, unarchiveSpec } = useApi();
+  const { archiveSpec, unarchiveSpec, reloadAll } = useApi();
   const { t } = useTranslation();
   const [isArchiving, setIsArchiving] = useState(false);
   const progress = spec.taskProgress?.total
@@ -406,6 +407,7 @@ function SpecTableRow({ spec, onOpenModal, isArchived }: { spec: any; onOpenModa
       } else {
         await archiveSpec(spec.name);
       }
+      await reloadAll();
     } catch (error) {
       console.error('Failed to toggle archive status:', error);
     } finally {

@@ -5,6 +5,7 @@ import {
   resolveGitWorkspaceRoot,
   isGitWorktree,
   discoverGitWorkspaces,
+  getCurrentGitBranch,
   SPEC_WORKFLOW_SHARED_ROOT_ENV
 } from '../git-utils.js';
 
@@ -255,6 +256,39 @@ describe('isGitWorktree', () => {
     });
 
     expect(isGitWorktree('/some/path')).toBe(false);
+  });
+});
+
+describe('getCurrentGitBranch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns current branch from git', () => {
+    mockedExecSync.mockImplementation((cmd: string) => {
+      if (cmd === 'git branch --show-current') return 'feature/my-branch\n';
+      throw new Error('unexpected command');
+    });
+
+    expect(getCurrentGitBranch('/repo')).toBe('feature/my-branch');
+  });
+
+  it('returns detached@<sha> when branch is empty', () => {
+    mockedExecSync.mockImplementation((cmd: string) => {
+      if (cmd === 'git branch --show-current') return '\n';
+      if (cmd === 'git rev-parse --short HEAD') return 'abc1234\n';
+      throw new Error('unexpected command');
+    });
+
+    expect(getCurrentGitBranch('/repo')).toBe('detached@abc1234');
+  });
+
+  it('returns undefined when git fails', () => {
+    mockedExecSync.mockImplementation(() => {
+      throw new Error('not a git repository');
+    });
+
+    expect(getCurrentGitBranch('/not/a/repo')).toBeUndefined();
   });
 });
 

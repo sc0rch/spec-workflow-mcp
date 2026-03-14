@@ -349,16 +349,7 @@ export class MultiProjectDashboardServer {
       const timeout = setTimeout(async () => {
         this.pendingSpecBroadcasts.delete(projectId);
         try {
-          const project = this.projectManager.getProject(projectId);
-          if (project) {
-            const specs = await project.parser.getAllSpecs();
-            const archivedSpecs = await project.parser.getAllArchivedSpecs();
-            this.broadcastToProject(projectId, {
-              type: 'spec-update',
-              projectId,
-              data: { specs, archivedSpecs }
-            });
-          }
+          await this.broadcastSpecUpdate(projectId);
         } catch (error) {
           console.error('Error broadcasting spec changes:', error);
           // Don't propagate error to prevent event system crash
@@ -598,6 +589,7 @@ export class MultiProjectDashboardServer {
 
       try {
         await project.archiveService.archiveSpec(name);
+        await this.broadcastSpecUpdate(projectId);
         return { success: true, message: `Spec '${name}' archived successfully` };
       } catch (error: any) {
         return reply.code(400).send({ error: error.message });
@@ -615,6 +607,7 @@ export class MultiProjectDashboardServer {
 
       try {
         await project.archiveService.unarchiveSpec(name);
+        await this.broadcastSpecUpdate(projectId);
         return { success: true, message: `Spec '${name}' unarchived successfully` };
       } catch (error: any) {
         return reply.code(400).send({ error: error.message });
@@ -1466,6 +1459,26 @@ export class MultiProjectDashboardServer {
       });
     } catch (error) {
       console.error('Error broadcasting task update:', error);
+    }
+  }
+
+  private async broadcastSpecUpdate(projectId: string): Promise<void> {
+    try {
+      const project = this.projectManager.getProject(projectId);
+      if (!project) return;
+
+      const [specs, archivedSpecs] = await Promise.all([
+        project.parser.getAllSpecs(),
+        project.parser.getAllArchivedSpecs()
+      ]);
+
+      this.broadcastToProject(projectId, {
+        type: 'spec-update',
+        projectId,
+        data: { specs, archivedSpecs }
+      });
+    } catch (error) {
+      console.error('Error broadcasting spec update:', error);
     }
   }
 

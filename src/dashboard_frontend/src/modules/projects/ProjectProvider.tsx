@@ -9,6 +9,8 @@ export interface Project {
   projectId: string;
   projectName: string;
   projectPath: string;
+  gitBranch?: string;
+  latestSpec?: { name: string; displayName: string; createdAt: string };
   instances: ProjectInstance[];
 }
 
