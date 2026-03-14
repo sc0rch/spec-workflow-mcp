@@ -129,6 +129,16 @@ export interface SaveSpecDocumentResult {
   readonly savedAt: string;
 }
 
+export interface DesktopApprovalComment {
+  readonly id?: string | undefined;
+  readonly type: 'selection' | 'general';
+  readonly comment: string;
+  readonly timestamp: string;
+  readonly selectedText?: string | undefined;
+  readonly startOffset?: number | undefined;
+  readonly endOffset?: number | undefined;
+}
+
 export interface DesktopApprovalReview {
   readonly approval: {
     readonly id: string;
@@ -139,6 +149,7 @@ export interface DesktopApprovalReview {
     readonly createdAt: string;
     readonly respondedAt?: string | undefined;
     readonly response?: string | undefined;
+    readonly comments?: DesktopApprovalComment[] | undefined;
     readonly category: 'spec' | 'steering';
     readonly categoryName: string;
   };
@@ -187,7 +198,8 @@ export interface DesktopApi {
     projectId: string,
     approvalId: string,
     action: 'approve' | 'reject' | 'needs-revision',
-    response: string
+    response: string,
+    comments?: DesktopApprovalComment[]
   ): Promise<void>;
   pickProjectDirectory(): Promise<ProjectSelectionResult>;
   rememberProjectPath(projectPath: string): Promise<void>;

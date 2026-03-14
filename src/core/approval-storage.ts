@@ -6,13 +6,20 @@ import { diffLines, Change } from 'diff';
 import { PathUtils } from './path-utils.js';
 
 export interface ApprovalComment {
+  id?: string;
   type: 'selection' | 'general';
   selectedText?: string;
   comment: string;
   timestamp: string;
   lineNumber?: number;
   characterPosition?: number;
-  highlightColor?: string; // Color for highlighting the selected text
+  startOffset?: number;
+  endOffset?: number;
+  highlightColor?: string | {
+    bg: string;
+    border: string;
+    name?: string;
+  };
 }
 
 export interface DocumentSnapshot {

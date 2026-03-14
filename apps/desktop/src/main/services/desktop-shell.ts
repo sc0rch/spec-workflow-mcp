@@ -1,6 +1,7 @@
 import { BrowserWindow, app, dialog, ipcMain } from 'electron';
 import type { OpenDialogOptions } from 'electron';
 import type {
+  DesktopApprovalComment,
   DesktopProjectSummary,
   DesktopRuntimeInfo,
   DesktopSpecDocumentName,
@@ -162,9 +163,10 @@ export class DesktopShell {
         projectId: string,
         approvalId: string,
         action: 'approve' | 'reject' | 'needs-revision',
-        response: string
+        response: string,
+        comments?: DesktopApprovalComment[]
       ) => {
-        await this.respondToApproval(projectId, approvalId, action, response);
+        await this.respondToApproval(projectId, approvalId, action, response, comments);
       }
     );
     ipcMain.handle(desktopChannels.pickProjectDirectory, async () => this.pickProjectDirectory());
@@ -421,7 +423,8 @@ export class DesktopShell {
     projectId: string,
     approvalId: string,
     action: 'approve' | 'reject' | 'needs-revision',
-    response: string
+    response: string,
+    comments?: DesktopApprovalComment[]
   ) {
     const project = await this.projectCatalog.getProjectById(projectId);
     if (!project) {
@@ -435,7 +438,9 @@ export class DesktopShell {
       },
       approvalId,
       action,
-      response
+      response,
+      undefined,
+      comments
     );
 
     await this.refreshProjectCatalog();

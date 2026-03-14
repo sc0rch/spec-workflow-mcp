@@ -27,8 +27,15 @@ const api: DesktopApi = {
   async saveSpecDocument(projectId, specName, document, content) {
     return ipcRenderer.invoke(desktopChannels.saveSpecDocument, projectId, specName, document, content);
   },
-  async respondToApproval(projectId, approvalId, action, response) {
-    return ipcRenderer.invoke(desktopChannels.respondToApproval, projectId, approvalId, action, response);
+  async respondToApproval(projectId, approvalId, action, response, comments) {
+    return ipcRenderer.invoke(
+      desktopChannels.respondToApproval,
+      projectId,
+      approvalId,
+      action,
+      response,
+      comments
+    );
   },
   async pickProjectDirectory() {
     return ipcRenderer.invoke(desktopChannels.pickProjectDirectory);

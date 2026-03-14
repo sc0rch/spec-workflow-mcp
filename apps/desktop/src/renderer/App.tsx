@@ -4,11 +4,14 @@ import {
   useDeferredValue,
   useEffect,
   useEffectEvent,
+  useRef,
   useState,
   type ReactNode
 } from 'react';
 import { CommandPalette, type CommandPaletteItem } from './CommandPalette.js';
+import { ApprovalReviewPanel } from './approvals/ApprovalReviewPanel.js';
 import type {
+  DesktopApprovalComment,
   DesktopApprovalReview,
   DesktopSpecDocumentName,
   DesktopProjectWorkspace,
@@ -65,7 +68,7 @@ type CommandItemContext = {
 
 const workModes: Array<{ id: WorkMode; label: string; shortcut: string }> = [
   { id: 'inbox', label: 'Inbox', shortcut: '1' },
-  { id: 'workspace', label: 'Workspace', shortcut: '2' },
+  { id: 'workspace', label: 'Specs', shortcut: '2' },
   { id: 'approvals', label: 'Approvals', shortcut: '3' }
 ];
 
@@ -94,7 +97,6 @@ function getRuntimeInfo(): DesktopRuntimeInfo {
 
 export function App() {
   const [shellState, setShellState] = useState<DesktopShellState>(() => createFallbackShellState());
-  const [isHydrated, setIsHydrated] = useState<boolean>(() => !window.desktop);
   const [activeProjectPath, setActiveProjectPath] = useState<string | null>(null);
   const [activeMode, setActiveMode] = useState<WorkMode>('inbox');
   const [projectWorkspace, setProjectWorkspace] = useState<DesktopProjectWorkspace | null>(null);
@@ -108,23 +110,23 @@ export function App() {
   const [approvalReview, setApprovalReview] = useState<DesktopApprovalReview | null>(null);
   const [isLoadingApprovalReview, setIsLoadingApprovalReview] = useState(false);
   const [approvalReviewError, setApprovalReviewError] = useState<string | null>(null);
-  const [approvalResponseDraft, setApprovalResponseDraft] = useState('');
   const [approvalActionState, setApprovalActionState] = useState<{
     status: 'idle' | 'saving' | 'saved' | 'error';
     message?: string | undefined;
   }>({ status: 'idle' });
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
+  const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState('');
   const [paletteSelectionIndex, setPaletteSelectionIndex] = useState(0);
   const [isPickingProject, setIsPickingProject] = useState(false);
   const [forgettingProjectId, setForgettingProjectId] = useState<string | null>(null);
   const [bridgeError, setBridgeError] = useState<string | null>(null);
+  const projectMenuRef = useRef<HTMLDivElement | null>(null);
 
   const applyShellState = useEffectEvent((nextState: DesktopShellState) => {
     startTransition(() => {
       setShellState(nextState);
-      setIsHydrated(true);
       setBridgeError(null);
     });
   });
@@ -218,7 +220,6 @@ export function App() {
       })
       .catch((error) => {
         if (!isDisposed) {
-          setIsHydrated(true);
           setBridgeError(error instanceof Error ? error.message : 'Desktop bridge request failed.');
         }
       });
@@ -331,7 +332,6 @@ export function App() {
       .then((review) => {
         if (!isDisposed) {
           setApprovalReview(review);
-          setApprovalResponseDraft(review?.approval.response ?? '');
           setApprovalActionState({ status: 'idle' });
           setIsLoadingApprovalReview(false);
         }
@@ -358,10 +358,10 @@ export function App() {
     : null;
   const hasShellIssues = Boolean(bridgeError || workspaceError || shellState.issues.length > 0);
   const mcpVisibility = createMcpVisibility(shellState);
-  const shellStatusLabel = (isHydrated ? shellState.statusLabel : 'Status: Loading shell')
-    .replace(/^Status:\s*/, '');
+  const projectMenuLabel = activeProject?.projectName ?? 'Projects';
 
   const toggleDiagnostics = useEffectEvent(() => {
+    setIsProjectMenuOpen(false);
     setIsDiagnosticsOpen((currentState) => !currentState);
   });
 
@@ -369,11 +369,16 @@ export function App() {
     setIsDiagnosticsOpen(false);
   });
 
+  const closeProjectMenu = useEffectEvent(() => {
+    setIsProjectMenuOpen(false);
+  });
+
   const handlePickProject = async () => {
     if (!window.desktop) {
       return;
     }
 
+    setIsProjectMenuOpen(false);
     setIsPickingProject(true);
     try {
       await window.desktop.pickProjectDirectory();
@@ -389,6 +394,7 @@ export function App() {
       return;
     }
 
+    setIsProjectMenuOpen(false);
     setForgettingProjectId(projectId);
     try {
       await window.desktop.forgetProject(projectId);
@@ -433,6 +439,7 @@ export function App() {
   );
 
   const openPalette = useEffectEvent(() => {
+    setIsProjectMenuOpen(false);
     setIsPaletteOpen(true);
     setPaletteQuery('');
     setPaletteSelectionIndex(0);
@@ -488,6 +495,27 @@ export function App() {
       return Math.min(currentIndex, commandPaletteItems.length - 1);
     });
   }, [commandPaletteItems.length, isPaletteOpen]);
+
+  useEffect(() => {
+    if (!isProjectMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Node)) {
+        return;
+      }
+
+      if (!projectMenuRef.current?.contains(event.target)) {
+        setIsProjectMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [isProjectMenuOpen]);
 
   const handleDocumentChange = (
     specName: string,
@@ -567,19 +595,35 @@ export function App() {
     }
   };
 
-  const handleApprovalAction = async (action: 'approve' | 'reject' | 'needs-revision') => {
+  const handleApprovalAction = async (
+    action: 'approve' | 'reject',
+    comments: DesktopApprovalComment[]
+  ) => {
     if (!window.desktop || !activeProject || !selectedApprovalId) {
+      return;
+    }
+
+    if (action === 'reject' && comments.length === 0) {
+      setApprovalActionState({
+        status: 'error',
+        message: 'Add at least one comment before rejecting.'
+      });
       return;
     }
 
     setApprovalActionState({ status: 'saving' });
 
     try {
+      const response = action === 'approve'
+        ? (comments.length > 0 ? formatApprovalCommentsResponse(comments) : 'Approved.')
+        : formatApprovalCommentsResponse(comments);
+
       await window.desktop.respondToApproval(
         activeProject.projectId,
         selectedApprovalId,
         action,
-        approvalResponseDraft
+        response,
+        comments
       );
       const [nextShellState, nextWorkspace] = await Promise.all([
         window.desktop.getShellState(),
@@ -591,21 +635,17 @@ export function App() {
       const nextPending = nextWorkspace.pendingApprovals[0] ?? null;
       const successMessage = action === 'approve'
         ? 'Approval marked as approved.'
-        : action === 'reject'
-          ? 'Approval marked as rejected.'
-          : 'Revision requested.';
+        : 'Approval marked as rejected.';
 
       applyShellState(nextShellState);
       setProjectWorkspace(nextWorkspace);
       if (nextPending) {
         setSelectedApprovalId(nextPending.approvalId);
-        setApprovalResponseDraft('');
         if (nextPending.category === 'spec') {
           setActiveSpecName(nextPending.categoryName);
         }
       } else {
         setSelectedApprovalId(null);
-        setApprovalResponseDraft('');
         setApprovalReview(null);
         setActiveMode('inbox');
       }
@@ -651,31 +691,21 @@ export function App() {
       return;
     }
 
-    if (activeMode === 'approvals' && isModifierKey) {
-      if (event.key === 'Enter') {
-          event.preventDefault();
-          void handleApprovalAction('approve');
-          return;
-        }
-
-        if (event.shiftKey && key === 'r') {
-          event.preventDefault();
-          void handleApprovalAction('needs-revision');
-          return;
-        }
-
-        if (event.shiftKey && key === 'x') {
-          event.preventDefault();
-          void handleApprovalAction('reject');
-          return;
-        }
-      }
+    if (isProjectMenuOpen && event.key === 'Escape') {
+      event.preventDefault();
+      closeProjectMenu();
+      return;
+    }
 
       if (isModifierKey && key === 's') {
         if (activeMode === 'workspace' && activeSpec) {
           event.preventDefault();
           void handleSaveDocument(activeSpec.name, activeDocument);
         }
+        return;
+      }
+
+      if (event.key === 'Escape' && isTextEditingTarget(event.target)) {
         return;
       }
 
@@ -741,12 +771,14 @@ export function App() {
   }, [
     activeDocument,
     closeDiagnostics,
+    closeProjectMenu,
     activeMode,
     activeSpec,
     closePalette,
     handleApprovalAction,
     handleSaveDocument,
     isDiagnosticsOpen,
+    isProjectMenuOpen,
     isPaletteOpen,
     openPalette,
     selectAdjacentApproval,
@@ -758,38 +790,111 @@ export function App() {
   return (
     <main className="shell">
       <header className="shell-header">
-        <div className="shell-brand">
-          <h1>Spec Workflow Desktop</h1>
-        </div>
-        <div className="shell-header-actions">
-          <div className="shell-utility-strip">
-            <span className="status-pill">
-              <span className="utility-label">Status</span>
-              <strong className="utility-value">{shellStatusLabel}</strong>
-            </span>
+        <div aria-label="Main menu" className="shell-header-actions" role="toolbar">
+          <div className={`project-menu ${isProjectMenuOpen ? 'project-menu-open' : ''}`} ref={projectMenuRef}>
             <button
-              aria-label={isDiagnosticsOpen ? 'Hide MCP status' : 'Open MCP status'}
-              aria-pressed={isDiagnosticsOpen}
-              className={`secondary-action shell-status-button ${isDiagnosticsOpen ? 'shell-status-button-active' : ''}`}
+              aria-expanded={isProjectMenuOpen}
+              aria-haspopup="dialog"
+              className="secondary-action project-menu-trigger"
               onClick={() => {
-                toggleDiagnostics();
+                setIsProjectMenuOpen((currentState) => !currentState);
               }}
               type="button"
             >
-              <span className="utility-label">MCP</span>
-              <span className="utility-value">{mcpVisibility.summaryLabel}</span>
+              {activeProject ? (
+                <span
+                  aria-hidden="true"
+                  className={`project-dot project-dot-${activeProject.connectionState}`}
+                />
+              ) : null}
+              <span className="project-menu-trigger-label">{projectMenuLabel}</span>
+              <span aria-hidden="true" className="project-menu-chevron">▾</span>
             </button>
-            <button
-              className="secondary-action command-trigger"
-              onClick={() => {
-                openPalette();
-              }}
-              type="button"
-            >
-              <span className="utility-label">Palette</span>
-              <kbd>⌘K</kbd>
-            </button>
+            {isProjectMenuOpen ? (
+              <div className="panel project-menu-popover">
+                {shellState.projects.length === 0 ? (
+                  <p className="panel-copy project-menu-empty">
+                    No projects yet. Add a repository once and it will still be here after restart.
+                  </p>
+                ) : (
+                  <div aria-label="Projects" className="project-list" role="list">
+                    {shellState.projects.map((project) => {
+                      const isSelected = activeProject?.projectId === project.projectId;
+
+                      return (
+                        <article
+                          className={`project-card ${isSelected ? 'project-card-selected' : ''}`}
+                          key={project.projectId}
+                          role="listitem"
+                        >
+                          <div className="project-row">
+                            <button
+                              aria-pressed={isSelected}
+                              className="project-select project-select-row"
+                              onClick={() => {
+                                setActiveProjectPath(project.workspacePath);
+                                setIsProjectMenuOpen(false);
+                              }}
+                              type="button"
+                            >
+                              <span
+                                aria-hidden="true"
+                                className={`project-dot project-dot-${project.connectionState}`}
+                              />
+                              <div className="project-select-copy">
+                                <strong>{project.projectName}</strong>
+                                <span className="project-select-meta">
+                                  {project.gitBranch ?? project.workspacePath}
+                                </span>
+                              </div>
+                              <div className="project-badges">
+                                {project.pendingApprovalCount > 0 ? (
+                                  <span className="badge badge-warning">{project.pendingApprovalCount}</span>
+                                ) : null}
+                              </div>
+                            </button>
+                            <button
+                              aria-label={`Forget ${project.projectName}`}
+                              className="project-forget"
+                              disabled={!window.desktop || forgettingProjectId === project.projectId}
+                              onClick={() => {
+                                void handleForgetProject(project.projectId);
+                              }}
+                              type="button"
+                            >
+                              {forgettingProjectId === project.projectId ? '…' : '×'}
+                            </button>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : null}
           </div>
+          <button
+            aria-label={isDiagnosticsOpen ? 'Hide MCP status' : 'Open MCP status'}
+            aria-pressed={isDiagnosticsOpen}
+            className={`secondary-action shell-status-button ${isDiagnosticsOpen ? 'shell-status-button-active' : ''}`}
+            onClick={() => {
+              toggleDiagnostics();
+            }}
+            type="button"
+          >
+            <span className="utility-label">MCP</span>
+            <span className="utility-value">{mcpVisibility.summaryLabel}</span>
+          </button>
+          <button
+            className="secondary-action command-trigger"
+            onClick={() => {
+              openPalette();
+            }}
+            type="button"
+          >
+            <span className="utility-label">Search</span>
+            <kbd>⌘K</kbd>
+          </button>
           <button
             className="primary-action"
             disabled={!canPickProject || isPickingProject}
@@ -798,106 +903,37 @@ export function App() {
             }}
             type="button"
           >
-            {isPickingProject ? 'Opening folder picker...' : 'Add project'}
+            {isPickingProject ? 'Opening folder picker...' : 'Add folder'}
           </button>
         </div>
       </header>
 
-      <section className="shell-frame">
-        <aside className="left-rail">
-          <article className="panel rail-projects">
-            <div className="section-header">
-              <h2>Projects</h2>
-              <span className="section-meta">
-                {shellState.projects.length > 0 ? `${shellState.projects.length} saved` : 'None'}
-              </span>
-            </div>
-            {shellState.projects.length === 0 ? (
-              <p className="panel-copy">
-                No saved projects yet. Add a repo once and it stays recoverable after restart.
-              </p>
-            ) : (
-              <div aria-label="Remembered projects" className="project-list" role="list">
-                {shellState.projects.map((project) => {
-                  const isSelected = activeProject?.projectId === project.projectId;
-
-                  return (
-                    <article
-                      className={`project-card ${isSelected ? 'project-card-selected' : ''}`}
-                      key={project.projectId}
-                      role="listitem"
-                    >
-                      <div className="project-row">
-                        <button
-                          aria-pressed={isSelected}
-                          className="project-select project-select-row"
-                          onClick={() => {
-                            setActiveProjectPath(project.workspacePath);
-                          }}
-                          type="button"
-                        >
-                          <span
-                            aria-hidden="true"
-                            className={`project-dot project-dot-${project.connectionState}`}
-                          />
-                          <h3>{project.projectName}</h3>
-                          <div className="project-badges">
-                            {project.pendingApprovalCount > 0 ? (
-                              <span className="badge badge-warning">{project.pendingApprovalCount}</span>
-                            ) : null}
-                          </div>
-                        </button>
-                        <button
-                          aria-label={`Forget ${project.projectName}`}
-                          className="project-forget"
-                          disabled={!window.desktop || forgettingProjectId === project.projectId}
-                          onClick={() => {
-                            void handleForgetProject(project.projectId);
-                          }}
-                          type="button"
-                        >
-                          {forgettingProjectId === project.projectId ? '…' : '×'}
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
+      <section className="workspace">
+        {hasShellIssues ? (
+          <article className="panel workspace-issues">
+            {bridgeError ? <p className="issue issue-error">{bridgeError}</p> : null}
+            {workspaceError ? <p className="issue issue-error">{workspaceError}</p> : null}
+            {shellState.issues.length > 0 ? (
+              <ul className="issue-list">
+                {shellState.issues.map((issue) => (
+                  <li className={`issue issue-${issue.severity}`} key={issue.code}>
+                    <strong>{issue.severity === 'error' ? 'Error' : 'Warning'}:</strong> {issue.message}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </article>
-        </aside>
-
-        <section className="workspace">
-          {hasShellIssues ? (
-            <article className="panel workspace-issues">
-              {bridgeError ? <p className="issue issue-error">{bridgeError}</p> : null}
-              {workspaceError ? <p className="issue issue-error">{workspaceError}</p> : null}
-              {shellState.issues.length > 0 ? (
-                <ul className="issue-list">
-                  {shellState.issues.map((issue) => (
-                    <li className={`issue issue-${issue.severity}`} key={issue.code}>
-                      <strong>{issue.severity === 'error' ? 'Error' : 'Warning'}:</strong> {issue.message}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </article>
-          ) : null}
-          {isDiagnosticsOpen ? renderMcpDiagnosticsPanel(shellState, mcpVisibility, closeDiagnostics) : null}
-          {activeProject ? (
-            <>
-              <div className="workspace-head">
+        ) : null}
+        {isDiagnosticsOpen ? renderMcpDiagnosticsPanel(shellState, mcpVisibility, closeDiagnostics) : null}
+        {activeProject ? (
+          <>
+            <div className="workspace-head">
+              <div className="workspace-head-copy">
                 <h2>{activeProject.projectName}</h2>
-                <div className="workspace-summary">
-                  {activeProject.gitBranch ? (
-                    <span className="badge badge-neutral">{activeProject.gitBranch}</span>
-                  ) : null}
-                  <span className={`badge badge-${activeProject.connectionState}`}>
-                    {activeProject.connectionState === 'live' ? 'Live' : 'Remembered'}
-                  </span>
-                </div>
+                {activeProject.gitBranch ? (
+                  <p className="helper-copy">{activeProject.gitBranch}</p>
+                ) : null}
               </div>
-
               <nav aria-label="Work modes" className="mode-tabs">
                 {workModes.map((mode) => (
                   <button
@@ -914,51 +950,49 @@ export function App() {
                   </button>
                 ))}
               </nav>
+            </div>
 
-              <div className="workspace-grid">
-                {renderWorkspaceContent({
-                  activeMode,
-                  project: activeProject,
-                  projectWorkspace,
-                  isLoadingWorkspace,
-                  workspaceError,
-                  activeSpecName,
-                  activeDocument,
-                  selectedApprovalId,
-                  specDrafts,
-                  documentSaveState,
-                  approvalReview,
-                  isLoadingApprovalReview,
-                  approvalReviewError,
-                  approvalResponseDraft,
-                  approvalActionState,
-                  onChangeMode: setActiveMode,
-                  onSelectSpec: setActiveSpecName,
-                  onSelectDocument: setActiveDocument,
-                  onSelectApproval: (approvalId) => {
-                    setSelectedApprovalId(approvalId);
+            <div className="workspace-grid">
+              {renderWorkspaceContent({
+                activeMode,
+                project: activeProject,
+                projectWorkspace,
+                isLoadingWorkspace,
+                workspaceError,
+                activeSpecName,
+                activeDocument,
+                selectedApprovalId,
+                specDrafts,
+                documentSaveState,
+                approvalReview,
+                isLoadingApprovalReview,
+                approvalReviewError,
+                approvalActionState,
+                onChangeMode: setActiveMode,
+                onSelectSpec: setActiveSpecName,
+                onSelectDocument: setActiveDocument,
+                onSelectApproval: (approvalId) => {
+                  setSelectedApprovalId(approvalId);
 
-                    const approval = projectWorkspace?.pendingApprovals.find(
-                      (entry) => entry.approvalId === approvalId
-                    );
-                    if (approval?.category === 'spec') {
-                      setActiveSpecName(approval.categoryName);
-                    }
-                  },
-                  onDocumentChange: handleDocumentChange,
-                  onSaveDocument: handleSaveDocument,
-                  onApprovalResponseChange: setApprovalResponseDraft,
-                  onApprovalAction: handleApprovalAction
-                })}
-              </div>
-            </>
-          ) : (
-            <article className="panel workspace-empty">
-              <h2>No project selected</h2>
-              <p className="panel-copy">Add a project to open its inbox, workspace, and approval queue.</p>
-            </article>
-          )}
-        </section>
+                  const approval = projectWorkspace?.pendingApprovals.find(
+                    (entry) => entry.approvalId === approvalId
+                  );
+                  if (approval?.category === 'spec') {
+                    setActiveSpecName(approval.categoryName);
+                  }
+                },
+                onDocumentChange: handleDocumentChange,
+                onSaveDocument: handleSaveDocument,
+                onApprovalAction: handleApprovalAction
+              })}
+            </div>
+          </>
+        ) : (
+          <article className="panel workspace-empty">
+            <h2>No project selected</h2>
+            <p className="panel-copy">Choose a project to open its inbox, spec files, and approvals.</p>
+          </article>
+        )}
       </section>
 
       <CommandPalette
@@ -991,7 +1025,6 @@ function renderWorkspaceContent(options: {
   approvalReview: DesktopApprovalReview | null;
   isLoadingApprovalReview: boolean;
   approvalReviewError: string | null;
-  approvalResponseDraft: string;
   approvalActionState: {
     status: 'idle' | 'saving' | 'saved' | 'error';
     message?: string | undefined;
@@ -1006,8 +1039,10 @@ function renderWorkspaceContent(options: {
     content: string
   ) => void;
   onSaveDocument: (specName: string, document: DesktopSpecDocumentName) => Promise<void>;
-  onApprovalResponseChange: (value: string) => void;
-  onApprovalAction: (action: 'approve' | 'reject' | 'needs-revision') => Promise<void>;
+  onApprovalAction: (
+    action: 'approve' | 'reject',
+    comments: DesktopApprovalComment[]
+  ) => Promise<void>;
 }): ReactNode {
   const {
     activeMode,
@@ -1023,7 +1058,6 @@ function renderWorkspaceContent(options: {
     approvalReview,
     isLoadingApprovalReview,
     approvalReviewError,
-    approvalResponseDraft,
     approvalActionState,
     onChangeMode,
     onSelectSpec,
@@ -1031,16 +1065,15 @@ function renderWorkspaceContent(options: {
     onSelectApproval,
     onDocumentChange,
     onSaveDocument,
-    onApprovalResponseChange,
     onApprovalAction
   } = options;
 
   if (isLoadingWorkspace) {
     return (
       <article className="panel workspace-card workspace-span-2">
-        <h2>Loading workspace</h2>
+        <h2>Loading project</h2>
         <p className="panel-copy">
-          Reading spec files, approval queue, and implementation logs for {project.projectName}.
+          Reading specs, approvals, and implementation logs for {project.projectName}.
         </p>
       </article>
     );
@@ -1058,9 +1091,9 @@ function renderWorkspaceContent(options: {
   if (!projectWorkspace) {
     return (
       <article className="panel workspace-card workspace-span-2">
-        <h2>Workspace not loaded yet</h2>
+        <h2>Project not loaded yet</h2>
         <p className="panel-copy">
-          Select a project or reconnect the desktop bridge to load its spec workflow state.
+          Choose a project or reconnect Codex to load its specs, approvals, and logs.
         </p>
       </article>
     );
@@ -1081,17 +1114,17 @@ function renderWorkspaceContent(options: {
   }
 
   if (activeMode === 'approvals') {
-    return renderApprovalsMode(
-      projectWorkspace,
-      selectedApprovalId,
-      approvalReview,
-      isLoadingApprovalReview,
-      approvalReviewError,
-      approvalResponseDraft,
-      approvalActionState,
-      onSelectApproval,
-      onApprovalResponseChange,
-      onApprovalAction
+    return (
+      <ApprovalReviewPanel
+        approvalActionState={approvalActionState}
+        approvalReview={approvalReview}
+        approvalReviewError={approvalReviewError}
+        isLoadingApprovalReview={isLoadingApprovalReview}
+        onSelectApproval={onSelectApproval}
+        onSubmitDecision={onApprovalAction}
+        projectWorkspace={projectWorkspace}
+        selectedApprovalId={selectedApprovalId}
+      />
     );
   }
 
@@ -1148,9 +1181,9 @@ function renderInboxMode(
         ? `${spec.activeTask.id} ${spec.activeTask.description}`
         : spec.nextTask
           ? `Next ${spec.nextTask.id} ${spec.nextTask.description}`
-          : 'Open workspace',
+          : 'Open this spec',
       meta: `${formatPhaseState(spec.phaseState)} · ${spec.taskSummary.completed}/${spec.taskSummary.total || 0} complete · ${spec.pendingApprovalCount} approvals`,
-      actionLabel: 'Edit',
+      actionLabel: 'Open',
       badgeClassName: `badge-phase-${spec.phaseState}`,
       onSelect: () => {
         onSelectSpec(spec.name);
@@ -1160,11 +1193,11 @@ function renderInboxMode(
     ...recentImplementations.slice(0, 3).map((entry) => ({
       id: entry.id,
       kind: 'implementation' as const,
-      kindLabel: 'Recent log',
+      kindLabel: 'Implementation',
       title: `${entry.specDisplayName} · ${entry.taskId}`,
       summary: entry.summary,
       meta: `${formatTimestamp(entry.timestamp, 'Unknown timestamp')} · ${formatFileDelta(entry.filesModified, entry.filesCreated)}`,
-      actionLabel: 'Inspect',
+      actionLabel: 'Open',
       badgeClassName: 'badge-neutral',
       onSelect: () => {
         onSelectSpec(entry.specName);
@@ -1200,13 +1233,11 @@ function renderInboxMode(
         </div>
       ) : (
         <p className="panel-copy">
-          No immediate queue items. This project is connected, but nothing is blocked or active yet.
+          Nothing needs attention right now.
         </p>
       )}
 
-      {inboxItems.length === 0 ? (
-        <p className="panel-copy">Inbox is clear.</p>
-      ) : visibleInboxItems.length > 0 ? (
+      {visibleInboxItems.length > 0 ? (
         <div aria-label="Inbox queue" className="inbox-list" role="list">
           {visibleInboxItems.map((item) => (
             <button
@@ -1223,13 +1254,9 @@ function renderInboxMode(
                   </div>
                   <p className="stack-card-copy">{item.summary}</p>
                 </div>
-                <span className={`badge ${item.badgeClassName}`}>
-                  {item.kind === 'approval' ? 'Pending' : item.kind === 'spec' ? 'Open' : 'Recent'}
-                </span>
               </div>
               <div className="queue-item-footer">
                 <span>{item.meta}</span>
-                <span>{item.actionLabel}</span>
               </div>
             </button>
           ))}
@@ -1259,7 +1286,7 @@ function renderWorkspaceMode(
       <article className="panel workspace-card workspace-span-2">
         <h2>No specs yet</h2>
         <p className="panel-copy">
-          This workspace is connected, but there are no spec documents in the current workflow root yet.
+          This project is connected, but there are no spec files here yet.
         </p>
       </article>
     );
@@ -1277,7 +1304,7 @@ function renderWorkspaceMode(
     <article className="panel workspace-card workspace-span-2 workspace-detail-card">
       <div className="section-header">
         <div>
-          <h2>Spec workspace</h2>
+          <h2>Spec editor</h2>
         </div>
         <span className={`badge badge-phase-${activeSpec.phaseState}`}>{formatPhaseState(activeSpec.phaseState)}</span>
       </div>
@@ -1351,7 +1378,7 @@ function renderWorkspaceMode(
             value={draft}
           />
           <div className="editor-footer">
-            <span className="helper-copy">Cmd/Ctrl+S saves the current document. Esc returns to inbox.</span>
+            <span className="helper-copy">Press Cmd/Ctrl+S to save. Press Esc to return to Inbox.</span>
             <button
               className="secondary-action"
               disabled={saveState.status === 'saving' || (saveState.status !== 'dirty' && !hasContent)}
@@ -1393,183 +1420,6 @@ function renderWorkspaceMode(
   );
 }
 
-function renderApprovalsMode(
-  projectWorkspace: DesktopProjectWorkspace,
-  selectedApprovalId: string | null,
-  approvalReview: DesktopApprovalReview | null,
-  isLoadingApprovalReview: boolean,
-  approvalReviewError: string | null,
-  approvalResponseDraft: string,
-  approvalActionState: {
-    status: 'idle' | 'saving' | 'saved' | 'error';
-    message?: string | undefined;
-  },
-  onSelectApproval: (approvalId: string) => void,
-  onApprovalResponseChange: (value: string) => void,
-  onApprovalAction: (action: 'approve' | 'reject' | 'needs-revision') => Promise<void>
-): ReactNode {
-  if (projectWorkspace.pendingApprovals.length === 0) {
-    return (
-      <article className="panel workspace-card workspace-span-2">
-        <h2>Approval inbox</h2>
-        <p className="panel-copy">
-          Nothing is waiting for review right now. This project can stay in spec or implementation flow.
-        </p>
-      </article>
-    );
-  }
-
-  const selectedApproval = projectWorkspace.pendingApprovals.find(
-    (approval) => approval.approvalId === selectedApprovalId
-  ) ?? projectWorkspace.pendingApprovals[0];
-  const relatedSpec = selectedApproval.category === 'spec'
-    ? projectWorkspace.specs.find((spec) => spec.name === selectedApproval.categoryName)
-    : null;
-
-  return (
-    <article className="panel workspace-card workspace-span-2 workspace-detail-card">
-      <div className="section-header">
-        <h2>Approval inbox</h2>
-        <span className="section-meta">{projectWorkspace.pendingApprovals.length} pending</span>
-      </div>
-
-      <div aria-label="Approval inbox" className="approval-queue" role="list">
-        {projectWorkspace.pendingApprovals.map((approval) => (
-          <button
-            aria-pressed={selectedApproval.approvalId === approval.approvalId}
-            className={`approval-queue-item ${selectedApproval.approvalId === approval.approvalId ? 'approval-queue-item-active' : ''}`}
-            key={approval.approvalId}
-            onClick={() => {
-              onSelectApproval(approval.approvalId);
-            }}
-            type="button"
-          >
-            <strong>{approval.title}</strong>
-            <span className="approval-queue-meta">{formatDisplayName(approval.categoryName)}</span>
-            <span className={`badge ${approval.type === 'action' ? 'badge-warning' : 'badge-neutral'}`}>
-              {approval.type}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      <article className="approval-review-shell">
-        <div className="section-header">
-          <div>
-            <h2>{selectedApproval.title}</h2>
-            <p className="approval-meta">
-              {selectedApproval.filePath} · {formatDisplayName(selectedApproval.categoryName)} · {formatTimestamp(selectedApproval.createdAt, 'Unknown time')} · {projectWorkspace.pendingApprovals.length} pending{approvalReview?.diff ? ` · +${approvalReview.diff.additions} / -${approvalReview.diff.deletions}` : ''}
-            </p>
-          </div>
-          <span className={`badge ${selectedApproval.type === 'action' ? 'badge-warning' : 'badge-neutral'}`}>
-            {selectedApproval.type}
-          </span>
-        </div>
-
-        <details className="review-context">
-          <summary>
-            {relatedSpec
-              ? `${relatedSpec.displayName} · ${formatPhaseState(relatedSpec.phaseState)}`
-              : 'No related spec'}
-          </summary>
-          {relatedSpec ? (
-            <ul className="focus-list">
-              <li>
-                {relatedSpec.activeTask
-                  ? `Implementation is currently anchored on ${relatedSpec.activeTask.id} ${relatedSpec.activeTask.description}.`
-                  : 'No task is marked in progress for this spec yet.'}
-              </li>
-              <li>
-                {relatedSpec.nextTask
-                  ? `Next queued task is ${relatedSpec.nextTask.id} ${relatedSpec.nextTask.description}.`
-                  : 'There is no queued task after the current work.'}
-              </li>
-              <li>
-                {relatedSpec.latestImplementation
-                  ? `Latest implementation log: ${relatedSpec.latestImplementation.summary}.`
-                  : 'No implementation logs recorded for this spec yet.'}
-              </li>
-            </ul>
-          ) : (
-            <p className="panel-copy">
-              This approval is not attached to a spec summary yet, so only the file target is available.
-            </p>
-          )}
-        </details>
-
-        {isLoadingApprovalReview ? (
-          <p className="panel-copy">Loading approval content...</p>
-        ) : approvalReviewError ? (
-          <p className="issue issue-error">{approvalReviewError}</p>
-        ) : approvalReview?.diff ? (
-          <pre className="diff-view" data-testid="approval-diff">
-            {formatDiffPreview(approvalReview.diff)}
-          </pre>
-        ) : (
-          <pre className="phase-content">{approvalReview?.currentContent ?? 'No review content available.'}</pre>
-        )}
-      </article>
-
-      <section className="approval-decision">
-        <div className="phase-header">
-          <h3>Decision</h3>
-          <span className="section-meta">{approvalActionState.message ?? 'Optional review note.'}</span>
-        </div>
-        <textarea
-          aria-label={`${selectedApproval.title} response`}
-          className="approval-note"
-          onChange={(event) => {
-            onApprovalResponseChange(event.target.value);
-          }}
-          placeholder="Add review notes, rationale, or revision guidance."
-          rows={3}
-          spellCheck={false}
-          value={approvalResponseDraft}
-        />
-        <div className="action-row approval-action-row">
-          <button
-            className="primary-action"
-            disabled={approvalActionState.status === 'saving'}
-            onClick={() => {
-              void onApprovalAction('approve');
-            }}
-            type="button"
-          >
-            {approvalActionState.status === 'saving' ? 'Processing...' : (
-              <>
-                <span>Approve</span>
-                <kbd>⌘↵</kbd>
-              </>
-            )}
-          </button>
-          <button
-            className="secondary-action"
-            disabled={approvalActionState.status === 'saving'}
-            onClick={() => {
-              void onApprovalAction('needs-revision');
-            }}
-            type="button"
-          >
-            <span>Request revision</span>
-            <kbd>⌘⇧R</kbd>
-          </button>
-          <button
-            className="secondary-action"
-            disabled={approvalActionState.status === 'saving'}
-            onClick={() => {
-              void onApprovalAction('reject');
-            }}
-            type="button"
-          >
-            <span>Reject</span>
-            <kbd>⌘⇧X</kbd>
-          </button>
-        </div>
-      </section>
-    </article>
-  );
-}
-
 function renderMcpDiagnosticsPanel(
   shellState: DesktopShellState,
   visibility: McpVisibility,
@@ -1581,7 +1431,7 @@ function renderMcpDiagnosticsPanel(
   return (
     <article className="panel mcp-panel">
       <div className="section-header">
-        <h2>MCP visibility</h2>
+        <h2>MCP status</h2>
         <div className="workspace-summary">
           <span className={`badge ${visibility.badgeClassName}`}>{visibility.summaryLabel}</span>
           <button
@@ -1595,7 +1445,7 @@ function renderMcpDiagnosticsPanel(
       </div>
 
       {trackedProjects.length === 0 ? (
-        <p className="panel-copy">No projects remembered yet.</p>
+        <p className="panel-copy">No saved projects yet.</p>
       ) : (
         <ul className="mcp-list">
           {trackedProjects.map((project) => (
@@ -1606,7 +1456,7 @@ function renderMcpDiagnosticsPanel(
               </div>
               <div className="project-badges">
                 <span className={`badge ${project.connectionState === 'live' ? 'badge-live' : 'badge-neutral'}`}>
-                  {project.connectionState === 'live' ? `${project.instanceCount} live` : 'Remembered'}
+                  {project.connectionState === 'live' ? `${project.instanceCount} live` : 'Saved'}
                 </span>
                 {project.gitBranch ? <span className="badge badge-neutral">{project.gitBranch}</span> : null}
               </div>
@@ -1677,12 +1527,32 @@ function formatTimestamp(value: string | null, fallback: string): string {
   }).format(new Date(value));
 }
 
+function formatApprovalCommentsResponse(comments: DesktopApprovalComment[]): string {
+  const normalizedComments = comments
+    .map((comment) => comment.comment.trim())
+    .filter((comment) => comment.length > 0);
+
+  if (normalizedComments.length === 0) {
+    return 'Changes requested.';
+  }
+
+  return normalizedComments.join('\n\n');
+}
+
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
     return false;
   }
 
   return target.closest('input, textarea, select, button, [contenteditable="true"]') !== null;
+}
+
+function isTextEditingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  return target.closest('input, textarea, [contenteditable="true"]') !== null;
 }
 
 function getRecentImplementationEntries(projectWorkspace: DesktopProjectWorkspace): Array<{
@@ -1729,20 +1599,6 @@ function formatFileDelta(filesModified: string[], filesCreated: string[]): strin
   return `${modifiedLabel} · ${createdLabel}`;
 }
 
-function formatDiffPreview(diff: NonNullable<DesktopApprovalReview['diff']>): string {
-  return diff.chunks
-    .flatMap((chunk) => chunk.lines)
-    .map((line) => {
-      const prefix = line.type === 'add'
-        ? '+'
-        : line.type === 'delete'
-          ? '-'
-          : ' ';
-      return `${prefix} ${line.content}`;
-    })
-    .join('\n');
-}
-
 function createMcpVisibility(shellState: DesktopShellState): McpVisibility {
   const liveProjects = shellState.projects.filter((project) => project.connectionState === 'live');
   const rememberedProjects = shellState.projects.filter(
@@ -1774,7 +1630,7 @@ function createMcpVisibility(shellState: DesktopShellState): McpVisibility {
     return {
       liveProjects,
       rememberedProjects,
-      statusLabel: 'Waiting for Codex-launched MCP',
+      statusLabel: 'Waiting for Codex to connect',
       summaryLabel: 'Waiting',
       badgeClassName: 'badge-neutral'
     };
@@ -1783,7 +1639,7 @@ function createMcpVisibility(shellState: DesktopShellState): McpVisibility {
   return {
     liveProjects,
     rememberedProjects,
-    statusLabel: 'No projects remembered',
+    statusLabel: 'No saved projects',
     summaryLabel: 'Idle',
     badgeClassName: 'badge-neutral'
   };
@@ -1808,13 +1664,13 @@ function getSaveStateLabel(saveState: SaveIndicator): string {
     return 'Unsaved changes';
   }
 
-  return 'No local changes';
+  return 'No changes yet';
 }
 
 function formatSpecMeta(spec: WorkspaceSpec): string {
   const segments = [
-    spec.activeTask ? `Current: ${spec.activeTask.id} ${spec.activeTask.description}` : null,
-    spec.nextTask ? `Next: ${spec.nextTask.id} ${spec.nextTask.description}` : null,
+    spec.activeTask ? `Current task: ${spec.activeTask.id} ${spec.activeTask.description}` : null,
+    spec.nextTask ? `Next task: ${spec.nextTask.id} ${spec.nextTask.description}` : null,
     `${spec.taskSummary.completed}/${spec.taskSummary.total || 0} tasks`,
     `${spec.pendingApprovalCount} approvals`
   ].filter((segment): segment is string => segment !== null);
@@ -1826,11 +1682,11 @@ function getMcpHints(shellState: DesktopShellState, visibility: McpVisibility): 
   const hints = shellState.issues.map((issue) => getIssueHint(issue));
 
   if (visibility.liveProjects.length === 0 && shellState.projects.length > 0) {
-    hints.push('Open a remembered project in Codex and run a tool or prompt to attach a live MCP session.');
+    hints.push('Open a saved project in Codex and run any tool or prompt to start a live MCP session.');
   }
 
   if (shellState.projects.length === 0) {
-    hints.push('Add a project from the desktop app or let Codex bind one first so Electron has something to recover.');
+    hints.push('Add a project here or open one in Codex first so the desktop app can restore it after restart.');
   }
 
   return [...new Set(hints)];
@@ -1869,8 +1725,8 @@ function createCommandPaletteItems(context: CommandItemContext): CommandPaletteI
     {
       id: 'action:add-project',
       category: 'Action',
-      title: 'Add project',
-      meta: 'Open the native folder picker and remember a repository.',
+      title: 'Add folder',
+      meta: 'Open the folder picker and save a repository for later.',
       keywords: ['folder', 'picker', 'remember', 'repo'],
       onSelect: async () => {
         await context.onPickProject();
@@ -1880,7 +1736,7 @@ function createCommandPaletteItems(context: CommandItemContext): CommandPaletteI
       id: 'action:toggle-diagnostics',
       category: 'Action',
       title: context.isDiagnosticsOpen ? 'Hide MCP status' : 'Show MCP status',
-      meta: 'Inspect live workspaces, issues, and runtime details for the current desktop session.',
+      meta: 'Inspect live connections, issues, and runtime details for this desktop session.',
       keywords: ['mcp', 'diagnostics', 'status', 'runtime', 'codex'],
       onSelect: () => {
         context.onToggleDiagnostics();
@@ -1906,7 +1762,7 @@ function createCommandPaletteItems(context: CommandItemContext): CommandPaletteI
       id: `project:${project.projectId}`,
       category: 'Project',
       title: project.projectName,
-      meta: `${project.connectionState === 'live' ? 'Live MCP attached' : 'Recovered from memory'}${project.gitBranch ? ` · ${project.gitBranch}` : ''}`,
+      meta: `${project.connectionState === 'live' ? 'Live in Codex' : 'Saved locally'}${project.gitBranch ? ` · ${project.gitBranch}` : ''}`,
       keywords: [
         project.projectName,
         project.workspacePath,

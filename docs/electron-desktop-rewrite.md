@@ -1,8 +1,8 @@
 # Electron Desktop Rewrite
 
 Last updated: 2026-03-14
-Status: Milestone 14 complete
-Current focus: Core rewrite milestones are complete. Post-roadmap Electron refinements are now focused on strengthening the desktop shell's visual identity without falling back into generic AI-dark devtool patterns, while browser cleanup stays opportunistic only.
+Status: Milestone 14 complete; post-roadmap approval review rewrite implemented
+Current focus: Core rewrite milestones are complete. Post-roadmap Electron refinements are now focused on approval-flow polish, design/code-review loops, and targeted desktop UX cleanup while browser cleanup stays opportunistic only.
 
 ## Purpose
 
@@ -318,6 +318,77 @@ This document is the working source of truth for the rewrite. Update it after ea
   - turned the inbox callout into a true focal moment with stronger contrast, larger title, and an accent rail
   - made selected project and approval states feel more intentional through stronger edge treatment instead of generic fill-only highlighting
   - deepened editor/review surfaces so they read more like working panes than standard dark textareas
+- Verification for this pass:
+  - `npm --prefix apps/desktop run test`
+  - `npm --prefix apps/desktop run lint`
+  - `npm --prefix apps/desktop run build`
+
+### Latest post-roadmap polish pass for Electron shell
+
+- A final polish-focused pass followed the quieter and bolder work so the renderer would feel less like a direction study and more like a shippable desktop surface.
+- This pass avoided changing information architecture. It focused on detail quality:
+  - filled in missing interactive states for primary/secondary actions and major shell surfaces
+  - improved hover/active/focus behavior for queue rows, mode tabs, project rows, and palette items
+  - added stronger focus treatment for editor, approval note, and command search inputs
+  - tightened placeholder/readability treatment and allowed header/summary rows to wrap more gracefully instead of clipping
+  - added coarse-pointer sizing so touch targets move up to a safer `44px` minimum on touch devices
+  - added `prefers-reduced-motion` handling so the desktop shell respects reduced-motion environments
+  - removed a small responsive inconsistency where the mobile mode-tab layout still carried an irrelevant grid declaration
+- Verification for this pass:
+  - `npm --prefix apps/desktop run test`
+  - `npm --prefix apps/desktop run lint`
+  - `npm --prefix apps/desktop run build`
+
+### Latest post-roadmap clarify pass for Electron shell
+
+- A follow-up clarify-pass tightened user-facing copy after the visual polish work, with the goal of removing the last bits of internal implementation jargon from the desktop shell.
+- This pass stayed intentionally narrow:
+  - no layout changes
+  - no interaction-model changes
+  - only labels, empty states, helper text, palette metadata, and review copy
+- Implemented changes:
+  - renamed the main picker action from `Add project` to `Add folder` so the button matches the native folder-picker behavior
+  - changed the `Workspace` mode label and `Spec workspace` heading to `Specs` and `Spec editor`
+  - replaced internal copy such as `desktop bridge`, `spec workflow state`, and `workflow root` with user-facing language about specs, approvals, logs, and reconnecting Codex
+  - shortened and clarified empty states for inbox, specs, approvals, and the MCP diagnostics panel
+  - replaced `Remembered`-style user copy with clearer `Saved` terminology in the shell while leaving the internal `remembered` state model intact
+  - clarified approval-review context from vague phrasing like `anchored on` to direct labels like `Current task` and `Next task`
+  - simplified palette/project metadata from `Live MCP attached` / `Recovered from memory` to `Live in Codex` / `Saved locally`
+  - removed the duplicate inbox-empty copy path so an empty queue now says one clear thing instead of two similar things
+- Verification for this pass:
+  - `npm --prefix apps/desktop run test`
+  - `npm --prefix apps/desktop run lint`
+  - `npm --prefix apps/desktop run build`
+
+### Latest post-roadmap distill pass for Electron shell
+
+- A distill-pass followed the copy clarification work to remove repeated chrome and flatten the shell into a more direct work surface.
+- This pass focused on subtraction rather than new features:
+  - no new workflow concepts
+  - no new panels
+  - less repeated state, less decorative surface treatment, and fewer secondary signals competing with active work
+- Implemented changes:
+  - removed the standalone header status pill and folded runtime status into a quiet helper line under the app title
+  - merged the active project heading and mode navigation into a single workspace bar instead of two stacked shell rows
+  - removed repeated live/saved badges from the active workspace head and left connection state to the project list plus MCP status panel
+  - simplified inbox rows by removing duplicated status badges and trailing action labels from every item
+  - simplified approval queue chips by replacing default `document` badges with plain metadata and only keeping a visual badge for `action` approvals
+  - flattened several renderer surfaces visually by replacing gradient-heavy fills with quieter solid/tinted backgrounds
+  - removed the decorative shell background field so the desktop app reads more like a focused editor than a styled dashboard
+- Verification for this pass:
+  - `npm --prefix apps/desktop run test`
+  - `npm --prefix apps/desktop run lint`
+  - `npm --prefix apps/desktop run build`
+
+### Latest top-bar navigation pass for Electron shell
+
+- A follow-up shell-layout pass moved project navigation out of the left rail and into the sticky top menu, matching the desktop-app mental model more closely.
+- Implemented changes:
+  - removed the visible app-title/status block from the renderer header because Electron window chrome already identifies the app
+  - replaced the left-rail project list with a top-left projects dropdown in the same command row as `MCP`, `Search`, and `Add folder`
+  - kept project switching and forgetting available inside that dropdown, so the old rail behavior still exists without occupying permanent screen width
+  - made the top menu sticky so navigation stays visible while scrolling
+  - removed the two-column shell layout and let the main workspace content expand across the full available width
 - Verification for this pass:
   - `npm --prefix apps/desktop run test`
   - `npm --prefix apps/desktop run lint`
@@ -781,6 +852,43 @@ Implemented:
 Exit criteria:
 - The desktop app is the default documented interface.
 - Legacy dashboard is either removed or explicitly marked secondary/legacy.
+
+## Post-roadmap Refinements
+
+### Approval Review Rewrite
+
+Goal: Rework desktop approvals around rendered markdown review, visible comment authoring, and a simpler decision model.
+
+- [x] Replace the old approval response textarea with a dedicated review surface and comment sidebar.
+- [x] Support selection-based comments directly on rendered markdown with a visible floating `Add comment` affordance.
+- [x] Keep a visible list of saved comments and allow general comments without a text selection.
+- [x] Simplify approval actions to `Approve` plus a comment-gated `Reject` flow.
+- [x] Add markdown code-block highlighting and focused desktop tests for rendered review and reject gating.
+
+Implemented:
+- Added a dedicated desktop approval review surface in `apps/desktop/src/renderer/approvals/ApprovalReviewPanel.tsx` with:
+  - rendered markdown review for `.md` / `.mdx`
+  - general comments
+  - selection comments
+  - visible saved-comment list
+  - simplified `Approve` / `Reject` footer
+- Added `MarkdownReviewSurface.tsx` with `markdown-it` and `highlight.js`, plus inline highlight anchors so comment targets stay visible inside rendered markdown and code-friendly content.
+- Wired comment persistence through the desktop shell and shared approval types so comment payloads round-trip through preload/main/core approval review services instead of living only in renderer state.
+- Removed the old desktop approval response textarea flow and its global approval shortcuts from `App.tsx`; approval shortcuts are now scoped to the approval panel itself.
+- Kept the negative approval path aligned with the new UI contract by wiring the visible `Reject` action to a real `reject` status while still requiring at least one saved comment before it can fire.
+- Normalized pre-existing approval comments without ids inside the desktop panel so older selection comments still render as inline highlights in markdown review mode.
+- Hardened keyboard behavior so `Esc` no longer throws the reviewer back to Inbox while they are typing an unsaved approval comment draft.
+- Added focused renderer coverage for:
+  - markdown rendering and code-block highlighting
+  - floating selection-comment affordance
+  - reject gating until at least one comment exists
+  - approval submission payloads including saved comments and auto-advance behavior
+  - preserving comment drafts on `Esc`
+  - rendering legacy selection comments that did not already carry ids
+- Ran a scoped `gpt-5.3-codex` review on the approval rewrite and closed all concrete findings in the same pass instead of carrying them forward:
+  - restored a true `reject` desktop action
+  - fixed draft-loss on `Esc`
+  - fixed highlight/interactivity for older comments without ids
 
 ## Current Progress Checklist
 

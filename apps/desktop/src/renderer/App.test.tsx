@@ -160,7 +160,7 @@ const projectWorkspace: DesktopProjectWorkspace = {
     {
       approvalId: 'approval-1',
       title: 'Review desktop shell',
-      filePath: 'apps/desktop/src/renderer/App.tsx',
+      filePath: '.spec-workflow/specs/desktop-rewrite/requirements.md',
       type: 'document',
       category: 'spec',
       categoryName: 'desktop-rewrite',
@@ -182,16 +182,16 @@ const approvalReview: DesktopApprovalReview = {
   approval: {
     id: 'approval-1',
     title: 'Review desktop shell',
-    filePath: 'apps/desktop/src/renderer/App.tsx',
+    filePath: '.spec-workflow/specs/desktop-rewrite/requirements.md',
     type: 'document',
     status: 'pending',
     createdAt: '2026-03-14T11:00:00.000Z',
     category: 'spec',
     categoryName: 'desktop-rewrite'
   },
-  currentContent: 'export const shell = true;\n',
+  currentContent: '# Requirements\n\nKeep restart recovery obvious.\n\n```ts\nconst ready = true;\n```\n',
   diff: {
-    additions: 2,
+    additions: 6,
     deletions: 0,
     changes: 0,
     chunks: [
@@ -199,17 +199,37 @@ const approvalReview: DesktopApprovalReview = {
         oldStart: 1,
         oldLines: 0,
         newStart: 1,
-        newLines: 2,
+        newLines: 6,
         lines: [
           {
             type: 'add',
             newLineNumber: 1,
-            content: 'export const shell = true;'
+            content: '# Requirements'
           },
           {
             type: 'add',
             newLineNumber: 2,
             content: ''
+          },
+          {
+            type: 'add',
+            newLineNumber: 3,
+            content: 'Keep restart recovery obvious.'
+          },
+          {
+            type: 'add',
+            newLineNumber: 4,
+            content: ''
+          },
+          {
+            type: 'add',
+            newLineNumber: 5,
+            content: '```ts'
+          },
+          {
+            type: 'add',
+            newLineNumber: 6,
+            content: 'const ready = true;'
           }
         ]
       }
@@ -264,15 +284,9 @@ describe('App', () => {
   it('hydrates shell state and project workspace from the preload bridge', async () => {
     render(<App />);
 
-    expect(
-      screen.getByRole('heading', { name: 'Spec Workflow Desktop' })
-    ).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'Inbox' })).toBeInTheDocument();
     expect(
-      screen.getByText('Project ready')
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: /repo-a 2/i })
+      screen.getByRole('button', { name: 'repo-a' })
     ).toBeInTheDocument();
     expect(
       screen.getByText(/2 approvals/)
@@ -281,7 +295,7 @@ describe('App', () => {
       screen.getAllByText('Review desktop shell')
     ).toHaveLength(1);
     expect(
-      screen.getByText('Desktop Rewrite · apps/desktop/src/renderer/App.tsx')
+      screen.getByText('Desktop Rewrite · .spec-workflow/specs/desktop-rewrite/requirements.md')
     ).toBeInTheDocument();
     expect(screen.getByText('Desktop Rewrite · 1.2')).toBeInTheDocument();
   });
@@ -298,7 +312,7 @@ describe('App', () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: 'Add project' }));
+    await user.click(await screen.findByRole('button', { name: 'Add folder' }));
 
     expect(pickProjectDirectory).toHaveBeenCalledTimes(1);
   });
@@ -311,14 +325,14 @@ describe('App', () => {
     await screen.findByRole('heading', { name: 'Inbox' });
     await user.click(screen.getByRole('button', { name: 'Open MCP status' }));
 
-    expect(await screen.findByRole('heading', { name: 'MCP visibility' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'MCP status' })).toBeInTheDocument();
     expect(screen.getAllByText('1 live')).toHaveLength(3);
     expect(screen.getAllByText('/tmp/repo-a')).toHaveLength(2);
     expect(screen.getByText('Runtime details')).toBeInTheDocument();
 
     await user.keyboard('{Escape}');
 
-    expect(screen.queryByRole('heading', { name: 'MCP visibility' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'MCP status' })).not.toBeInTheDocument();
   });
 
   it('shows waiting guidance when projects are remembered but MCP is not attached', async () => {
@@ -333,9 +347,9 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Open MCP status' }));
 
     expect(await screen.findAllByText('Waiting')).toHaveLength(2);
-    expect(screen.getAllByText('Remembered')).toHaveLength(2);
+    expect(screen.getAllByText('Saved')).toHaveLength(1);
     expect(
-      screen.getByText('Open a remembered project in Codex and run a tool or prompt to attach a live MCP session.')
+      screen.getByText('Open a saved project in Codex and run any tool or prompt to start a live MCP session.')
     ).toBeInTheDocument();
   });
 
@@ -348,6 +362,7 @@ describe('App', () => {
 
     render(<App />);
 
+    await user.click(await screen.findByRole('button', { name: 'repo-a' }));
     await user.click(await screen.findByRole('button', { name: 'Forget repo-a' }));
 
     expect(forgetProject).toHaveBeenCalledWith('project-a');
@@ -361,9 +376,9 @@ describe('App', () => {
     await screen.findByRole('heading', { name: 'Inbox' });
     await user.keyboard('2');
 
-    expect(await screen.findByText('Spec workspace')).toBeInTheDocument();
-    expect(await screen.findByText('Cmd/Ctrl+S saves the current document. Esc returns to inbox.')).toBeInTheDocument();
-    expect(await screen.findByText(/Current: 1\.1 Build desktop shell/)).toBeInTheDocument();
+    expect(await screen.findByText('Spec editor')).toBeInTheDocument();
+    expect(await screen.findByText('Press Cmd/Ctrl+S to save. Press Esc to return to Inbox.')).toBeInTheDocument();
+    expect(await screen.findByText(/Current task: 1\.1 Build desktop shell/)).toBeInTheDocument();
 
     await user.keyboard('l');
 
@@ -377,12 +392,13 @@ describe('App', () => {
 
     await user.keyboard('3');
 
-    expect(await screen.findByText('Approval inbox')).toBeInTheDocument();
-    expect(await screen.findByLabelText('Review desktop shell response')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Approvals' })).toBeInTheDocument();
+    expect(await screen.findByText('Select text to comment on a specific passage.')).toBeInTheDocument();
+    expect(await screen.findByText('Keep restart recovery obvious.')).toBeInTheDocument();
 
     await user.keyboard('l');
 
-    expect(await screen.findByLabelText('Review approval inbox response')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /Reject/i })).toBeDisabled();
     expect(
       await screen.findByText('+ export const approvalStorage = true;')
     ).toBeInTheDocument();
@@ -403,7 +419,7 @@ describe('App', () => {
     await user.type(screen.getByLabelText('Command search'), 'design document');
     await user.keyboard('{Enter}');
 
-    expect(await screen.findByText('Spec workspace')).toBeInTheDocument();
+    expect(await screen.findByText('Spec editor')).toBeInTheDocument();
     expect(await screen.findByLabelText('Desktop Rewrite Design')).toHaveValue(
       '# Design\nUse a left rail and detail panel.'
     );
@@ -412,8 +428,8 @@ describe('App', () => {
     await user.type(screen.getByLabelText('Command search'), 'review approval inbox');
     await user.keyboard('{Enter}');
 
-    expect(await screen.findByText('Approval inbox')).toBeInTheDocument();
-    expect(await screen.findByLabelText('Review approval inbox response')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Approvals' })).toBeInTheDocument();
+    expect(await screen.findByText(/src\/core\/approval-storage\.ts/)).toBeInTheDocument();
   });
 
   it('cycles workspace documents with Tab and Shift+Tab outside the editor', async () => {
@@ -486,21 +502,77 @@ describe('App', () => {
 
     await screen.findByRole('heading', { name: 'Inbox' });
     await user.keyboard('3');
-    await screen.findByText('Approval inbox');
-    await user.type(
-      await screen.findByLabelText('Review desktop shell response'),
-      'Ship it.'
-    );
+    await screen.findByRole('heading', { name: 'Approvals' });
     await user.keyboard('{Control>}{Enter}{/Control}');
 
     expect(respondToApproval).toHaveBeenCalledWith(
       'project-a',
       'approval-1',
       'approve',
-      'Ship it.'
+      'Approved.',
+      []
     );
     expect(await screen.findByText(/src\/core\/approval-storage\.ts/)).toBeInTheDocument();
-    expect(await screen.findByLabelText('Review approval inbox response')).toHaveValue('');
+    expect(await screen.findByRole('button', { name: /Reject/i })).toBeDisabled();
+  });
+
+  it('keeps reject disabled until a comment is saved and sends comments with the review action', async () => {
+    const user = userEvent.setup();
+    const respondToApproval = vi.fn<DesktopApi['respondToApproval']>().mockResolvedValue(undefined);
+    window.desktop = createDesktopApiMock({
+      respondToApproval
+    });
+
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Inbox' });
+    await user.keyboard('3');
+    await screen.findByRole('heading', { name: 'Approvals' });
+
+    const rejectButton = screen.getByRole('button', { name: /Reject/i });
+    expect(rejectButton).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Add note' }));
+    await user.type(
+      screen.getByLabelText('Approval comment'),
+      'Clarify how restart recovery behaves after reconnect.'
+    );
+    await user.click(screen.getByRole('button', { name: 'Save comment' }));
+
+    expect(screen.getByRole('button', { name: /Reject/i })).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: /Reject/i }));
+
+    expect(respondToApproval).toHaveBeenCalledWith(
+      'project-a',
+      'approval-1',
+      'reject',
+      'Clarify how restart recovery behaves after reconnect.',
+      [
+        expect.objectContaining({
+          type: 'general',
+          comment: 'Clarify how restart recovery behaves after reconnect.'
+        })
+      ]
+    );
+  });
+
+  it('keeps approval comment drafts when Escape is pressed inside the comment textarea', async () => {
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Inbox' });
+    await user.keyboard('3');
+    await screen.findByRole('heading', { name: 'Approvals' });
+    await user.click(screen.getByRole('button', { name: 'Add note' }));
+
+    const commentField = screen.getByLabelText('Approval comment');
+    await user.type(commentField, 'Keep this draft.');
+    await user.keyboard('{Escape}');
+
+    expect(screen.getByRole('heading', { name: 'Approvals' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Approval comment')).toHaveValue('Keep this draft.');
   });
 });
 
