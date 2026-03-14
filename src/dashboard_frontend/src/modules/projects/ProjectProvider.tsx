@@ -20,6 +20,8 @@ interface ProjectContextType {
   currentProject: Project | null;
   setCurrentProject: (projectId: string) => void;
   refreshProjects: () => Promise<void>;
+  addProjectByPath: (projectPath: string) => Promise<void>;
+  removeProjectById: (projectId: string) => Promise<void>;
   loading: boolean;
 }
 
@@ -110,6 +112,54 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     setCurrentProjectId(projectId);
   }, []);
 
+  const addProjectByPath = useCallback(async (projectPath: string) => {
+    const response = await fetch('/api/projects/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectPath })
+    });
+
+    if (!response.ok) {
+      let message = `Failed to add project: ${response.status}`;
+      try {
+        const data = await response.json() as { error?: string };
+        if (data.error) {
+          message = data.error;
+        }
+      } catch {
+        // Ignore JSON parsing failures and keep fallback message.
+      }
+      throw new Error(message);
+    }
+
+    const data = await response.json() as { projectId?: string };
+    await fetchProjects();
+    if (data.projectId) {
+      setCurrentProjectId(data.projectId);
+    }
+  }, [fetchProjects]);
+
+  const removeProjectById = useCallback(async (projectId: string) => {
+    const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}`, {
+      method: 'DELETE'
+    });
+
+    if (!response.ok) {
+      let message = `Failed to remove project: ${response.status}`;
+      try {
+        const data = await response.json() as { error?: string };
+        if (data.error) {
+          message = data.error;
+        }
+      } catch {
+        // Ignore JSON parsing failures and keep fallback message.
+      }
+      throw new Error(message);
+    }
+
+    await fetchProjects();
+  }, [fetchProjects]);
+
   const currentProject = useMemo(() => {
     return projects.find(p => p.projectId === currentProjectId) || null;
   }, [projects, currentProjectId]);
@@ -120,8 +170,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     currentProject,
     setCurrentProject,
     refreshProjects: fetchProjects,
+    addProjectByPath,
+    removeProjectById,
     loading
-  }), [projects, currentProjectId, currentProject, setCurrentProject, fetchProjects, loading]);
+  }), [projects, currentProjectId, currentProject, setCurrentProject, fetchProjects, addProjectByPath, removeProjectById, loading]);
 
   return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;
 }

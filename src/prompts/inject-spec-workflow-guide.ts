@@ -2,6 +2,7 @@ import { Prompt, PromptMessage } from '@modelcontextprotocol/sdk/types.js';
 import { PromptDefinition } from './types.js';
 import { ToolContext } from '../types.js';
 import { specWorkflowGuideHandler } from '../tools/spec-workflow-guide.js';
+import { tryResolvePromptProjectPath } from './project-binding.js';
 
 const prompt: Prompt = {
   name: 'inject-spec-workflow-guide',
@@ -12,6 +13,7 @@ const prompt: Prompt = {
 async function handler(args: Record<string, any>, context: ToolContext): Promise<PromptMessage[]> {
   // Call the spec-workflow-guide tool to get the full guide
   const toolResponse = await specWorkflowGuideHandler({}, context);
+  const resolvedProjectPath = await tryResolvePromptProjectPath(context);
   
   // Extract the guide content from the tool response
   const guide = toolResponse.data?.guide || '';
@@ -28,7 +30,7 @@ async function handler(args: Record<string, any>, context: ToolContext): Promise
 ${guide}
 
 **Current Context:**
-- Project: ${context.workspacePath || context.projectPath}
+- Project: ${resolvedProjectPath || 'Unresolved (pass projectPath explicitly when the client exposes multiple or zero roots)'}
 ${dashboardUrl ? `- Dashboard: ${dashboardUrl}` : '- Dashboard: Please start the dashboard or use VS Code extension "Spec Workflow MCP"'}
 
 **Next Steps:**

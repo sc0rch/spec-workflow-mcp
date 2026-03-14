@@ -1,6 +1,7 @@
 import { Prompt, PromptMessage } from '@modelcontextprotocol/sdk/types.js';
 import { PromptDefinition } from './types.js';
 import { ToolContext } from '../types.js';
+import { resolvePromptProjectPath } from './project-binding.js';
 
 const prompt: Prompt = {
   name: 'spec-status',
@@ -19,7 +20,7 @@ const prompt: Prompt = {
     },
     {
       name: 'projectPath',
-      description: 'Workspace/worktree path to bind downstream spec-workflow tool calls to',
+      description: 'Optional workspace/worktree selector. Overrides the resolved project binding for this prompt.',
       required: false
     }
   ]
@@ -27,7 +28,7 @@ const prompt: Prompt = {
 
 async function handler(args: Record<string, any>, context: ToolContext): Promise<PromptMessage[]> {
   const { specName, detailed, projectPath } = args;
-  const boundProjectPath = projectPath || context.workspacePath || context.projectPath;
+  const boundProjectPath = await resolvePromptProjectPath(context, projectPath);
 
   const scope = specName ? `the "${specName}" feature` : 'all specifications in the project';
   const detailLevel = detailed ? 'detailed' : 'summary';
@@ -77,7 +78,7 @@ ${detailed ? `**Detailed Information Includes:**
 
 **Project Binding:**
 - Treat projectPath as the workspace/worktree selector for stateful spec-workflow tool calls
-- Use projectPath "${boundProjectPath}" whenever the shared MCP server may be serving multiple git worktrees
+- Use projectPath "${boundProjectPath}" when you need to pin downstream calls to this project explicitly
 
 Please provide a comprehensive status report that helps understand the current state and next steps.`
       }

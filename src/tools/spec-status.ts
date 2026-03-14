@@ -2,7 +2,6 @@ import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { ToolContext, ToolResponse } from '../types.js';
 import { PathUtils } from '../core/path-utils.js';
 import { SpecParser } from '../core/parser.js';
-import { resolveToolProjectPaths } from '../core/project-path-resolution.js';
 
 export const specStatusTool: Tool = {
   name: 'spec-status',
@@ -15,7 +14,7 @@ Call when resuming work on a spec or checking overall completion status. Shows w
     properties: {
       projectPath: {
         type: 'string',
-        description: 'Absolute path to the project root (optional - uses server context path if not provided)'
+        description: 'Optional workspace/worktree selector. Overrides the resolved project binding for this call.'
       },
       specName: {
         type: 'string',
@@ -34,7 +33,7 @@ export async function specStatusHandler(args: any, context: ToolContext): Promis
   const { specName } = args;
   
   try {
-    const resolvedProject = await resolveToolProjectPaths(args.projectPath, context);
+    const resolvedProject = await context.resolveBoundProject(args.projectPath);
     const parser = new SpecParser(resolvedProject.translatedWorkflowRootPath);
     const spec = await parser.getSpec(specName);
     

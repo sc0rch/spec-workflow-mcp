@@ -55,12 +55,30 @@ export interface JobExecutionLog {
   lastUpdated?: string;
 }
 
+export type BoundProjectSource = 'explicit-arg' | 'startup-binding' | 'client-root';
+
+export interface StartupBinding {
+  requestedPath: string;
+  workspacePath: string;
+  workflowRootPath: string;
+}
+
+export interface BoundProject {
+  requestedPath: string;
+  workspacePath: string;
+  workflowRootPath: string;
+  translatedWorkspacePath: string;
+  translatedWorkflowRootPath: string;
+  noSharedWorktreeSpecs: boolean;
+  source: BoundProjectSource;
+}
+
 export interface ToolContext {
-  projectPath: string; // Default workflow root path where .spec-workflow lives
-  workspacePath?: string; // Default workspace/worktree path for the active chat
+  startupBinding?: StartupBinding;
   noSharedWorktreeSpecs?: boolean; // Whether worktrees keep their own local .spec-workflow roots
   dashboardUrl?: string; // Optional for backwards compatibility
   lang?: string; // Language code for i18n (e.g., 'en', 'ja')
+  resolveBoundProject: (projectPath?: string) => Promise<BoundProject>;
 }
 
 export interface SpecData {

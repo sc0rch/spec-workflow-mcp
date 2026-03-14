@@ -139,7 +139,10 @@ dist
 CLAUDE.md
 .claude
 .serena
+# Keep repository-level guidance in version control while still ignoring
+# tool-generated AGENTS.md files elsewhere.
 AGENTS.md
+!/AGENTS.md
 opencodetmp.spec-workflow/session.json
 opencodetmp
 .cursor

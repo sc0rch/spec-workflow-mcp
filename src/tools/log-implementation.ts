@@ -3,7 +3,6 @@ import { ToolContext, ToolResponse, ImplementationLogEntry } from '../types.js';
 import { PathUtils } from '../core/path-utils.js';
 import { ImplementationLogManager } from '../dashboard/implementation-log-manager.js';
 import { parseTasksFromMarkdown } from '../core/task-parser.js';
-import { resolveToolProjectPaths } from '../core/project-path-resolution.js';
 
 export const logImplementationTool: Tool = {
   name: 'log-implementation',
@@ -212,7 +211,7 @@ Task: "Implemented logs dashboard with real-time updates"
     properties: {
       projectPath: {
         type: 'string',
-        description: 'Absolute path to the project root (optional - uses server context path if not provided)'
+        description: 'Optional workspace/worktree selector. Overrides the resolved project binding for this call.'
       },
       specName: {
         type: 'string',
@@ -306,7 +305,7 @@ export async function logImplementationHandler(
   } = args;
   
   try {
-    const resolvedProject = await resolveToolProjectPaths(args.projectPath, context);
+    const resolvedProject = await context.resolveBoundProject(args.projectPath);
 
     // Validate artifacts is provided
     if (!artifacts) {

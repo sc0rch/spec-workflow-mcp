@@ -31,7 +31,7 @@ export async function steeringGuideHandler(args: any, context: ToolContext): Pro
       'Create product.md first',
       'Then tech.md and structure.md',
       'Reference in future specs',
-      'When working in a git worktree via a shared MCP server, pass projectPath explicitly to stateful tools',
+      'Use projectPath only when you need to override the resolved project binding for a call',
       context.dashboardUrl ? `Dashboard: ${context.dashboardUrl}` : 'Start the dashboard with: spec-workflow-mcp --dashboard'
     ]
   };
@@ -44,7 +44,7 @@ function getSteeringGuide(): string {
 
 Create project-level guidance documents when explicitly requested. Steering docs establish vision, architecture, and conventions for established codebases. Its important that you follow this workflow exactly to avoid errors.
 
-When one shared MCP server is serving multiple git worktrees, treat \`projectPath\` as the workspace/worktree selector for stateful spec-workflow tool calls. Pass it explicitly on approval and status calls so steering documents bind to the intended worktree.
+When the server runs without a startup path, it resolves the active project from the MCP client roots. Use \`projectPath\` only as an explicit workspace/worktree override on approval and status calls.
 
 ## Workflow Diagram
 
@@ -183,7 +183,7 @@ flowchart TD
 - CRITICAL: Must have approved status AND successful cleanup before next phase
 - CRITICAL: Verbal approval is NEVER accepted - dashboard or VS Code extension only
 - NEVER proceed on user saying "approved" - check system status only
-- When one shared MCP server serves multiple git worktrees, pass \`projectPath\` explicitly to stateful tool calls so the correct worktree is selected
+- When the server cannot infer a single project from client roots, pass \`projectPath\` explicitly to stateful tool calls
 
 ## File Structure
 \`\`\`

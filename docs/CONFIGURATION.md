@@ -10,12 +10,14 @@ This guide covers all configuration options for Spec Workflow MCP.
 npx -y @pimzino/spec-workflow-mcp@latest [project-path] [options]
 ```
 
+`project-path` is optional. If omitted, the MCP server runs in project-agnostic mode and resolves the active project per request.
+
 ### Available Options
 
 | Option | Description | Example |
 |--------|-------------|---------|
 | `--help` | Show comprehensive usage information | `npx -y @pimzino/spec-workflow-mcp@latest --help` |
-| `--dashboard` | Run dashboard-only mode (default port: 5000) | `npx -y @pimzino/spec-workflow-mcp@latest --dashboard` |
+| `--dashboard` | Run dashboard-only mode (default port: 5091) | `npx -y @pimzino/spec-workflow-mcp@latest --dashboard` |
 | `--port <number>` | Specify custom dashboard port (1024-65535) | `npx -y @pimzino/spec-workflow-mcp@latest --dashboard --port 8080` |
 | `--no-open` | Don't auto-open browser when starting dashboard | `npx -y @pimzino/spec-workflow-mcp@latest --dashboard --no-open` |
 | `--no-shared-worktree-specs` | Disable shared `.spec-workflow` in git worktrees (use workspace-local instead) | `npx -y @pimzino/spec-workflow-mcp@latest ~/worktree --no-shared-worktree-specs` |
@@ -23,8 +25,9 @@ npx -y @pimzino/spec-workflow-mcp@latest [project-path] [options]
 ### Important Notes
 
 - **Single Dashboard Instance**: Only one dashboard runs at a time. All MCP servers connect to the same dashboard.
-- **Default Port**: Dashboard uses port 5000 by default. Use `--port` only if 5000 is unavailable.
+- **Default Port**: Dashboard uses port 5091 by default. Use `--port` only if 5091 is unavailable.
 - **Separate Dashboard**: Always run the dashboard separately from MCP servers.
+- **Project Binding Order**: `projectPath` override in a tool/prompt call -> startup path passed to the server -> exactly one MCP client filesystem root -> error.
 
 ## Usage Examples
 
@@ -32,27 +35,24 @@ npx -y @pimzino/spec-workflow-mcp@latest [project-path] [options]
 
 1. **Start the Dashboard** (do this first, only once):
 ```bash
-# Uses default port 5000
+# Uses default port 5091
 npx -y @pimzino/spec-workflow-mcp@latest --dashboard
 ```
 
-2. **Start MCP Servers** (one per project, in separate terminals):
+2. **Start an MCP Server**:
 ```bash
-# Project 1
+# Project-agnostic mode (recommended for clients with a single active root)
+npx -y @pimzino/spec-workflow-mcp@latest
+
+# Optional fixed startup binding
 npx -y @pimzino/spec-workflow-mcp@latest ~/projects/app1
-
-# Project 2
-npx -y @pimzino/spec-workflow-mcp@latest ~/projects/app2
-
-# Project 3
-npx -y @pimzino/spec-workflow-mcp@latest ~/projects/app3
 ```
 
-All projects will appear in the dashboard at http://localhost:5000
+Projects appear in the dashboard lazily after the first prompt/tool call that resolves to that workspace or repo family. The dashboard runs at http://localhost:5091 by default.
 
 ### Dashboard with Custom Port
 
-Only use a custom port if port 5000 is unavailable:
+Only use a custom port if port 5091 is unavailable:
 
 ```bash
 # Start dashboard on port 8080
@@ -79,11 +79,11 @@ Override the default global state directory (`~/.spec-workflow-mcp`). This is us
 **Usage examples:**
 
 ```bash
-# Absolute path
+# Absolute path with startup binding
 SPEC_WORKFLOW_HOME=/workspace/.spec-workflow-mcp npx -y @pimzino/spec-workflow-mcp@latest /workspace
 
-# Relative path (resolved against current working directory)
-SPEC_WORKFLOW_HOME=./.spec-workflow-mcp npx -y @pimzino/spec-workflow-mcp@latest .
+# Relative path with project-agnostic mode
+SPEC_WORKFLOW_HOME=./.spec-workflow-mcp npx -y @pimzino/spec-workflow-mcp@latest
 
 # For dashboard mode
 SPEC_WORKFLOW_HOME=/workspace/.spec-workflow-mcp npx -y @pimzino/spec-workflow-mcp@latest --dashboard
@@ -94,7 +94,7 @@ SPEC_WORKFLOW_HOME=/workspace/.spec-workflow-mcp npx -y @pimzino/spec-workflow-m
 When running in sandboxed environments like Codex CLI with `sandbox_mode=workspace-write`, set `SPEC_WORKFLOW_HOME` to a writable location within your workspace:
 
 ```bash
-SPEC_WORKFLOW_HOME=/workspace/.spec-workflow-mcp npx -y @pimzino/spec-workflow-mcp@latest /workspace
+SPEC_WORKFLOW_HOME=/workspace/.spec-workflow-mcp npx -y @pimzino/spec-workflow-mcp@latest
 ```
 
 ### SPEC_WORKFLOW_SHARED_ROOT
@@ -117,7 +117,7 @@ Use `SPEC_WORKFLOW_SHARED_ROOT` to override the automatic detection:
 
 ```bash
 # Force specs to be stored in the current worktree (opt-out of sharing)
-SPEC_WORKFLOW_SHARED_ROOT=$(pwd) npx -y @pimzino/spec-workflow-mcp@latest .
+SPEC_WORKFLOW_SHARED_ROOT=$(pwd) npx -y @pimzino/spec-workflow-mcp@latest ./my-worktree
 
 # Force a specific shared location
 SPEC_WORKFLOW_SHARED_ROOT=/path/to/shared/specs npx -y @pimzino/spec-workflow-mcp@latest ~/my-worktree
@@ -131,7 +131,7 @@ git worktree add ../myproject-feature feature-branch
 
 # Start MCP server in worktree - specs automatically shared with main repo
 cd ../myproject-feature
-npx -y @pimzino/spec-workflow-mcp@latest .
+npx -y @pimzino/spec-workflow-mcp@latest
 # Output: Git worktree detected. Using main repo: /home/user/myproject
 
 # Both the main repo and worktree see the same specs in /home/user/myproject/.spec-workflow/
@@ -160,6 +160,17 @@ npx -y @pimzino/spec-workflow-mcp@latest ~/myproject-feature
 # Dashboard shows: "myproject · myproject-feature"
 # Specs are shared from ~/myproject/.spec-workflow/
 ```
+
+### Project-agnostic Mode
+
+When you start the server without a path, it does not bind to `process.cwd()`. Instead, each request is resolved using the binding order described above.
+
+Use this mode when:
+- Your MCP client already scopes each conversation to one filesystem root
+- You want one global server definition for many repositories
+- You only want dashboard projects to appear after they are actually used
+
+If the client exposes multiple roots and you do not pass a startup path, you must provide `projectPath` explicitly on stateful tool calls.
 
 ### Isolated Mode: Workspace-Local Specs
 
@@ -197,10 +208,10 @@ The dashboard stores its session information in `~/.spec-workflow-mcp/activeSess
 Only one dashboard can run at any time. If you try to start a second dashboard:
 
 ```
-Dashboard is already running at: http://localhost:5000
+Dashboard is already running at: http://localhost:5091
 
 You can:
-  1. Use the existing dashboard at: http://localhost:5000
+  1. Use the existing dashboard at: http://localhost:5091
   2. Stop it first (Ctrl+C or kill PID), then start a new one
 
 Note: Only one dashboard instance is needed for all your projects.
@@ -208,17 +219,17 @@ Note: Only one dashboard instance is needed for all your projects.
 
 ## Port Management
 
-**Default Port**: 5000
-**Custom Port**: Use `--port <number>` only if port 5000 is unavailable
+**Default Port**: 5091
+**Custom Port**: Use `--port <number>` only if port 5091 is unavailable
 
 ### Port Conflicts
 
-If port 5000 is already in use by another service:
+If port 5091 is already in use by another service:
 
 ```bash
-Failed to start dashboard: Port 5000 is already in use.
+Failed to start dashboard: Port 5091 is already in use.
 
-This might be another service using port 5000.
+This might be another service using port 5091.
 To use a different port:
   spec-workflow-mcp --dashboard --port 8080
 ```

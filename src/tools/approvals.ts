@@ -4,7 +4,7 @@ import { ApprovalStorage } from '../dashboard/approval-storage.js';
 import { join, isAbsolute } from 'path';
 import { validateTasksMarkdown, formatValidationErrors } from '../core/task-validator.js';
 import { validateMarkdownForMdx, formatMdxValidationIssues } from '../core/mdx-validator.js';
-import { readProjectRelativeFile, resolveToolProjectPaths } from '../core/project-path-resolution.js';
+import { readProjectRelativeFile } from '../core/project-path-resolution.js';
 
 export const approvalsTool: Tool = {
   name: 'approvals',
@@ -27,7 +27,7 @@ CRITICAL: Only provide filePath parameter for requests - the dashboard reads fil
       },
       projectPath: {
         type: 'string',
-        description: 'Absolute path to the project root (optional - uses server context path if not provided)'
+        description: 'Optional workspace/worktree selector. Overrides the resolved project binding for this call.'
       },
       approvalId: {
         type: 'string',
@@ -174,7 +174,7 @@ async function handleRequestApproval(
   context: ToolContext
 ): Promise<ToolResponse> {
   try {
-    const resolvedProject = await resolveToolProjectPaths(args.projectPath, context);
+    const resolvedProject = await context.resolveBoundProject(args.projectPath);
 
     const approvalStorage = new ApprovalStorage(resolvedProject.translatedWorkflowRootPath, {
       originalPath: resolvedProject.workflowRootPath,
@@ -331,7 +331,7 @@ async function handleGetApprovalStatus(
   // approvalId is guaranteed by type
 
   try {
-    const resolvedProject = await resolveToolProjectPaths(args.projectPath, context);
+    const resolvedProject = await context.resolveBoundProject(args.projectPath);
 
     const approvalStorage = new ApprovalStorage(resolvedProject.translatedWorkflowRootPath, {
       originalPath: resolvedProject.workflowRootPath,
@@ -446,7 +446,7 @@ async function handleDeleteApproval(
   // approvalId is guaranteed by type
 
   try {
-    const resolvedProject = await resolveToolProjectPaths(args.projectPath, context);
+    const resolvedProject = await context.resolveBoundProject(args.projectPath);
 
     const approvalStorage = new ApprovalStorage(resolvedProject.translatedWorkflowRootPath, {
       originalPath: resolvedProject.workflowRootPath,

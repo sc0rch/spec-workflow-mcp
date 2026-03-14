@@ -2,7 +2,6 @@ import { Prompt, PromptMessage } from '@modelcontextprotocol/sdk/types.js';
 import { PromptDefinition } from './types.js';
 import { ToolContext } from '../types.js';
 import { PathUtils } from '../core/path-utils.js';
-import { resolveToolProjectPaths } from '../core/project-path-resolution.js';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 
@@ -23,7 +22,7 @@ const prompt: Prompt = {
     },
     {
       name: 'projectPath',
-      description: 'Workspace/worktree path to bind downstream spec-workflow tool calls to',
+      description: 'Optional workspace/worktree selector. Overrides the resolved project binding for this prompt.',
       required: false
     }
   ]
@@ -31,7 +30,7 @@ const prompt: Prompt = {
 
 async function handler(args: Record<string, any>, context: ToolContext): Promise<PromptMessage[]> {
   const { specName, changes = 'Requirements or design have been updated', projectPath } = args;
-  const resolvedProject = await resolveToolProjectPaths(projectPath, context);
+  const resolvedProject = await context.resolveBoundProject(projectPath);
   const boundProjectPath = resolvedProject.workspacePath;
 
   // Try to load existing documents for context
@@ -93,7 +92,7 @@ You are refreshing the task list for specification "${specName}" because require
 
 ## Project Binding
 - Use projectPath "${boundProjectPath}" for all stateful spec-workflow tool calls during this refresh
-- Treat projectPath as the workspace/worktree selector when one shared MCP server serves multiple git worktrees
+- Pass projectPath explicitly only when the server cannot infer a single project from client roots
 
 ## CRITICAL: Source of Truth
 - Requirements come ONLY from requirements.md - not from existing tasks

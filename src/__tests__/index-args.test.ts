@@ -22,8 +22,9 @@ describe('index argument parsing (worktree/shared root)', () => {
 
     const parsed = parseArguments(['/tmp/specwf-wt-a', '--no-shared-worktree-specs']);
 
-    expect(parsed.workspacePath).toBe('/tmp/specwf-wt-a');
-    expect(parsed.workflowRootPath).toBe('/tmp/specwf-wt-a');
+    expect(parsed.startupBinding?.workspacePath).toBe('/tmp/specwf-wt-a');
+    expect(parsed.startupBinding?.workflowRootPath).toBe('/tmp/specwf-wt-a');
+    expect(parsed.startupBinding?.requestedPath).toBe('/tmp/specwf-wt-a');
     expect(parsed.noSharedWorktreeSpecs).toBe(true);
     expect(mockedResolveGitWorkspaceRoot).toHaveBeenCalledWith('/tmp/specwf-wt-a');
     expect(mockedResolveGitRoot).not.toHaveBeenCalled();
@@ -35,21 +36,26 @@ describe('index argument parsing (worktree/shared root)', () => {
 
     const parsed = parseArguments(['/tmp/specwf-wt-b']);
 
-    expect(parsed.workspacePath).toBe('/tmp/specwf-wt-b');
-    expect(parsed.workflowRootPath).toBe('/Users/lucas/dev/projects/spec-workflow-mcp');
+    expect(parsed.startupBinding?.workspacePath).toBe('/tmp/specwf-wt-b');
+    expect(parsed.startupBinding?.workflowRootPath).toBe('/Users/lucas/dev/projects/spec-workflow-mcp');
+    expect(parsed.startupBinding?.requestedPath).toBe('/tmp/specwf-wt-b');
     expect(parsed.noSharedWorktreeSpecs).toBe(false);
     expect(mockedResolveGitRoot).toHaveBeenCalledWith('/tmp/specwf-wt-b');
   });
 
-  it('accepts --no-shared-worktree-specs in dashboard mode without treating it as project path', () => {
-    mockedResolveGitWorkspaceRoot.mockReturnValue('/tmp/specwf-wt-dashboard');
-
+  it('accepts --no-shared-worktree-specs in dashboard mode without creating a startup binding', () => {
     const parsed = parseArguments(['--dashboard', '--port', '6001', '--no-shared-worktree-specs']);
 
     expect(parsed.isDashboardMode).toBe(true);
     expect(parsed.port).toBe(6001);
     expect(parsed.noSharedWorktreeSpecs).toBe(true);
-    expect(parsed.workspacePath).toBe('/tmp/specwf-wt-dashboard');
-    expect(parsed.workflowRootPath).toBe('/tmp/specwf-wt-dashboard');
+    expect(parsed.startupBinding).toBeUndefined();
+  });
+
+  it('runs in project-agnostic mode when no startup path is provided', () => {
+    const parsed = parseArguments([]);
+
+    expect(parsed.startupBinding).toBeUndefined();
+    expect(parsed.isDashboardMode).toBe(false);
   });
 });

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 interface TextInputModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (text: string) => void;
+  onSubmit: (text: string) => void | Promise<void>;
   title: string;
   placeholder?: string;
   submitText?: string;
@@ -26,20 +26,32 @@ export function TextInputModal({
 }: TextInputModalProps) {
   const { t } = useTranslation();
   const [value, setValue] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Reset value when modal opens
   useEffect(() => {
     if (isOpen) {
       setValue('');
+      setIsSubmitting(false);
+      setError(null);
     }
   }, [isOpen]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedValue = value.trim();
     if (!required || trimmedValue) {
-      onSubmit(trimmedValue);
-      onClose();
+      setIsSubmitting(true);
+      setError(null);
+      try {
+        await onSubmit(trimmedValue);
+        onClose();
+      } catch (submitError: any) {
+        setError(submitError?.message || t('common.unknown', 'Unknown error'));
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -99,6 +111,11 @@ export function TextInputModal({
                 autoFocus
               />
             )}
+            {error && (
+              <div className="mt-4 p-3 text-sm text-red-700 bg-red-100 dark:text-red-200 dark:bg-red-900/30 rounded-md">
+                {error}
+              </div>
+            )}
           </div>
 
           {/* Footer */}
@@ -106,16 +123,17 @@ export function TextInputModal({
             <button
               type="button"
               onClick={onClose}
+              disabled={isSubmitting}
               className="px-4 py-2 text-sm font-medium text-[var(--text-secondary)] bg-[var(--surface-panel)] border border-[var(--border-default)] rounded-md hover:bg-[var(--surface-hover)] focus:ring-2 focus:ring-[var(--accent-primary)] focus:border-[var(--accent-primary)] transition-colors"
             >
               {cancelText}
             </button>
             <button
               type="submit"
-              disabled={required && !value.trim()}
+              disabled={isSubmitting || (required && !value.trim())}
               className="px-4 py-2 text-sm font-medium text-white bg-[var(--accent-primary)] border border-transparent rounded-md hover:bg-[var(--accent-primary-hover)] focus:ring-2 focus:ring-[var(--accent-primary)] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {submitText}
+              {isSubmitting ? t('common.processing', 'Processing...') : submitText}
             </button>
           </div>
         </form>

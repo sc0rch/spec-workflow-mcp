@@ -141,9 +141,14 @@ export class ApprovalStorage extends EventEmitter {
     this.approvalsDir = PathUtils.getApprovalsPath(resolvedPath);
   }
 
-  async start(): Promise<void> {
-    // Create the approvals directory (empty) so watcher can establish properly
-    await fs.mkdir(this.approvalsDir, { recursive: true });
+  async start(options: { ensureDirectory?: boolean } = {}): Promise<void> {
+    if (this.watcher) {
+      return;
+    }
+
+    if (options.ensureDirectory !== false) {
+      await fs.mkdir(this.approvalsDir, { recursive: true });
+    }
 
     // Set up file watcher for approval directory and all subdirectories
     // This will catch new directories and files created dynamically

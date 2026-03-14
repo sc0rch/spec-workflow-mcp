@@ -37,7 +37,7 @@ export async function specWorkflowGuideHandler(args: any, context: ToolContext):
       'Load templates with get-template-context first',
       'Request approval after each document',
       'Use MCP tools only',
-      'When working in a git worktree via a shared MCP server, pass projectPath explicitly to stateful tools',
+      'Use projectPath only when you need to override the resolved project binding for a call',
       dashboardMessage
     ]
   };
@@ -52,7 +52,7 @@ function getSpecWorkflowGuide(): string {
 You guide users through spec-driven development using MCP tools. Transform rough ideas into detailed specifications through Requirements → Design → Tasks → Implementation phases. Use web search when available for current best practices (current year: ${currentYear}). Its important that you follow this workflow exactly to avoid errors.
 Feature names use kebab-case (e.g., user-authentication). Create ONE spec at a time.
 
-When one shared MCP server is serving multiple git worktrees, treat \`projectPath\` as the workspace/worktree selector for all stateful spec-workflow tool calls. Pass it explicitly on calls such as \`approvals\`, \`spec-status\`, and \`log-implementation\` so worktree-local specs and approvals resolve correctly.
+When the server runs without a startup path, it resolves the active project from the MCP client roots. Use \`projectPath\` only as an explicit workspace/worktree override on calls such as \`approvals\`, \`spec-status\`, and \`log-implementation\`.
 
 ## Workflow Diagram
 \`\`\`mermaid
@@ -271,7 +271,7 @@ flowchart TD
 - CRITICAL: Verbal approval is NEVER accepted - dashboard or VS Code extension only
 - NEVER proceed on user saying "approved" - check system status only
 - Steering docs are optional - only create when explicitly requested
-- When one shared MCP server serves multiple git worktrees, pass \`projectPath\` explicitly to stateful tool calls so the correct worktree is selected
+- When the server cannot infer a single project from client roots, pass \`projectPath\` explicitly to stateful tool calls
 
 ## File Structure
 \`\`\`

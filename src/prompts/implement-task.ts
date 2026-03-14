@@ -1,6 +1,7 @@
 import { Prompt, PromptMessage } from '@modelcontextprotocol/sdk/types.js';
 import { PromptDefinition } from './types.js';
 import { ToolContext } from '../types.js';
+import { resolvePromptProjectPath } from './project-binding.js';
 
 const prompt: Prompt = {
   name: 'implement-task',
@@ -19,7 +20,7 @@ const prompt: Prompt = {
     },
     {
       name: 'projectPath',
-      description: 'Workspace/worktree path to bind downstream spec-workflow tool calls to',
+      description: 'Optional workspace/worktree selector. Overrides the resolved project binding for this prompt.',
       required: false
     }
   ]
@@ -27,7 +28,7 @@ const prompt: Prompt = {
 
 async function handler(args: Record<string, any>, context: ToolContext): Promise<PromptMessage[]> {
   const { specName, taskId, projectPath } = args;
-  const boundProjectPath = projectPath || context.workspacePath || context.projectPath;
+  const boundProjectPath = await resolvePromptProjectPath(context, projectPath);
   
   if (!specName) {
     throw new Error('specName is a required argument');
@@ -159,7 +160,7 @@ ${context.dashboardUrl ? `- Dashboard: ${context.dashboardUrl}` : ''}
 - If a task has subtasks (e.g., 4.1, 4.2), complete them in order
 - If you encounter blockers, document them and move to another task
 - Treat projectPath as the workspace/worktree selector for all stateful spec-workflow tool calls
-- Use projectPath "${boundProjectPath}" throughout this task so worktree-local specs and approvals resolve correctly
+- Use projectPath "${boundProjectPath}" throughout this task only when you need to pin all follow-up calls to the same project explicitly
 
 **Tools to Use:**
 - spec-status: Check overall progress

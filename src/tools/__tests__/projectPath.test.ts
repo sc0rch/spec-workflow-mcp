@@ -1,18 +1,46 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { specStatusHandler } from '../spec-status.js';
 import { logImplementationHandler } from '../log-implementation.js';
 import { approvalsHandler } from '../approvals.js';
-import { ToolContext } from '../../types.js';
+import { BoundProject, ToolContext } from '../../types.js';
 import { dirname, join } from 'path';
 import { homedir } from 'os';
 import { mkdtemp, mkdir, readdir, rm, writeFile } from 'fs/promises';
 
-describe('Tool projectPath fallback behavior', () => {
-  const mockContext: ToolContext = {
-    projectPath: '/test/project/from/context',
-    dashboardUrl: 'http://localhost:5000'
+function createBoundProject(pathValue: string, overrides: Partial<BoundProject> = {}): BoundProject {
+  return {
+    requestedPath: pathValue,
+    workspacePath: pathValue,
+    workflowRootPath: pathValue,
+    translatedWorkspacePath: pathValue,
+    translatedWorkflowRootPath: pathValue,
+    noSharedWorktreeSpecs: false,
+    source: 'startup-binding',
+    ...overrides
   };
+}
 
+function createContext(
+  defaultPath?: string,
+  overrides: Partial<ToolContext> = {},
+  resolveOverride?: (projectPath?: string) => Promise<BoundProject>
+): ToolContext {
+  return {
+    dashboardUrl: 'http://localhost:5000',
+    resolveBoundProject: resolveOverride || (async (projectPath?: string) => {
+      const selectedPath = projectPath || defaultPath;
+      if (!selectedPath) {
+        throw new Error('Project binding could not be resolved: no startup path is configured and the MCP client did not provide exactly one filesystem root. Pass projectPath explicitly.');
+      }
+      return createBoundProject(selectedPath, {
+        source: projectPath ? 'explicit-arg' : 'startup-binding'
+      });
+    }),
+    ...overrides
+  };
+}
+
+describe('Tool project binding behavior', () => {
   describe('spec-status tool', () => {
     async function createWorkspacePair(prefix: string): Promise<{ mainRepo: string; worktree: string }> {
       const tempRoot = join(homedir(), '.tmp-test-worktrees');
@@ -25,43 +53,37 @@ describe('Tool projectPath fallback behavior', () => {
       return { mainRepo, worktree };
     }
 
-    it('should use context.projectPath when args.projectPath is not provided', async () => {
+    it('uses the resolved project binding when args.projectPath is not provided', async () => {
       const result = await specStatusHandler(
         { specName: 'test-spec' },
-        mockContext
+        createContext('/test/project/from/context')
       );
-      
-      // Should not fail due to missing projectPath
-      // The actual implementation will fail because the spec doesn't exist,
-      // but we can verify the error is not about missing projectPath
+
       expect(result.success).toBe(false);
-      expect(result.message).not.toContain('Project path is required but not provided');
+      expect(result.message).not.toContain('Pass projectPath explicitly');
     });
 
-    it('should use args.projectPath when explicitly provided', async () => {
+    it('uses args.projectPath as an explicit override', async () => {
       const result = await specStatusHandler(
         { specName: 'test-spec', projectPath: '/override/path' },
-        mockContext
+        createContext('/test/project/from/context')
       );
-      
-      // Should not fail due to missing projectPath
+
       expect(result.success).toBe(false);
-      expect(result.message).not.toContain('Project path is required but not provided');
+      expect(result.message).not.toContain('Pass projectPath explicitly');
     });
 
-    it('should fail if neither args.projectPath nor context.projectPath is provided', async () => {
-      const emptyContext: ToolContext = { projectPath: '' };
-      
+    it('fails with the canonical binding error when no project can be resolved', async () => {
       const result = await specStatusHandler(
         { specName: 'test-spec' },
-        emptyContext
+        createContext(undefined)
       );
-      
+
       expect(result.success).toBe(false);
-      expect(result.message).toContain('Project path is required but not provided');
+      expect(result.message).toContain('Pass projectPath explicitly');
     });
 
-    it('uses explicit projectPath as a worktree selector in no-shared mode', async () => {
+    it('uses the resolved worktree binding in no-shared mode', async () => {
       const { mainRepo, worktree } = await createWorkspacePair('specwf-status-');
       const requirementsPath = join(worktree, '.spec-workflow', 'specs', 'worktree-spec', 'requirements.md');
 
@@ -71,12 +93,15 @@ describe('Tool projectPath fallback behavior', () => {
 
         const result = await specStatusHandler(
           { specName: 'worktree-spec', projectPath: worktree },
-          {
-            projectPath: mainRepo,
-            workspacePath: mainRepo,
-            noSharedWorktreeSpecs: true,
-            dashboardUrl: 'http://localhost:5000'
-          }
+          createContext(mainRepo, { noSharedWorktreeSpecs: true }, async (projectPath?: string) => {
+            const selectedPath = projectPath || mainRepo;
+            return createBoundProject(selectedPath, {
+              workflowRootPath: selectedPath,
+              translatedWorkflowRootPath: selectedPath,
+              noSharedWorktreeSpecs: true,
+              source: projectPath ? 'explicit-arg' : 'startup-binding'
+            });
+          })
         );
 
         expect(result.success).toBe(true);
@@ -89,7 +114,7 @@ describe('Tool projectPath fallback behavior', () => {
   });
 
   describe('log-implementation tool', () => {
-    it('should use context.projectPath when args.projectPath is not provided', async () => {
+    it('uses the resolved project binding when args.projectPath is not provided', async () => {
       const result = await logImplementationHandler(
         {
           specName: 'test-spec',
@@ -100,17 +125,14 @@ describe('Tool projectPath fallback behavior', () => {
           statistics: { linesAdded: 10, linesRemoved: 5 },
           artifacts: { functions: [] }
         },
-        mockContext
+        createContext('/test/project/from/context')
       );
-      
-      // Should not fail due to missing projectPath
+
       expect(result.success).toBe(false);
-      expect(result.message).not.toContain('Project path is required but not provided');
+      expect(result.message).not.toContain('Pass projectPath explicitly');
     });
 
-    it('should fail if neither args.projectPath nor context.projectPath is provided', async () => {
-      const emptyContext: ToolContext = { projectPath: '' };
-      
+    it('fails with the canonical binding error when no project can be resolved', async () => {
       const result = await logImplementationHandler(
         {
           specName: 'test-spec',
@@ -121,11 +143,11 @@ describe('Tool projectPath fallback behavior', () => {
           statistics: { linesAdded: 10, linesRemoved: 5 },
           artifacts: { functions: [] }
         },
-        emptyContext
+        createContext(undefined)
       );
-      
+
       expect(result.success).toBe(false);
-      expect(result.message).toContain('Project path is required but not provided');
+      expect(result.message).toContain('Pass projectPath explicitly');
     });
   });
 
@@ -136,7 +158,7 @@ describe('Tool projectPath fallback behavior', () => {
       return mkdtemp(join(tempRoot, prefix));
     }
 
-    it('should use context.projectPath for request action when args.projectPath is not provided', async () => {
+    it('uses the resolved project binding for request action when args.projectPath is not provided', async () => {
       const result = await approvalsHandler(
         {
           action: 'request',
@@ -146,31 +168,27 @@ describe('Tool projectPath fallback behavior', () => {
           category: 'spec',
           categoryName: 'test-spec'
         },
-        mockContext
+        createContext('/test/project/from/context')
       );
-      
-      // Should not fail due to missing projectPath
+
       expect(result.success).toBe(false);
-      expect(result.message).not.toContain('Project path is required but not provided');
+      expect(result.message).not.toContain('Pass projectPath explicitly');
     });
 
-    it('should use context.projectPath for status action when args.projectPath is not provided', async () => {
+    it('uses the resolved project binding for status action when args.projectPath is not provided', async () => {
       const result = await approvalsHandler(
         {
           action: 'status',
           approvalId: 'test-id'
         },
-        mockContext
+        createContext('/test/project/from/context')
       );
-      
-      // Should not fail due to missing projectPath
+
       expect(result.success).toBe(false);
-      expect(result.message).not.toContain('Project path is required but not provided');
+      expect(result.message).not.toContain('Pass projectPath explicitly');
     });
 
-    it('should fail if neither args.projectPath nor context.projectPath is provided', async () => {
-      const emptyContext: ToolContext = { projectPath: '' };
-      
+    it('fails with the canonical binding error when no project can be resolved', async () => {
       const result = await approvalsHandler(
         {
           action: 'request',
@@ -180,14 +198,14 @@ describe('Tool projectPath fallback behavior', () => {
           category: 'spec',
           categoryName: 'test-spec'
         },
-        emptyContext
+        createContext(undefined)
       );
-      
+
       expect(result.success).toBe(false);
-      expect(result.message).toContain('Project path is required but not provided');
+      expect(result.message).toContain('Pass projectPath explicitly');
     });
 
-    it('should not report PathUtils.translatePath error for request action', async () => {
+    it('does not report path translation errors for request action', async () => {
       const result = await approvalsHandler(
         {
           action: 'request',
@@ -197,46 +215,43 @@ describe('Tool projectPath fallback behavior', () => {
           category: 'spec',
           categoryName: 'test-spec'
         },
-        mockContext
+        createContext('/test/project/from/context')
       );
-      
-      // The actual error should be about path validation, not about PathUtils
+
       expect(result.success).toBe(false);
       expect(result.message).not.toContain('PathUtils.translatePath is not a function');
       expect(result.message).not.toContain('PathUtils.translatePath is not available');
     });
 
-    it('should not report PathUtils.translatePath error for status action', async () => {
+    it('does not report path translation errors for status action', async () => {
       const result = await approvalsHandler(
         {
           action: 'status',
           approvalId: 'test-id'
         },
-        mockContext
+        createContext('/test/project/from/context')
       );
-      
-      // The actual error should be about path validation, not about PathUtils
+
       expect(result.success).toBe(false);
       expect(result.message).not.toContain('PathUtils.translatePath is not a function');
       expect(result.message).not.toContain('PathUtils.translatePath is not available');
     });
 
-    it('should not report PathUtils.translatePath error for delete action', async () => {
+    it('does not report path translation errors for delete action', async () => {
       const result = await approvalsHandler(
         {
           action: 'delete',
           approvalId: 'test-id'
         },
-        mockContext
+        createContext('/test/project/from/context')
       );
-      
-      // The actual error should be about path validation, not about PathUtils
+
       expect(result.success).toBe(false);
       expect(result.message).not.toContain('PathUtils.translatePath is not a function');
       expect(result.message).not.toContain('PathUtils.translatePath is not available');
     });
 
-    it('should block approval request for markdown with MDX-incompatible content', async () => {
+    it('blocks approval request for markdown with MDX-incompatible content', async () => {
       const tempProject = await createTempProject('specwf-mdx-');
       const relativePath = '.spec-workflow/specs/test-spec/requirements.md';
       const absolutePath = join(tempProject, relativePath);
@@ -254,7 +269,7 @@ describe('Tool projectPath fallback behavior', () => {
             category: 'spec',
             categoryName: 'test-spec'
           },
-          { projectPath: tempProject }
+          createContext(tempProject)
         );
 
         expect(result.success).toBe(false);
@@ -265,7 +280,7 @@ describe('Tool projectPath fallback behavior', () => {
       }
     });
 
-    it('should block approval request for tasks markdown with MDX-incompatible content', async () => {
+    it('blocks approval request for tasks markdown with MDX-incompatible content', async () => {
       const tempProject = await createTempProject('specwf-mdx-tasks-');
       const relativePath = '.spec-workflow/specs/test-spec/tasks.md';
       const absolutePath = join(tempProject, relativePath);
@@ -283,7 +298,7 @@ describe('Tool projectPath fallback behavior', () => {
             category: 'spec',
             categoryName: 'test-spec'
           },
-          { projectPath: tempProject }
+          createContext(tempProject)
         );
 
         expect(result.success).toBe(false);
@@ -318,12 +333,15 @@ describe('Tool projectPath fallback behavior', () => {
             category: 'spec',
             categoryName: 'test-spec'
           },
-          {
-            projectPath: mainRepo,
-            workspacePath: mainRepo,
-            noSharedWorktreeSpecs: true,
-            dashboardUrl: 'http://localhost:5000'
-          }
+          createContext(mainRepo, { noSharedWorktreeSpecs: true }, async (projectPath?: string) => {
+            const selectedPath = projectPath || mainRepo;
+            return createBoundProject(selectedPath, {
+              workflowRootPath: selectedPath,
+              translatedWorkflowRootPath: selectedPath,
+              noSharedWorktreeSpecs: true,
+              source: projectPath ? 'explicit-arg' : 'startup-binding'
+            });
+          })
         );
 
         expect(result.success).toBe(true);

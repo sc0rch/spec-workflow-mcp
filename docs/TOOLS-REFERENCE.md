@@ -6,6 +6,19 @@ Complete documentation for all MCP tools provided by Spec Workflow MCP.
 
 Spec Workflow MCP provides specialized tools for structured software development. These tools are accessible to AI assistants through the Model Context Protocol.
 
+## Project Binding
+
+The server can run with or without a startup project path.
+
+- If a tool call includes `projectPath`, that value is the explicit workspace/worktree selector for the call.
+- Otherwise the server uses the startup path passed on the command line, if one exists.
+- Otherwise the server requires exactly one MCP client filesystem root.
+- If zero or multiple filesystem roots are available, the tool call fails and the caller must pass `projectPath` explicitly.
+
+Projects appear in the dashboard lazily after the first successful prompt/tool call that resolves to that workspace or repo family.
+
+The canonical runtime schemas live in [`src/tools`](../src/tools). Keep that as the source of truth when this document and the code drift.
+
 ## Tool Categories
 
 1. **Workflow Guides** - Documentation and guidance
@@ -139,6 +152,7 @@ Spec Workflow MCP provides specialized tools for structured software development
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | specName | string | Yes | Name of the spec to check |
+| projectPath | string | No | Optional workspace/worktree selector. Overrides the resolved project binding for this call |
 
 **Returns**: Detailed spec status
 
@@ -178,6 +192,8 @@ Spec Workflow MCP provides specialized tools for structured software development
 ```
 "Show me the status of user-authentication spec"
 ```
+
+If the server is running in project-agnostic mode and your client exposes multiple roots, pass `projectPath` explicitly.
 
 ### manage-tasks
 
@@ -374,6 +390,8 @@ Spec Workflow MCP provides specialized tools for structured software development
 - Should be created before specs
 
 ## Approval System Tools
+
+Current runtime uses a single `approvals` tool with an `action` parameter (`request`, `status`, `delete`). Historical aliases described below map to that action-based interface.
 
 ### request-approval
 

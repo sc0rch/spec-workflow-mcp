@@ -56,11 +56,18 @@ Add to your MCP configuration (see client-specific setup below):
   "mcpServers": {
     "spec-workflow": {
       "command": "npx",
-      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest", "/path/to/your/project"]
+      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest"]
     }
   }
 }
 ```
+
+By default the server runs in project-agnostic mode. It binds each request to a project using:
+1. an explicit `projectPath` argument;
+2. an optional startup path passed on the command line;
+3. exactly one MCP client filesystem root.
+
+If your client exposes multiple roots, pass `projectPath` explicitly on stateful calls or add a startup path to the server command.
 
 ### Step 2: Choose your interface
 
@@ -72,7 +79,7 @@ npx -y @sc0rch/spec-workflow-mcp@latest --dashboard
 
 The dashboard will be accessible at: http://localhost:5091
 
-> **Note:** Only one dashboard instance is needed. All your projects will connect to the same dashboard.
+> **Note:** Only one dashboard instance is needed. Projects appear lazily after the first prompt/tool call that resolves to that workspace or repo.
 
 **Option B: VSCode Extension** (Recommended for VSCode users)
 
@@ -99,7 +106,7 @@ Configure in your Augment settings:
   "mcpServers": {
     "spec-workflow": {
       "command": "npx",
-      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest", "/path/to/your/project"]
+      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest"]
     }
   }
 }
@@ -111,17 +118,17 @@ Configure in your Augment settings:
 
 Add to your MCP configuration:
 ```bash
-claude mcp add spec-workflow npx @sc0rch/spec-workflow-mcp@latest -- /path/to/your/project
+claude mcp add spec-workflow npx @sc0rch/spec-workflow-mcp@latest
 ```
 
 **Important Notes:**
 - The `-y` flag bypasses npm prompts for smoother installation
-- The `--` separator ensures the path is passed to the spec-workflow script, not to npx
-- Replace `/path/to/your/project` with your actual project directory path
+- Add `-- /path/to/your/project` only if you want a fixed startup binding
+- Without a startup path, the server resolves the project from a single client root or explicit `projectPath`
 
 **Alternative for Windows (if the above doesn't work):**
 ```bash
-claude mcp add spec-workflow cmd.exe /c "npx @sc0rch/spec-workflow-mcp@latest /path/to/your/project"
+claude mcp add spec-workflow cmd.exe /c "npx @sc0rch/spec-workflow-mcp@latest"
 ```
 </details>
 
@@ -134,7 +141,7 @@ Add to `claude_desktop_config.json`:
   "mcpServers": {
     "spec-workflow": {
       "command": "npx",
-      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest", "/path/to/your/project"]
+      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest"]
     }
   }
 }
@@ -153,7 +160,7 @@ Add to your MCP server configuration:
   "mcpServers": {
     "spec-workflow": {
       "command": "npx",
-      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest", "/path/to/your/project"]
+      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest"]
     }
   }
 }
@@ -169,7 +176,7 @@ Add to your Continue configuration:
   "mcpServers": {
     "spec-workflow": {
       "command": "npx",
-      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest", "/path/to/your/project"]
+      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest"]
     }
   }
 }
@@ -185,7 +192,7 @@ Add to your Cursor settings (`settings.json`):
   "mcpServers": {
     "spec-workflow": {
       "command": "npx",
-      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest", "/path/to/your/project"]
+      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest"]
     }
   }
 }
@@ -202,7 +209,7 @@ Add to your `opencode.json` configuration file:
   "mcp": {
     "spec-workflow": {
       "type": "local",
-      "command": ["npx", "-y", "@sc0rch/spec-workflow-mcp@latest", "/path/to/your/project"],
+      "command": ["npx", "-y", "@sc0rch/spec-workflow-mcp@latest"],
       "enabled": true
     }
   }
@@ -219,7 +226,7 @@ Add to your `~/.codeium/windsurf/mcp_config.json` configuration file:
   "mcpServers": {
     "spec-workflow": {
       "command": "npx",
-      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest", "/path/to/your/project"]
+      "args": ["-y", "@sc0rch/spec-workflow-mcp@latest"]
     }
   }
 }
@@ -233,7 +240,7 @@ Add to your `~/.codex/config.toml` configuration file:
 ```toml
 [mcp_servers.spec-workflow]
 command = "npx"
-args = ["-y", "@sc0rch/spec-workflow-mcp@latest", "/path/to/your/project"]
+args = ["-y", "@sc0rch/spec-workflow-mcp@latest"]
 ```
 </details>
 

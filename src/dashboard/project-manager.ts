@@ -1,12 +1,15 @@
 import { EventEmitter } from 'events';
 import chokidar from 'chokidar';
+import { join } from 'path';
 import { SpecParser } from './parser.js';
 import { SpecWatcher } from './watcher.js';
 import { ApprovalStorage } from './approval-storage.js';
 import { SpecArchiveService } from '../core/archive-service.js';
 import { ProjectRegistry, ProjectRegistryEntry, ProjectInstance } from '../core/project-registry.js';
-import { PathUtils } from '../core/path-utils.js';
+import { RememberedProjectsStore } from '../core/remembered-projects.js';
+import { PathUtils, validateProjectPath } from '../core/path-utils.js';
 import { resolveGitRoot, resolveGitWorkspaceRoot, getCurrentGitBranch } from '../core/git-utils.js';
+import { access } from 'fs/promises';
 
 export interface ProjectContext {
   projectId: string;
@@ -18,6 +21,7 @@ export interface ProjectContext {
   gitBranch?: string;
   latestSpec?: { name: string; displayName: string; createdAt: string };
   instances: ProjectInstance[];  // Active MCP server instances for this project
+  approvalWatcherStarted: boolean;
   parser: SpecParser;
   watcher: SpecWatcher;
   approvalStorage: ApprovalStorage;
@@ -26,6 +30,7 @@ export interface ProjectContext {
 
 export class ProjectManager extends EventEmitter {
   private registry: ProjectRegistry;
+  private rememberedProjects: RememberedProjectsStore;
   private projects: Map<string, ProjectContext> = new Map();
   private registryWatcher?: chokidar.FSWatcher;
   private pendingLatestSpecUpdates: Map<string, NodeJS.Timeout> = new Map();
@@ -33,6 +38,7 @@ export class ProjectManager extends EventEmitter {
   constructor() {
     super();
     this.registry = new ProjectRegistry();
+    this.rememberedProjects = new RememberedProjectsStore();
   }
 
   /**
@@ -44,8 +50,8 @@ export class ProjectManager extends EventEmitter {
     // Clean up stale instances once at startup (self-healing for crashes)
     await this.registry.cleanupStaleProjects();
 
-    // Load all projects from registry
-    await this.loadProjectsFromRegistry();
+    // Load remembered projects and merge them with live registry instances
+    await this.syncWithSources();
 
     // Watch registry file for changes
     this.startRegistryWatcher();
@@ -53,19 +59,6 @@ export class ProjectManager extends EventEmitter {
     // Note: Removed periodic cleanup interval
     // MCP servers are responsible for cleaning up their own instances on stop()
     // The cleanup at startup handles any orphaned instances from crashes
-  }
-
-  /**
-   * Load all projects from the registry
-   */
-  private async loadProjectsFromRegistry(): Promise<void> {
-    const entries = await this.registry.getAllProjects();
-
-    for (const entry of entries) {
-      if (!this.projects.has(entry.projectId)) {
-        await this.addProject(entry);
-      }
-    }
   }
 
   /**
@@ -81,11 +74,11 @@ export class ProjectManager extends EventEmitter {
     });
 
     this.registryWatcher.on('change', async () => {
-      await this.syncWithRegistry();
+      await this.syncWithSources();
     });
 
     this.registryWatcher.on('add', async () => {
-      await this.syncWithRegistry();
+      await this.syncWithSources();
     });
 
     // Add error handler to prevent watcher crashes
@@ -99,14 +92,15 @@ export class ProjectManager extends EventEmitter {
    * Sync current projects with registry
    * Add new projects, remove deleted ones, update instances for existing projects
    */
-  private async syncWithRegistry(): Promise<void> {
+  private async syncWithSources(): Promise<void> {
     try {
-      const entries = await this.registry.getAllProjects();
-      const registryIds = new Set(entries.map(e => e.projectId));
+      const liveEntries = await this.registry.getAllProjects();
+      const mergedEntries = await this.mergeProjectEntries(liveEntries);
+      const mergedIds = new Set(mergedEntries.map(e => e.projectId));
       const currentIds = new Set(this.projects.keys());
 
       // Add new projects or update instances for existing ones
-      for (const entry of entries) {
+      for (const entry of mergedEntries) {
         if (!currentIds.has(entry.projectId)) {
           await this.addProject(entry);
         } else {
@@ -120,13 +114,14 @@ export class ProjectManager extends EventEmitter {
             project.workspacePath = PathUtils.translatePath(entry.projectPath);
             project.gitBranch = getCurrentGitBranch(project.workspacePath) || project.gitBranch;
             project.instances = entry.instances || [];
+            await this.ensureApprovalWatcherState(project, entry);
           }
         }
       }
 
       // Remove deleted projects
       for (const projectId of currentIds) {
-        if (!registryIds.has(projectId)) {
+        if (!mergedIds.has(projectId)) {
           await this.removeProject(projectId);
         }
       }
@@ -157,7 +152,6 @@ export class ProjectManager extends EventEmitter {
 
       // Start watchers
       await watcher.start();
-      await approvalStorage.start();
 
       // Forward events with projectId
       watcher.on('change', (event) => {
@@ -187,6 +181,7 @@ export class ProjectManager extends EventEmitter {
         gitBranch: getCurrentGitBranch(translatedWorkspacePath),
         latestSpec: await this.computeLatestSpec(parser),
         instances: entry.instances || [],       // Track MCP server instances
+        approvalWatcherStarted: false,
         parser,
         watcher,
         approvalStorage,
@@ -194,6 +189,7 @@ export class ProjectManager extends EventEmitter {
       };
 
       this.projects.set(entry.projectId, context);
+      await this.ensureApprovalWatcherState(context, entry);
       console.error(`Project added: ${entry.projectName} (${entry.projectId})`);
 
       // Emit project added event
@@ -310,38 +306,33 @@ export class ProjectManager extends EventEmitter {
    * Manually add a project by path
    */
   async addProjectByPath(projectPath: string): Promise<string> {
-    const workspacePath = resolveGitWorkspaceRoot(projectPath);
-    const workflowRootPath = resolveGitRoot(workspacePath);
+    const requestedPath = await validateProjectPath(projectPath);
+    const workspacePath = resolveGitWorkspaceRoot(requestedPath);
+    const defaultWorkflowRootPath = resolveGitRoot(workspacePath);
+    const localWorkflowRootPath = join(workspacePath, '.spec-workflow');
+    let workflowRootPath = defaultWorkflowRootPath;
 
-    const entry = await this.registry.getProject(workspacePath);
-    if (entry) {
-      // Already registered
-      if (!this.projects.has(entry.projectId)) {
-        await this.addProject(entry);
-      }
-      return entry.projectId;
+    try {
+      await access(localWorkflowRootPath);
+      workflowRootPath = workspacePath;
+    } catch {
+      workflowRootPath = defaultWorkflowRootPath;
     }
 
-    // Register new project (with dummy PID since it's manual)
-    const projectId = await this.registry.registerProject(workspacePath, process.pid, {
-      workflowRootPath
+    const remembered = await this.rememberedProjects.upsertProject(workspacePath, {
+      workflowRootPath,
+      source: 'manual'
     });
-
-    // Get the entry and add it
-    const newEntry = await this.registry.getProjectById(projectId);
-    if (newEntry) {
-      await this.addProject(newEntry);
-    }
-
-    return projectId;
+    await this.syncWithSources();
+    return remembered.projectId;
   }
 
   /**
    * Manually remove a project
    */
   async removeProjectById(projectId: string): Promise<void> {
-    await this.removeProject(projectId);
-    await this.registry.unregisterProjectById(projectId);
+    await this.rememberedProjects.removeProjectById(projectId);
+    await this.syncWithSources();
   }
 
   /**
@@ -363,5 +354,49 @@ export class ProjectManager extends EventEmitter {
 
     // Remove all listeners
     this.removeAllListeners();
+  }
+
+  private async mergeProjectEntries(liveEntries: ProjectRegistryEntry[]): Promise<ProjectRegistryEntry[]> {
+    const rememberedEntries = await this.rememberedProjects.getAllProjects();
+    const hiddenProjectIds = await this.rememberedProjects.getHiddenProjectIds();
+    const merged = new Map<string, ProjectRegistryEntry>();
+
+    for (const remembered of rememberedEntries) {
+      merged.set(remembered.projectId, {
+        projectId: remembered.projectId,
+        projectPath: remembered.workspacePath,
+        workflowRootPath: remembered.workflowRootPath,
+        projectName: remembered.projectName,
+        instances: []
+      });
+    }
+
+    for (const liveEntry of liveEntries) {
+      if (!hiddenProjectIds.has(liveEntry.projectId)) {
+        await this.rememberedProjects.upsertProject(liveEntry.projectPath, {
+          workflowRootPath: liveEntry.workflowRootPath,
+          projectName: liveEntry.projectName,
+          source: 'mcp'
+        });
+      }
+
+      merged.set(liveEntry.projectId, {
+        projectId: liveEntry.projectId,
+        projectPath: liveEntry.projectPath,
+        workflowRootPath: liveEntry.workflowRootPath,
+        projectName: liveEntry.projectName,
+        instances: liveEntry.instances,
+      });
+    }
+
+    return Array.from(merged.values()).sort((a, b) => a.projectName.localeCompare(b.projectName));
+  }
+
+  private async ensureApprovalWatcherState(project: ProjectContext, entry: ProjectRegistryEntry): Promise<void> {
+    const shouldStartApprovalWatcher = entry.instances.length > 0;
+    if (!project.approvalWatcherStarted && shouldStartApprovalWatcher) {
+      await project.approvalStorage.start();
+      project.approvalWatcherStarted = true;
+    }
   }
 }

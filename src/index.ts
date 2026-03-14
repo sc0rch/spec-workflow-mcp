@@ -4,11 +4,12 @@ import { SpecWorkflowMCPServer } from './server.js';
 import { MultiProjectDashboardServer } from './dashboard/multi-server.js';
 import { DashboardSessionManager } from './core/dashboard-session.js';
 import { DEFAULT_DASHBOARD_PORT } from './core/security-utils.js';
+import { createStartupBinding } from './core/project-binding.js';
 import { homedir } from 'os';
-import { resolveGitRoot, resolveGitWorkspaceRoot } from './core/git-utils.js';
 import { resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { realpathSync } from 'fs';
+import { StartupBinding } from './types.js';
 
 function showHelp() {
   const defaultDashboardUrl = `http://localhost:${DEFAULT_DASHBOARD_PORT}`;
@@ -19,7 +20,7 @@ USAGE:
   spec-workflow-mcp [path] [options]
 
 ARGUMENTS:
-  path                    Project path (defaults to current directory)
+  path                    Optional startup project binding
                          Supports ~ for home directory
 
 OPTIONS:
@@ -44,7 +45,8 @@ MODES OF OPERATION:
    spec-workflow-mcp
    spec-workflow-mcp ~/my-project
 
-   Starts MCP server without dashboard. Dashboard can be started separately.
+   Starts MCP server without dashboard. Without a path, the server runs in
+   project-agnostic mode and resolves the project per request.
 
 2. Dashboard Only Mode:
    spec-workflow-mcp --dashboard
@@ -57,10 +59,10 @@ MODES OF OPERATION:
    Use --no-open to prevent automatic browser launch (useful in restricted environments).
 
 EXAMPLES:
-  # Start MCP server in current directory (no dashboard)
+  # Start MCP server in project-agnostic mode
   spec-workflow-mcp
 
-  # Start MCP server in a specific project directory
+  # Start MCP server with a startup project binding
   spec-workflow-mcp ~/projects/my-app
 
   # Run dashboard (default port ${DEFAULT_DASHBOARD_PORT}) - START THIS FIRST
@@ -96,9 +98,7 @@ function expandTildePath(path: string): string {
 }
 
 export function parseArguments(args: string[]): {
-  workspacePath: string;
-  workflowRootPath: string;
-  expandedPath: string;
+  startupBinding?: StartupBinding;
   isDashboardMode: boolean;
   noSharedWorktreeSpecs: boolean;
   port?: number;
@@ -173,22 +173,13 @@ export function parseArguments(args: string[]): {
     return true;
   });
 
-  // For dashboard-only mode, use cwd as default (dashboard doesn't need it)
-  const rawProjectPath = filteredArgs[0] || process.cwd();
-  const expandedPath = expandTildePath(rawProjectPath);
-  const workspacePath = resolveGitWorkspaceRoot(expandedPath);
-  const workflowRootPath = noSharedWorktreeSpecs ? workspacePath : resolveGitRoot(workspacePath);
-
-  // Warn if no explicit path was provided and we're using cwd (but only for MCP server mode)
-  if (!filteredArgs[0] && !isDashboardMode) {
-    console.warn(`Warning: No project path specified, using current directory: ${workspacePath}`);
-    console.warn('Consider specifying an explicit path for better clarity.');
-  }
+  const rawProjectPath = filteredArgs[0];
+  const startupBinding = rawProjectPath
+    ? createStartupBinding(expandTildePath(rawProjectPath), noSharedWorktreeSpecs)
+    : undefined;
 
   return {
-    workspacePath,
-    workflowRootPath,
-    expandedPath,
+    startupBinding,
     isDashboardMode,
     noSharedWorktreeSpecs,
     port: customPort,
@@ -209,18 +200,17 @@ async function main() {
 
     // Parse command-line arguments
     const cliArgs = parseArguments(args);
-    const workspacePath = cliArgs.workspacePath;
-    const workflowRootPath = cliArgs.workflowRootPath;
+    const startupBinding = cliArgs.startupBinding;
     const noSharedWorktreeSpecs = cliArgs.noSharedWorktreeSpecs;
 
     // Log worktree details when workspace and shared workflow roots differ
-    if (workspacePath !== workflowRootPath) {
+    if (startupBinding && startupBinding.workspacePath !== startupBinding.workflowRootPath) {
       console.error('Git worktree detected.');
-      console.error(`workspacePath=${workspacePath}`);
-      console.error(`workflowRootPath=${workflowRootPath}`);
-    } else if (noSharedWorktreeSpecs) {
+      console.error(`workspacePath=${startupBinding.workspacePath}`);
+      console.error(`workflowRootPath=${startupBinding.workflowRootPath}`);
+    } else if (startupBinding && noSharedWorktreeSpecs) {
       console.error('Shared worktree specs disabled. Using workspace-local .spec-workflow.');
-      console.error(`workspacePath=${workspacePath}`);
+      console.error(`workspacePath=${startupBinding.workspacePath}`);
     }
 
     // Apply configuration from CLI args
@@ -355,13 +345,18 @@ async function main() {
 
     } else {
       // MCP server mode
-      console.error(`Starting Spec Workflow MCP Server for project: ${workflowRootPath}`);
-      console.error(`Workspace path: ${workspacePath}`);
+      if (startupBinding) {
+        console.error(`Starting Spec Workflow MCP Server with startup binding: ${startupBinding.workflowRootPath}`);
+        console.error(`Workspace path: ${startupBinding.workspacePath}`);
+      } else {
+        console.error('Starting Spec Workflow MCP Server in project-agnostic mode');
+        console.error('Project binding will be resolved from projectPath, startup binding, or a single MCP client root.');
+      }
       console.error(`Working directory: ${process.cwd()}`);
 
       const server = new SpecWorkflowMCPServer();
 
-      await server.initialize(workflowRootPath, workspacePath, {
+      await server.initialize(startupBinding, {
         lang,
         noSharedWorktreeSpecs
       });
@@ -385,7 +380,8 @@ async function main() {
     if (error.message.includes('ENOENT') || error.message.includes('path') || error.message.includes('directory')) {
       console.error('\nProject path troubleshooting:');
       console.error('- Verify the project path exists and is accessible');
-      console.error('- For Claude CLI users, ensure you used: claude mcp add spec-workflow npx -y @sc0rch/spec-workflow-mcp@latest -- /path/to/your/project');
+      console.error('- For Claude CLI users, use: claude mcp add spec-workflow npx -y @sc0rch/spec-workflow-mcp@latest');
+      console.error('- Add -- /path/to/your/project only if you want a fixed startup binding');
       console.error('- Check that the path doesn\'t contain special characters that need escaping');
       console.error(`- Current working directory: ${process.cwd()}`);
     }

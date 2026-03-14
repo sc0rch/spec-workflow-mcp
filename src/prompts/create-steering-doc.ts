@@ -1,6 +1,7 @@
 import { Prompt, PromptMessage } from '@modelcontextprotocol/sdk/types.js';
 import { PromptDefinition } from './types.js';
 import { ToolContext } from '../types.js';
+import { resolvePromptProjectPath } from './project-binding.js';
 
 const prompt: Prompt = {
   name: 'create-steering-doc',
@@ -19,7 +20,7 @@ const prompt: Prompt = {
     },
     {
       name: 'projectPath',
-      description: 'Workspace/worktree path to bind downstream spec-workflow tool calls to',
+      description: 'Optional workspace/worktree selector. Overrides the resolved project binding for this prompt.',
       required: false
     }
   ]
@@ -27,7 +28,7 @@ const prompt: Prompt = {
 
 async function handler(args: Record<string, any>, context: ToolContext): Promise<PromptMessage[]> {
   const { docType, scope, projectPath } = args;
-  const boundProjectPath = projectPath || context.workspacePath || context.projectPath;
+  const boundProjectPath = await resolvePromptProjectPath(context, projectPath);
   
   if (!docType) {
     throw new Error('docType is a required argument');
@@ -76,8 +77,8 @@ ${context.dashboardUrl ? `- Dashboard: ${context.dashboardUrl}` : ''}
 
 **Project Binding:**
 - Treat projectPath as the workspace/worktree selector for all stateful spec-workflow tool calls
-- Use projectPath "${boundProjectPath}" when calling approvals, spec-status, and log-implementation
-- This is especially important when one shared MCP server serves multiple git worktrees
+- Use projectPath "${boundProjectPath}" when calling approvals, spec-status, and log-implementation if you need to pin this prompt to the same project explicitly
+- If the server cannot infer a single project from client roots, pass projectPath explicitly
 
 Please read the ${docType} template and create a comprehensive steering document at the specified path.`
       }

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { join } from 'path';
 import { homedir } from 'os';
 import { mkdtemp, mkdir, rm } from 'fs/promises';
@@ -25,10 +25,20 @@ describe('prompt project binding', () => {
     await mkdir(worktreePath, { recursive: true });
 
     context = {
-      projectPath: mainRepoPath,
-      workspacePath: mainRepoPath,
       noSharedWorktreeSpecs: true,
-      dashboardUrl: 'http://localhost:5000'
+      dashboardUrl: 'http://localhost:5000',
+      resolveBoundProject: vi.fn(async (projectPath?: string) => {
+        const selectedPath = projectPath || mainRepoPath;
+        return {
+          requestedPath: selectedPath,
+          workspacePath: selectedPath,
+          workflowRootPath: selectedPath,
+          translatedWorkspacePath: selectedPath,
+          translatedWorkflowRootPath: selectedPath,
+          noSharedWorktreeSpecs: true,
+          source: projectPath ? 'explicit-arg' as const : 'startup-binding' as const
+        };
+      })
     };
   });
 
