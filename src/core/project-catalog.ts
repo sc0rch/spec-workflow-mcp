@@ -25,6 +25,7 @@ export interface ProjectCatalogLatestSpec {
   name: string;
   displayName: string;
   createdAt: string;
+  lastModified?: string | undefined;
 }
 
 export interface ProjectCatalogEntry {
@@ -48,6 +49,8 @@ export interface ProjectCatalogServiceOptions {
   rememberedProjects?: RememberedProjectsStore;
   projectActivity?: ProjectActivityService;
 }
+
+const LIVE_PROJECT_METADATA_REFRESH_INTERVAL_MS = 30_000;
 
 export class ProjectCatalogService {
   private readonly registry: ProjectRegistry;
@@ -114,6 +117,9 @@ export class ProjectCatalogService {
     const rememberedEntries = await this.rememberedProjects.getAllProjects();
     const hiddenProjectIds = await this.rememberedProjects.getHiddenProjectIds();
     const merged = new Map<string, ProjectRegistryEntry>();
+    const rememberedById = new Map(
+      rememberedEntries.map((entry) => [entry.projectId, entry] as const)
+    );
 
     for (const remembered of rememberedEntries) {
       merged.set(remembered.projectId, {
@@ -126,7 +132,11 @@ export class ProjectCatalogService {
     }
 
     for (const liveEntry of liveEntries) {
-      if (!hiddenProjectIds.has(liveEntry.projectId)) {
+      const rememberedEntry = rememberedById.get(liveEntry.projectId);
+      if (
+        !hiddenProjectIds.has(liveEntry.projectId) &&
+        shouldRefreshRememberedProjectMetadata(rememberedEntry, liveEntry)
+      ) {
         await this.rememberedProjects.upsertProject(liveEntry.projectPath, {
           workflowRootPath: liveEntry.workflowRootPath,
           projectName: liveEntry.projectName,
@@ -203,10 +213,10 @@ export class ProjectCatalogService {
       }
 
       let best = firstSpec;
-      let bestTimestamp = Date.parse(best.createdAt || '') || 0;
+      let bestTimestamp = getSpecRecencyTimestamp(best);
 
       for (const spec of remainingSpecs) {
-        const timestamp = Date.parse(spec.createdAt || '') || 0;
+        const timestamp = getSpecRecencyTimestamp(spec);
         if (timestamp > bestTimestamp) {
           best = spec;
           bestTimestamp = timestamp;
@@ -216,10 +226,43 @@ export class ProjectCatalogService {
       return {
         name: best.name,
         displayName: best.displayName,
-        createdAt: best.createdAt
+        createdAt: best.createdAt,
+        lastModified: best.lastModified
       };
     } catch {
       return undefined;
     }
   }
+}
+
+function getSpecRecencyTimestamp(spec: { createdAt?: string | undefined; lastModified?: string | undefined }): number {
+  return Date.parse(spec.lastModified || spec.createdAt || '') || 0;
+}
+
+function shouldRefreshRememberedProjectMetadata(
+  rememberedEntry: RememberedProjectEntry | undefined,
+  liveEntry: ProjectRegistryEntry
+): boolean {
+  if (!rememberedEntry) {
+    return true;
+  }
+
+  if (rememberedEntry.workflowRootPath !== liveEntry.workflowRootPath) {
+    return true;
+  }
+
+  if (rememberedEntry.projectName !== liveEntry.projectName) {
+    return true;
+  }
+
+  if (rememberedEntry.source !== 'mcp') {
+    return true;
+  }
+
+  const lastSeenAt = Date.parse(rememberedEntry.lastSeenAt);
+  if (!lastSeenAt) {
+    return true;
+  }
+
+  return Date.now() - lastSeenAt >= LIVE_PROJECT_METADATA_REFRESH_INTERVAL_MS;
 }

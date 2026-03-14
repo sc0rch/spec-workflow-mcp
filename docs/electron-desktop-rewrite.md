@@ -1,7 +1,7 @@
 # Electron Desktop Rewrite
 
 Last updated: 2026-03-14
-Status: Milestone 14 complete; post-roadmap approval review rewrite implemented
+Status: Milestone 14 complete; post-roadmap approval review rewrite and desktop refresh hardening implemented
 Current focus: Core rewrite milestones are complete. Post-roadmap Electron refinements are now focused on approval-flow polish, design/code-review loops, and targeted desktop UX cleanup while browser cleanup stays opportunistic only.
 
 ## Purpose
@@ -889,6 +889,32 @@ Implemented:
   - restored a true `reject` desktop action
   - fixed draft-loss on `Esc`
   - fixed highlight/interactivity for older comments without ids
+- Restored worktree context in the desktop shell after the dropdown simplification regressed it:
+  - active project header once again shows the current git branch and latest created spec
+  - project dropdown rows now expose branch plus latest spec so multiple worktrees of the same repo remain distinguishable without reopening the legacy sidebar model
+
+### Desktop Shell Hardening
+
+Goal: Tighten real-time desktop shell behavior after the latest UI cleanup pass.
+
+Implemented:
+- Replaced the bulky MCP button/panel with a compact status indicator in the desktop header and moved search to the right-side utility group while keeping project selection and add-folder on the left.
+- Shifted the desktop palette toward a Darcula-style color system and tightened project-trigger alignment so the top menu reads more like an editor/workbench than a dashboard.
+- Fixed stale latest-spec ordering by preferring spec `lastModified` recency in `src/core/project-catalog.ts` and added catalog coverage for modified-spec precedence plus `createdAt` fallback behavior.
+- Added a guarded desktop refresh loop in `apps/desktop/src/main/services/desktop-shell.ts` so periodic catalog refreshes no longer bubble transient failures into IPC consumers or unhandled timer rejections.
+- Tightened remembered-project syncing so live MCP projects refresh their remembered metadata when stale without rewriting the remembered store on every polling cycle.
+- Removed the renderer-side forced workspace reload nonce and now reload workspace state only when the active project's actual summary changes, avoiding churn from unrelated project updates.
+- Added focused coverage for:
+  - desktop shell refresh loop lifecycle and error swallowing
+  - renderer behavior when another project's shell summary changes
+  - remembered-project metadata refresh for stale live entries
+- Closed the last two residual review gaps immediately after the follow-up review:
+  - added a direct desktop-shell test for the `isRefreshingProjects` early-return path
+  - added a catalog test that locks in reduced remembered-store writes while live metadata is still fresh
+- Ran another scoped `gpt-5.3-codex` review on the hardening diff and closed all concrete findings:
+  - refresh snapshot failures are swallowed and logged instead of rejecting IPC/timer paths
+  - active workspace reloads no longer fire for unrelated shell-state pushes
+  - remembered live-project metadata updates again without regressing into constant store rewrites
 
 ## Current Progress Checklist
 

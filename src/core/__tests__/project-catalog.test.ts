@@ -85,7 +85,8 @@ describe('ProjectCatalogService', () => {
     expect(projects[0].latestSpec).toEqual(
       expect.objectContaining({
         name: 'alpha-spec',
-        displayName: 'Alpha Spec'
+        displayName: 'Alpha Spec',
+        lastModified: expect.any(String)
       })
     );
     expect(projects[0].gitBranch).toBe('feature/demo');
@@ -140,10 +141,135 @@ describe('ProjectCatalogService', () => {
     const afterDisconnect = await service.getProjects();
     expect(afterDisconnect).toEqual([]);
   });
+
+  it('prefers the most recently modified spec when choosing latest spec metadata', async () => {
+    const workspacePath = join(tempDir, 'repo-latest');
+    await createSpecWorkspace(workspacePath, 'older-spec');
+    await createSpecWorkspace(workspacePath, 'newer-spec');
+
+    await setSpecTimestamp(workspacePath, 'older-spec', '2026-03-14T09:00:00.000Z');
+    await setSpecTimestamp(workspacePath, 'newer-spec', '2026-03-14T12:00:00.000Z');
+
+    await registry.registerProject(workspacePath, process.pid, {
+      workflowRootPath: workspacePath,
+      projectName: 'repo-latest'
+    });
+
+    const [project] = await service.getProjects();
+
+    expect(project?.latestSpec).toEqual(
+      expect.objectContaining({
+        name: 'newer-spec',
+        displayName: 'Newer Spec'
+      })
+    );
+  });
+
+  it('refreshes remembered live-project metadata when the saved entry is stale', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-14T12:30:00.000Z'));
+
+    const workspacePath = join(tempDir, 'repo-refresh');
+    await createSpecWorkspace(workspacePath, 'refresh-spec');
+
+    const remembered = await rememberedProjects.upsertProject(workspacePath, {
+      workflowRootPath: workspacePath,
+      projectName: 'repo-old-name',
+      source: 'manual',
+      seenAt: '2026-03-14T10:00:00.000Z'
+    });
+    await registry.registerProject(workspacePath, process.pid, {
+      workflowRootPath: workspacePath,
+      projectName: 'repo-refresh'
+    });
+
+    await service.getProjects();
+
+    const storedProject = await rememberedProjects.getProjectById(remembered.projectId);
+    expect(storedProject?.projectName).toBe('repo-refresh');
+    expect(storedProject?.source).toBe('mcp');
+    expect(storedProject?.lastSeenAt).toBe('2026-03-14T12:30:00.000Z');
+
+    vi.useRealTimers();
+  });
+
+  it('does not keep rewriting remembered live-project metadata while it is still fresh', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-14T12:30:00.000Z'));
+
+    const workspacePath = join(tempDir, 'repo-stable');
+    await createSpecWorkspace(workspacePath, 'stable-spec');
+
+    const remembered = await rememberedProjects.upsertProject(workspacePath, {
+      workflowRootPath: workspacePath,
+      projectName: 'repo-stable',
+      source: 'mcp',
+      seenAt: '2026-03-14T12:30:00.000Z'
+    });
+    await registry.registerProject(workspacePath, process.pid, {
+      workflowRootPath: workspacePath,
+      projectName: 'repo-stable'
+    });
+
+    vi.setSystemTime(new Date('2026-03-14T12:30:10.000Z'));
+    await service.getProjects();
+
+    const storedProject = await rememberedProjects.getProjectById(remembered.projectId);
+    expect(storedProject?.lastSeenAt).toBe('2026-03-14T12:30:00.000Z');
+
+    vi.useRealTimers();
+  });
+
+  it('falls back to createdAt when lastModified is missing', async () => {
+    const latestSpec = await (service as unknown as {
+      computeLatestSpec: (parser: {
+        getAllSpecs: () => Promise<Array<{
+          name: string;
+          displayName: string;
+          createdAt: string;
+          lastModified?: string | undefined;
+        }>>;
+      }) => Promise<{
+        name: string;
+        displayName: string;
+        createdAt: string;
+        lastModified?: string | undefined;
+      } | undefined>;
+    }).computeLatestSpec({
+      getAllSpecs: async () => [
+        {
+          name: 'older-spec',
+          displayName: 'Older Spec',
+          createdAt: '2026-03-14T09:00:00.000Z'
+        },
+        {
+          name: 'newer-spec',
+          displayName: 'Newer Spec',
+          createdAt: '2026-03-14T12:00:00.000Z',
+          lastModified: ''
+        }
+      ]
+    });
+
+    expect(latestSpec).toEqual(
+      expect.objectContaining({
+        name: 'newer-spec',
+        displayName: 'Newer Spec',
+        createdAt: '2026-03-14T12:00:00.000Z'
+      })
+    );
+  });
 });
 
 async function createSpecWorkspace(workspacePath: string, specName: string): Promise<void> {
   const specDir = join(workspacePath, '.spec-workflow', 'specs', specName);
   await fs.mkdir(specDir, { recursive: true });
   await fs.writeFile(join(specDir, 'requirements.md'), '# Requirements', 'utf-8');
+}
+
+async function setSpecTimestamp(workspacePath: string, specName: string, isoTimestamp: string): Promise<void> {
+  const specDir = join(workspacePath, '.spec-workflow', 'specs', specName);
+  const timestamp = new Date(isoTimestamp);
+  await fs.utimes(specDir, timestamp, timestamp);
+  await fs.utimes(join(specDir, 'requirements.md'), timestamp, timestamp);
 }

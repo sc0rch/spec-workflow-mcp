@@ -1,6 +1,5 @@
 import './styles.css';
 import {
-  startTransition,
   useDeferredValue,
   useEffect,
   useEffectEvent,
@@ -16,8 +15,7 @@ import type {
   DesktopSpecDocumentName,
   DesktopProjectWorkspace,
   DesktopRuntimeInfo,
-  DesktopShellState,
-  StartupIssue
+  DesktopShellState
 } from '../shared/desktop-api.js';
 
 type WorkMode = 'inbox' | 'workspace' | 'approvals';
@@ -42,12 +40,9 @@ type InboxItem = {
   badgeClassName: string;
   onSelect: () => void;
 };
-type McpVisibility = {
-  liveProjects: ProjectSummary[];
-  rememberedProjects: ProjectSummary[];
-  statusLabel: string;
-  summaryLabel: string;
-  badgeClassName: string;
+type McpStatus = {
+  tone: 'online' | 'offline' | 'error';
+  label: string;
 };
 type CommandItemContext = {
   shellState: DesktopShellState;
@@ -56,9 +51,7 @@ type CommandItemContext = {
   activeSpec: WorkspaceSpec | null;
   activeMode: WorkMode;
   activeDocument: DesktopSpecDocumentName;
-  isDiagnosticsOpen: boolean;
   onPickProject: () => Promise<void>;
-  onToggleDiagnostics: () => void;
   onSelectProject: (workspacePath: string) => void;
   onSelectMode: (mode: WorkMode) => void;
   onSelectSpec: (specName: string) => void;
@@ -115,7 +108,6 @@ export function App() {
     message?: string | undefined;
   }>({ status: 'idle' });
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
-  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState('');
   const [paletteSelectionIndex, setPaletteSelectionIndex] = useState(0);
@@ -125,10 +117,8 @@ export function App() {
   const projectMenuRef = useRef<HTMLDivElement | null>(null);
 
   const applyShellState = useEffectEvent((nextState: DesktopShellState) => {
-    startTransition(() => {
-      setShellState(nextState);
-      setBridgeError(null);
-    });
+    setShellState(nextState);
+    setBridgeError(null);
   });
 
   const selectAdjacentProject = useEffectEvent((offset: number) => {
@@ -279,7 +269,7 @@ export function App() {
   }, [
     activeProject?.projectId,
     activeProject?.latestImplementation?.timestamp,
-    activeProject?.latestSpec?.createdAt,
+    activeProject?.latestSpec?.lastModified ?? activeProject?.latestSpec?.createdAt,
     activeProject?.pendingApprovalCount
   ]);
 
@@ -357,17 +347,7 @@ export function App() {
     ? projectWorkspace.specs.find((spec) => spec.name === activeSpecName) ?? null
     : null;
   const hasShellIssues = Boolean(bridgeError || workspaceError || shellState.issues.length > 0);
-  const mcpVisibility = createMcpVisibility(shellState);
-  const projectMenuLabel = activeProject?.projectName ?? 'Projects';
-
-  const toggleDiagnostics = useEffectEvent(() => {
-    setIsProjectMenuOpen(false);
-    setIsDiagnosticsOpen((currentState) => !currentState);
-  });
-
-  const closeDiagnostics = useEffectEvent(() => {
-    setIsDiagnosticsOpen(false);
-  });
+  const mcpStatus = createMcpStatus(shellState, bridgeError);
 
   const closeProjectMenu = useEffectEvent(() => {
     setIsProjectMenuOpen(false);
@@ -413,9 +393,7 @@ export function App() {
       activeSpec,
       activeMode,
       activeDocument,
-      isDiagnosticsOpen,
       onPickProject: handlePickProject,
-      onToggleDiagnostics: toggleDiagnostics,
       onSelectProject: (workspacePath) => {
         setActiveProjectPath(workspacePath);
       },
@@ -685,12 +663,6 @@ export function App() {
       return;
     }
 
-    if (isDiagnosticsOpen && event.key === 'Escape') {
-      event.preventDefault();
-      closeDiagnostics();
-      return;
-    }
-
     if (isProjectMenuOpen && event.key === 'Escape') {
       event.preventDefault();
       closeProjectMenu();
@@ -770,14 +742,12 @@ export function App() {
     };
   }, [
     activeDocument,
-    closeDiagnostics,
     closeProjectMenu,
     activeMode,
     activeSpec,
     closePalette,
     handleApprovalAction,
     handleSaveDocument,
-    isDiagnosticsOpen,
     isProjectMenuOpen,
     isPaletteOpen,
     openPalette,
@@ -791,120 +761,140 @@ export function App() {
     <main className="shell">
       <header className="shell-header">
         <div aria-label="Main menu" className="shell-header-actions" role="toolbar">
-          <div className={`project-menu ${isProjectMenuOpen ? 'project-menu-open' : ''}`} ref={projectMenuRef}>
+          <div className="shell-header-group shell-header-group-start">
+            <div className={`project-menu ${isProjectMenuOpen ? 'project-menu-open' : ''}`} ref={projectMenuRef}>
+              <button
+                aria-label={activeProject?.projectName ?? 'Projects'}
+                aria-expanded={isProjectMenuOpen}
+                aria-haspopup="dialog"
+                className="secondary-action project-menu-trigger"
+                onClick={() => {
+                  setIsProjectMenuOpen((currentState) => !currentState);
+                }}
+                type="button"
+              >
+                {activeProject ? (
+                  <span
+                    aria-hidden="true"
+                    className={`project-dot project-dot-${activeProject.connectionState}`}
+                  />
+                ) : null}
+                <span className="project-menu-trigger-copy">
+                  <span className="project-menu-trigger-label">
+                    {activeProject?.projectName ?? 'Projects'}
+                  </span>
+                  {activeProject ? (
+                    <span className="project-menu-trigger-meta">
+                      {formatProjectContextLine(activeProject)}
+                    </span>
+                  ) : null}
+                </span>
+                <span aria-hidden="true" className="project-menu-chevron">▾</span>
+              </button>
+              {isProjectMenuOpen ? (
+                <div className="panel project-menu-popover">
+                  {shellState.projects.length === 0 ? (
+                    <p className="panel-copy project-menu-empty">
+                      No projects yet. Add a repository once and it will still be here after restart.
+                    </p>
+                  ) : (
+                    <div aria-label="Projects" className="project-list" role="list">
+                      {shellState.projects.map((project) => {
+                        const isSelected = activeProject?.projectId === project.projectId;
+
+                        return (
+                          <article
+                            className={`project-card ${isSelected ? 'project-card-selected' : ''}`}
+                            key={project.projectId}
+                            role="listitem"
+                          >
+                            <div className="project-row">
+                              <button
+                                aria-pressed={isSelected}
+                                className="project-select project-select-row"
+                                onClick={() => {
+                                  setActiveProjectPath(project.workspacePath);
+                                  setIsProjectMenuOpen(false);
+                                }}
+                                type="button"
+                              >
+                                <span
+                                  aria-hidden="true"
+                                  className={`project-dot project-dot-${project.connectionState}`}
+                                />
+                                <div className="project-select-copy">
+                                  <strong>{project.projectName}</strong>
+                                  <span className="project-select-meta project-select-meta-primary">
+                                    {project.gitBranch ?? trimProjectPath(project.workspacePath)}
+                                  </span>
+                                  <span className="project-select-meta">
+                                    {project.latestSpec
+                                      ? `Latest spec: ${project.latestSpec.displayName}`
+                                      : 'No specs yet'}
+                                  </span>
+                                </div>
+                                <div className="project-badges">
+                                  {project.pendingApprovalCount > 0 ? (
+                                    <span className="badge badge-warning">{project.pendingApprovalCount}</span>
+                                  ) : null}
+                                </div>
+                              </button>
+                              <button
+                                aria-label={`Forget ${project.projectName}`}
+                                className="project-forget"
+                                disabled={!window.desktop || forgettingProjectId === project.projectId}
+                                onClick={() => {
+                                  void handleForgetProject(project.projectId);
+                                }}
+                                type="button"
+                              >
+                                {forgettingProjectId === project.projectId ? '…' : '×'}
+                              </button>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
             <button
-              aria-expanded={isProjectMenuOpen}
-              aria-haspopup="dialog"
-              className="secondary-action project-menu-trigger"
+              aria-label="Add folder"
+              className="secondary-action icon-action"
+              disabled={!canPickProject || isPickingProject}
               onClick={() => {
-                setIsProjectMenuOpen((currentState) => !currentState);
+                void handlePickProject();
+              }}
+              title={isPickingProject ? 'Opening folder picker...' : 'Add folder'}
+              type="button"
+            >
+              <FolderOpenIcon />
+            </button>
+          </div>
+          <div className="shell-header-spacer" />
+          <div className="shell-header-group shell-header-group-end">
+            <button
+              aria-label="Search"
+              className="secondary-action command-trigger"
+              onClick={() => {
+                openPalette();
               }}
               type="button"
             >
-              {activeProject ? (
-                <span
-                  aria-hidden="true"
-                  className={`project-dot project-dot-${activeProject.connectionState}`}
-                />
-              ) : null}
-              <span className="project-menu-trigger-label">{projectMenuLabel}</span>
-              <span aria-hidden="true" className="project-menu-chevron">▾</span>
+              <span className="utility-label">Search</span>
+              <kbd>⌘K</kbd>
             </button>
-            {isProjectMenuOpen ? (
-              <div className="panel project-menu-popover">
-                {shellState.projects.length === 0 ? (
-                  <p className="panel-copy project-menu-empty">
-                    No projects yet. Add a repository once and it will still be here after restart.
-                  </p>
-                ) : (
-                  <div aria-label="Projects" className="project-list" role="list">
-                    {shellState.projects.map((project) => {
-                      const isSelected = activeProject?.projectId === project.projectId;
-
-                      return (
-                        <article
-                          className={`project-card ${isSelected ? 'project-card-selected' : ''}`}
-                          key={project.projectId}
-                          role="listitem"
-                        >
-                          <div className="project-row">
-                            <button
-                              aria-pressed={isSelected}
-                              className="project-select project-select-row"
-                              onClick={() => {
-                                setActiveProjectPath(project.workspacePath);
-                                setIsProjectMenuOpen(false);
-                              }}
-                              type="button"
-                            >
-                              <span
-                                aria-hidden="true"
-                                className={`project-dot project-dot-${project.connectionState}`}
-                              />
-                              <div className="project-select-copy">
-                                <strong>{project.projectName}</strong>
-                                <span className="project-select-meta">
-                                  {project.gitBranch ?? project.workspacePath}
-                                </span>
-                              </div>
-                              <div className="project-badges">
-                                {project.pendingApprovalCount > 0 ? (
-                                  <span className="badge badge-warning">{project.pendingApprovalCount}</span>
-                                ) : null}
-                              </div>
-                            </button>
-                            <button
-                              aria-label={`Forget ${project.projectName}`}
-                              className="project-forget"
-                              disabled={!window.desktop || forgettingProjectId === project.projectId}
-                              onClick={() => {
-                                void handleForgetProject(project.projectId);
-                              }}
-                              type="button"
-                            >
-                              {forgettingProjectId === project.projectId ? '…' : '×'}
-                            </button>
-                          </div>
-                        </article>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            ) : null}
+            <div
+              aria-label={`MCP ${mcpStatus.label}`}
+              className={`mcp-indicator mcp-indicator-${mcpStatus.tone}`}
+              role="status"
+              title={`MCP ${mcpStatus.label}`}
+            >
+              <span aria-hidden="true" className="mcp-indicator-dot" />
+              <span className="mcp-indicator-label">{mcpStatus.label}</span>
+            </div>
           </div>
-          <button
-            aria-label={isDiagnosticsOpen ? 'Hide MCP status' : 'Open MCP status'}
-            aria-pressed={isDiagnosticsOpen}
-            className={`secondary-action shell-status-button ${isDiagnosticsOpen ? 'shell-status-button-active' : ''}`}
-            onClick={() => {
-              toggleDiagnostics();
-            }}
-            type="button"
-          >
-            <span className="utility-label">MCP</span>
-            <span className="utility-value">{mcpVisibility.summaryLabel}</span>
-          </button>
-          <button
-            className="secondary-action command-trigger"
-            onClick={() => {
-              openPalette();
-            }}
-            type="button"
-          >
-            <span className="utility-label">Search</span>
-            <kbd>⌘K</kbd>
-          </button>
-          <button
-            className="primary-action"
-            disabled={!canPickProject || isPickingProject}
-            onClick={() => {
-              void handlePickProject();
-            }}
-            type="button"
-          >
-            {isPickingProject ? 'Opening folder picker...' : 'Add folder'}
-          </button>
         </div>
       </header>
 
@@ -924,15 +914,21 @@ export function App() {
             ) : null}
           </article>
         ) : null}
-        {isDiagnosticsOpen ? renderMcpDiagnosticsPanel(shellState, mcpVisibility, closeDiagnostics) : null}
         {activeProject ? (
           <>
             <div className="workspace-head">
               <div className="workspace-head-copy">
                 <h2>{activeProject.projectName}</h2>
-                {activeProject.gitBranch ? (
-                  <p className="helper-copy">{activeProject.gitBranch}</p>
-                ) : null}
+                <div className="workspace-head-meta">
+                  {activeProject.gitBranch ? (
+                    <span className="badge badge-neutral">{activeProject.gitBranch}</span>
+                  ) : null}
+                  <span className="helper-copy">
+                    {activeProject.latestSpec
+                      ? `Latest spec: ${activeProject.latestSpec.displayName}`
+                      : 'No specs yet'}
+                  </span>
+                </div>
               </div>
               <nav aria-label="Work modes" className="mode-tabs">
                 {workModes.map((mode) => (
@@ -1420,75 +1416,6 @@ function renderWorkspaceMode(
   );
 }
 
-function renderMcpDiagnosticsPanel(
-  shellState: DesktopShellState,
-  visibility: McpVisibility,
-  onClose: () => void
-): ReactNode {
-  const hints = getMcpHints(shellState, visibility);
-  const trackedProjects = [...visibility.liveProjects, ...visibility.rememberedProjects];
-
-  return (
-    <article className="panel mcp-panel">
-      <div className="section-header">
-        <h2>MCP status</h2>
-        <div className="workspace-summary">
-          <span className={`badge ${visibility.badgeClassName}`}>{visibility.summaryLabel}</span>
-          <button
-            className="secondary-action"
-            onClick={onClose}
-            type="button"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-
-      {trackedProjects.length === 0 ? (
-        <p className="panel-copy">No saved projects yet.</p>
-      ) : (
-        <ul className="mcp-list">
-          {trackedProjects.map((project) => (
-            <li className="mcp-row" key={project.projectId}>
-              <div className="mcp-row-copy">
-                <strong>{project.projectName}</strong>
-                <p className="helper-copy">{project.workspacePath}</p>
-              </div>
-              <div className="project-badges">
-                <span className={`badge ${project.connectionState === 'live' ? 'badge-live' : 'badge-neutral'}`}>
-                  {project.connectionState === 'live' ? `${project.instanceCount} live` : 'Saved'}
-                </span>
-                {project.gitBranch ? <span className="badge badge-neutral">{project.gitBranch}</span> : null}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {hints.length > 0 ? (
-        <ul className="focus-list mcp-hints">
-          {hints.map((hint) => (
-            <li key={hint}>{hint}</li>
-          ))}
-        </ul>
-      ) : null}
-
-      <details className="phase-card history-details mcp-details">
-        <summary>Runtime details</summary>
-        <ul className="mcp-facts">
-          <li><strong>Status:</strong> {visibility.statusLabel}</li>
-          <li><strong>Platform:</strong> {shellState.runtime.platform}</li>
-          <li><strong>Electron:</strong> {shellState.runtime.versions.electron}</li>
-          <li><strong>Chrome:</strong> {shellState.runtime.versions.chrome}</li>
-          <li><strong>Node:</strong> {shellState.runtime.versions.node}</li>
-          <li><strong>Storage:</strong> {shellState.storagePath}</li>
-          <li><strong>Selected project:</strong> {shellState.selectedProjectPath ?? 'None'}</li>
-        </ul>
-      </details>
-    </article>
-  );
-}
-
 function createFallbackShellState(): DesktopShellState {
   const runtime = getRuntimeInfo();
 
@@ -1537,6 +1464,23 @@ function formatApprovalCommentsResponse(comments: DesktopApprovalComment[]): str
   }
 
   return normalizedComments.join('\n\n');
+}
+
+function formatProjectContextLine(project: ProjectSummary): string {
+  const primary = project.gitBranch ?? trimProjectPath(project.workspacePath);
+  if (project.latestSpec) {
+    return `${primary} · ${project.latestSpec.displayName}`;
+  }
+
+  return primary;
+}
+
+function trimProjectPath(workspacePath: string): string {
+  const normalized = workspacePath.replace(/\/+$/, '');
+  const segments = normalized.split('/').filter((segment) => segment.length > 0);
+  const tail = segments.slice(-2);
+
+  return tail.length > 0 ? tail.join('/') : workspacePath;
 }
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -1599,49 +1543,24 @@ function formatFileDelta(filesModified: string[], filesCreated: string[]): strin
   return `${modifiedLabel} · ${createdLabel}`;
 }
 
-function createMcpVisibility(shellState: DesktopShellState): McpVisibility {
-  const liveProjects = shellState.projects.filter((project) => project.connectionState === 'live');
-  const rememberedProjects = shellState.projects.filter(
-    (project) => project.connectionState === 'remembered'
-  );
-  const hasErrors = shellState.issues.some((issue) => issue.severity === 'error');
-
-  if (hasErrors) {
+function createMcpStatus(shellState: DesktopShellState, bridgeError: string | null): McpStatus {
+  if (bridgeError || shellState.issues.some((issue) => issue.severity === 'error')) {
     return {
-      liveProjects,
-      rememberedProjects,
-      statusLabel: 'Attention needed',
-      summaryLabel: 'Issues',
-      badgeClassName: 'badge-warning'
+      tone: 'error',
+      label: 'Error'
     };
   }
 
-  if (liveProjects.length > 0) {
+  if (shellState.projects.some((project) => project.connectionState === 'live')) {
     return {
-      liveProjects,
-      rememberedProjects,
-      statusLabel: `${liveProjects.length} live workspace${liveProjects.length === 1 ? '' : 's'}`,
-      summaryLabel: `${liveProjects.length} live`,
-      badgeClassName: 'badge-live'
-    };
-  }
-
-  if (shellState.projects.length > 0) {
-    return {
-      liveProjects,
-      rememberedProjects,
-      statusLabel: 'Waiting for Codex to connect',
-      summaryLabel: 'Waiting',
-      badgeClassName: 'badge-neutral'
+      tone: 'online',
+      label: 'Online'
     };
   }
 
   return {
-    liveProjects,
-    rememberedProjects,
-    statusLabel: 'No saved projects',
-    summaryLabel: 'Idle',
-    badgeClassName: 'badge-neutral'
+    tone: 'offline',
+    label: 'Offline'
   };
 }
 
@@ -1678,20 +1597,6 @@ function formatSpecMeta(spec: WorkspaceSpec): string {
   return segments.join(' · ');
 }
 
-function getMcpHints(shellState: DesktopShellState, visibility: McpVisibility): string[] {
-  const hints = shellState.issues.map((issue) => getIssueHint(issue));
-
-  if (visibility.liveProjects.length === 0 && shellState.projects.length > 0) {
-    hints.push('Open a saved project in Codex and run any tool or prompt to start a live MCP session.');
-  }
-
-  if (shellState.projects.length === 0) {
-    hints.push('Add a project here or open one in Codex first so the desktop app can restore it after restart.');
-  }
-
-  return [...new Set(hints)];
-}
-
 function getDocumentMeta(
   spec: WorkspaceSpec,
   document: DesktopSpecDocumentName
@@ -1701,23 +1606,6 @@ function getDocumentMeta(
   }
 
   return formatTimestamp(spec.phases[document].lastModified ?? null, 'No file yet');
-}
-
-function getIssueHint(issue: StartupIssue): string {
-  switch (issue.code) {
-    case 'bridge-unavailable':
-      return 'Restart the desktop app if Codex cannot attach through the local MCP bridge.';
-    case 'git-unavailable':
-      return 'Install Git or expose it on PATH so branch and workspace metadata can be resolved cleanly.';
-    case 'renderer-unavailable':
-      return 'Rebuild the desktop app if the renderer bundle is missing or out of date.';
-    case 'storage-unwritable':
-      return 'Check write access for the desktop storage path so remembered projects and shell state can persist across restarts.';
-    case 'tray-icon-missing':
-      return 'Tray integration is optional. The app window still works even if the tray asset is unavailable.';
-    default:
-      return issue.message;
-  }
 }
 
 function createCommandPaletteItems(context: CommandItemContext): CommandPaletteItem[] {
@@ -1730,16 +1618,6 @@ function createCommandPaletteItems(context: CommandItemContext): CommandPaletteI
       keywords: ['folder', 'picker', 'remember', 'repo'],
       onSelect: async () => {
         await context.onPickProject();
-      }
-    },
-    {
-      id: 'action:toggle-diagnostics',
-      category: 'Action',
-      title: context.isDiagnosticsOpen ? 'Hide MCP status' : 'Show MCP status',
-      meta: 'Inspect live connections, issues, and runtime details for this desktop session.',
-      keywords: ['mcp', 'diagnostics', 'status', 'runtime', 'codex'],
-      onSelect: () => {
-        context.onToggleDiagnostics();
       }
     },
     ...workModes.map((mode) => ({
@@ -1862,4 +1740,20 @@ function filterCommandPaletteItems(
 
 function normalizeSearchText(value: string): string {
   return value.trim().toLowerCase();
+}
+
+function FolderOpenIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" height="18" viewBox="0 0 24 24" width="18">
+      <path
+        d="M3.75 6.75a1.5 1.5 0 0 1 1.5-1.5h4.04a2.25 2.25 0 0 1 1.59.66l1.2 1.2c.14.14.33.22.53.22h5.14a1.5 1.5 0 0 1 1.5 1.5v.78H3.75v-2.81Z"
+        fill="currentColor"
+        opacity="0.55"
+      />
+      <path
+        d="M4.93 10.5h14.14c1.14 0 1.97 1.09 1.65 2.18l-1.87 6.38A1.5 1.5 0 0 1 17.4 20.25H5.66a1.5 1.5 0 0 1-1.45-1.1l-1.88-6.39A1.72 1.72 0 0 1 4 10.5h.93Zm7.7 1.82v1.56h1.56a.75.75 0 0 1 0 1.5h-1.56v1.56a.75.75 0 0 1-1.5 0v-1.56H9.57a.75.75 0 0 1 0-1.5h1.56v-1.56a.75.75 0 0 1 1.5 0Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
 }

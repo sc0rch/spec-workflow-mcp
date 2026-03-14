@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {
   DesktopApi,
@@ -38,7 +38,8 @@ const shellState: DesktopShellState = {
       latestSpec: {
         name: 'desktop-rewrite',
         displayName: 'Desktop Rewrite',
-        createdAt: '2026-03-14T09:00:00.000Z'
+        createdAt: '2026-03-14T09:00:00.000Z',
+        lastModified: '2026-03-14T12:10:00.000Z'
       },
       pendingApprovalCount: 2,
       latestImplementation: {
@@ -60,6 +61,39 @@ const rememberedOnlyShellState: DesktopShellState = {
     connectionState: 'remembered',
     instanceCount: 0
   }))
+};
+
+const multiProjectShellState: DesktopShellState = {
+  ...shellState,
+  projects: [
+    ...shellState.projects,
+    {
+      projectId: 'project-b',
+      projectName: 'repo-b',
+      workspacePath: '/tmp/repo-b',
+      workflowRootPath: '/tmp/repo-b',
+      connectionState: 'live',
+      source: 'mcp',
+      addedAt: '2026-03-14T10:30:00.000Z',
+      lastSeenAt: '2026-03-14T12:35:10.000Z',
+      gitBranch: 'feature/other',
+      latestSpec: {
+        name: 'review-refresh',
+        displayName: 'Review Refresh',
+        createdAt: '2026-03-14T10:45:00.000Z',
+        lastModified: '2026-03-14T12:00:00.000Z'
+      },
+      pendingApprovalCount: 0,
+      latestImplementation: {
+        taskId: '2.1',
+        summary: 'Prepared another workspace',
+        timestamp: '2026-03-14T12:05:00.000Z',
+        specName: 'review-refresh',
+        specDisplayName: 'Review Refresh'
+      },
+      instanceCount: 1
+    }
+  ]
 };
 
 const projectWorkspace: DesktopProjectWorkspace = {
@@ -288,6 +322,8 @@ describe('App', () => {
     expect(
       screen.getByRole('button', { name: 'repo-a' })
     ).toBeInTheDocument();
+    expect(screen.getAllByText('feature/demo').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Latest spec: Desktop Rewrite/).length).toBeGreaterThan(0);
     expect(
       screen.getByText(/2 approvals/)
     ).toBeInTheDocument();
@@ -317,26 +353,16 @@ describe('App', () => {
     expect(pickProjectDirectory).toHaveBeenCalledTimes(1);
   });
 
-  it('shows MCP visibility diagnostics for live workspaces and runtime details', async () => {
-    const user = userEvent.setup();
-
+  it('renders a compact MCP status indicator instead of a diagnostics button', async () => {
     render(<App />);
 
     await screen.findByRole('heading', { name: 'Inbox' });
-    await user.click(screen.getByRole('button', { name: 'Open MCP status' }));
 
-    expect(await screen.findByRole('heading', { name: 'MCP status' })).toBeInTheDocument();
-    expect(screen.getAllByText('1 live')).toHaveLength(3);
-    expect(screen.getAllByText('/tmp/repo-a')).toHaveLength(2);
-    expect(screen.getByText('Runtime details')).toBeInTheDocument();
-
-    await user.keyboard('{Escape}');
-
-    expect(screen.queryByRole('heading', { name: 'MCP status' })).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'MCP Online' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /MCP/i })).not.toBeInTheDocument();
   });
 
-  it('shows waiting guidance when projects are remembered but MCP is not attached', async () => {
-    const user = userEvent.setup();
+  it('shows an offline MCP indicator when only remembered projects are available', async () => {
     window.desktop = createDesktopApiMock({
       getShellState: vi.fn().mockResolvedValue(rememberedOnlyShellState)
     });
@@ -344,13 +370,7 @@ describe('App', () => {
     render(<App />);
 
     await screen.findByRole('heading', { name: 'Inbox' });
-    await user.click(screen.getByRole('button', { name: 'Open MCP status' }));
-
-    expect(await screen.findAllByText('Waiting')).toHaveLength(2);
-    expect(screen.getAllByText('Saved')).toHaveLength(1);
-    expect(
-      screen.getByText('Open a saved project in Codex and run any tool or prompt to start a live MCP session.')
-    ).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'MCP Offline' })).toBeInTheDocument();
   });
 
   it('forgets a remembered project through the desktop bridge', async () => {
@@ -363,40 +383,42 @@ describe('App', () => {
     render(<App />);
 
     await user.click(await screen.findByRole('button', { name: 'repo-a' }));
+
+    expect((await screen.findAllByText('Latest spec: Desktop Rewrite')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('feature/demo').length).toBeGreaterThan(0);
+
     await user.click(await screen.findByRole('button', { name: 'Forget repo-a' }));
 
     expect(forgetProject).toHaveBeenCalledWith('project-a');
   });
 
   it('supports keyboard-friendly spec and approval navigation', async () => {
-    const user = userEvent.setup();
-
     render(<App />);
 
     await screen.findByRole('heading', { name: 'Inbox' });
-    await user.keyboard('2');
+    fireEvent.keyDown(window, { key: '2' });
 
     expect(await screen.findByText('Spec editor')).toBeInTheDocument();
     expect(await screen.findByText('Press Cmd/Ctrl+S to save. Press Esc to return to Inbox.')).toBeInTheDocument();
     expect(await screen.findByText(/Current task: 1\.1 Build desktop shell/)).toBeInTheDocument();
 
-    await user.keyboard('l');
+    fireEvent.keyDown(window, { key: 'l' });
 
     expect(await screen.findByLabelText('Approval Inbox Requirements')).toHaveValue(
       '# Requirements\nMake review fast.'
     );
 
-    await user.keyboard('{Escape}');
+    fireEvent.keyDown(window, { key: 'Escape' });
 
     expect(await screen.findByRole('heading', { name: 'Inbox' })).toBeInTheDocument();
 
-    await user.keyboard('3');
+    fireEvent.keyDown(window, { key: '3' });
 
     expect(await screen.findByRole('heading', { name: 'Approvals' })).toBeInTheDocument();
     expect(await screen.findByText('Select text to comment on a specific passage.')).toBeInTheDocument();
-    expect(await screen.findByText('Keep restart recovery obvious.')).toBeInTheDocument();
+    expect(await screen.findByText(/Keep restart recovery obvious/)).toBeInTheDocument();
 
-    await user.keyboard('l');
+    fireEvent.keyDown(window, { key: 'l' });
 
     expect(await screen.findByRole('button', { name: /Reject/i })).toBeDisabled();
     expect(
@@ -419,7 +441,6 @@ describe('App', () => {
     await user.type(screen.getByLabelText('Command search'), 'design document');
     await user.keyboard('{Enter}');
 
-    expect(await screen.findByText('Spec editor')).toBeInTheDocument();
     expect(await screen.findByLabelText('Desktop Rewrite Design')).toHaveValue(
       '# Design\nUse a left rail and detail panel.'
     );
@@ -432,21 +453,126 @@ describe('App', () => {
     expect(await screen.findByText(/src\/core\/approval-storage\.ts/)).toBeInTheDocument();
   });
 
-  it('cycles workspace documents with Tab and Shift+Tab outside the editor', async () => {
-    const user = userEvent.setup();
+  it('reloads inbox data when the desktop bridge pushes a new shell state', async () => {
+    const listeners: Array<(nextState: DesktopShellState) => void> = [];
+    const nextShellState: DesktopShellState = {
+      ...shellState,
+      projects: [
+        {
+          ...shellState.projects[0],
+          pendingApprovalCount: 1,
+          latestSpec: {
+            name: 'approval-inbox',
+            displayName: 'Approval Inbox',
+            createdAt: '2026-03-14T09:30:00.000Z',
+            lastModified: '2026-03-14T13:00:00.000Z'
+          }
+        }
+      ]
+    };
+    const nextWorkspace: DesktopProjectWorkspace = {
+      ...projectWorkspace,
+      specs: projectWorkspace.specs.map((spec) => ({
+        ...spec,
+        pendingApprovalCount: spec.name === 'approval-inbox' ? 1 : 0
+      })),
+      pendingApprovals: [
+        {
+          approvalId: 'approval-3',
+          title: 'Review approval hot reload',
+          filePath: '.spec-workflow/specs/approval-inbox/tasks.md',
+          type: 'document',
+          category: 'spec',
+          categoryName: 'approval-inbox',
+          createdAt: '2026-03-14T13:00:00.000Z'
+        }
+      ]
+    };
+    let workspaceRequestCount = 0;
+    const getProjectWorkspace = vi.fn<DesktopApi['getProjectWorkspace']>().mockImplementation(async () => {
+      workspaceRequestCount += 1;
+      return workspaceRequestCount > 1 ? nextWorkspace : projectWorkspace;
+    });
+
+    window.desktop = createDesktopApiMock({
+      getProjectWorkspace,
+      onShellStateChanged: vi.fn((listener) => {
+        listeners.push(listener);
+        return () => undefined;
+      })
+    });
 
     render(<App />);
 
     await screen.findByRole('heading', { name: 'Inbox' });
-    await user.keyboard('2');
+    await waitFor(() => {
+      expect(listeners.length).toBeGreaterThan(0);
+    });
+    await act(async () => {
+      listeners.at(-1)?.(nextShellState);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Review approval hot reload')).toBeInTheDocument();
+    });
+  });
+
+  it('does not reload the active workspace when a shell-state push only changes another project', async () => {
+    const listeners: Array<(nextState: DesktopShellState) => void> = [];
+    const getProjectWorkspace = vi.fn<DesktopApi['getProjectWorkspace']>().mockResolvedValue(projectWorkspace);
+
+    window.desktop = createDesktopApiMock({
+      getShellState: vi.fn().mockResolvedValue(multiProjectShellState),
+      getProjectWorkspace,
+      onShellStateChanged: vi.fn((listener) => {
+        listeners.push(listener);
+        return () => undefined;
+      })
+    });
+
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Inbox' });
+    expect(getProjectWorkspace).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      listeners.at(-1)?.({
+        ...multiProjectShellState,
+        projects: multiProjectShellState.projects.map((project) =>
+          project.projectId === 'project-b'
+            ? {
+                ...project,
+                pendingApprovalCount: 3,
+                latestSpec: {
+                  ...project.latestSpec!,
+                  lastModified: '2026-03-14T13:15:00.000Z'
+                }
+              }
+            : project
+        )
+      });
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(getProjectWorkspace).toHaveBeenCalledTimes(1);
+  });
+
+  it('cycles workspace documents with Tab and Shift+Tab outside the editor', async () => {
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Inbox' });
+    fireEvent.keyDown(window, { key: '2' });
 
     expect(await screen.findByLabelText('Desktop Rewrite Requirements')).toBeInTheDocument();
 
-    await user.keyboard('{Tab}');
+    fireEvent.keyDown(window, { key: 'Tab' });
 
     expect(await screen.findByLabelText('Desktop Rewrite Design')).toBeInTheDocument();
 
-    await user.keyboard('{Shift>}{Tab}{/Shift}');
+    fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
 
     expect(await screen.findByLabelText('Desktop Rewrite Requirements')).toBeInTheDocument();
   });
@@ -464,11 +590,11 @@ describe('App', () => {
     render(<App />);
 
     await screen.findByRole('heading', { name: 'Inbox' });
-    await user.keyboard('2');
+    fireEvent.keyDown(window, { key: '2' });
     const editor = await screen.findByLabelText('Desktop Rewrite Requirements');
     await user.clear(editor);
     await user.type(editor, '# Requirements\n\nPersist save state');
-    await user.keyboard('{Control>}s{/Control}');
+    fireEvent.keyDown(window, { key: 's', ctrlKey: true });
 
     expect(saveSpecDocument).toHaveBeenCalledWith(
       'project-a',
@@ -480,7 +606,6 @@ describe('App', () => {
   });
 
   it('responds to approvals through keyboard shortcuts and auto-advances to the next item', async () => {
-    const user = userEvent.setup();
     const respondToApproval = vi.fn<DesktopApi['respondToApproval']>().mockResolvedValue(undefined);
     const nextWorkspace: DesktopProjectWorkspace = {
       ...projectWorkspace,
@@ -490,9 +615,11 @@ describe('App', () => {
       })),
       pendingApprovals: [projectWorkspace.pendingApprovals[1]]
     };
-    const getProjectWorkspace = vi.fn<DesktopApi['getProjectWorkspace']>()
-      .mockResolvedValueOnce(projectWorkspace)
-      .mockResolvedValueOnce(nextWorkspace);
+    let workspaceRequestCount = 0;
+    const getProjectWorkspace = vi.fn<DesktopApi['getProjectWorkspace']>().mockImplementation(async () => {
+      workspaceRequestCount += 1;
+      return workspaceRequestCount > 1 ? nextWorkspace : projectWorkspace;
+    });
     window.desktop = createDesktopApiMock({
       respondToApproval,
       getProjectWorkspace
@@ -501,9 +628,9 @@ describe('App', () => {
     render(<App />);
 
     await screen.findByRole('heading', { name: 'Inbox' });
-    await user.keyboard('3');
+    fireEvent.keyDown(window, { key: '3' });
     await screen.findByRole('heading', { name: 'Approvals' });
-    await user.keyboard('{Control>}{Enter}{/Control}');
+    fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true });
 
     expect(respondToApproval).toHaveBeenCalledWith(
       'project-a',
@@ -526,15 +653,16 @@ describe('App', () => {
     render(<App />);
 
     await screen.findByRole('heading', { name: 'Inbox' });
-    await user.keyboard('3');
+    fireEvent.keyDown(window, { key: '3' });
     await screen.findByRole('heading', { name: 'Approvals' });
 
     const rejectButton = screen.getByRole('button', { name: /Reject/i });
     expect(rejectButton).toBeDisabled();
 
     await user.click(screen.getByRole('button', { name: 'Add note' }));
+    const commentField = await screen.findByLabelText('Approval comment');
     await user.type(
-      screen.getByLabelText('Approval comment'),
+      commentField,
       'Clarify how restart recovery behaves after reconnect.'
     );
     await user.click(screen.getByRole('button', { name: 'Save comment' }));
@@ -563,11 +691,11 @@ describe('App', () => {
     render(<App />);
 
     await screen.findByRole('heading', { name: 'Inbox' });
-    await user.keyboard('3');
+    fireEvent.keyDown(window, { key: '3' });
     await screen.findByRole('heading', { name: 'Approvals' });
     await user.click(screen.getByRole('button', { name: 'Add note' }));
 
-    const commentField = screen.getByLabelText('Approval comment');
+    const commentField = await screen.findByLabelText('Approval comment');
     await user.type(commentField, 'Keep this draft.');
     await user.keyboard('{Escape}');
 

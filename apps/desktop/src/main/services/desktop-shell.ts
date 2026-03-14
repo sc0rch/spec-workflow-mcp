@@ -31,6 +31,7 @@ export interface DesktopShellOptions {
 }
 
 export class DesktopShell {
+  private static readonly PROJECT_REFRESH_INTERVAL_MS = 2_000;
   private readonly settingsStore: SettingsStore;
   private readonly projectCatalog: ProjectCatalogService;
   private readonly approvalReview: ApprovalReviewService;
@@ -41,6 +42,8 @@ export class DesktopShell {
   private trayController: TrayController | null = null;
   private isIpcRegistered = false;
   private shellState: DesktopShellState;
+  private refreshTimer: NodeJS.Timeout | null = null;
+  private isRefreshingProjects = false;
 
   constructor(private readonly options: DesktopShellOptions) {
     this.settingsStore = new SettingsStore(options.storageRoot);
@@ -80,11 +83,11 @@ export class DesktopShell {
     this.registerIpcHandlers();
     this.trayController = this.createTrayIfAvailable();
     await this.startMcpBridge();
-    await this.projectCatalog.cleanupStaleProjects();
-    await this.refreshProjectCatalog({
+    await this.refreshProjectCatalogSnapshot({
       selectedProjectPath: settings.lastSelectedProjectPath,
       lastSelectedAt: settings.lastSelectedAt
     });
+    this.startProjectRefreshLoop();
     if (!this.options.startHidden) {
       this.mainWindow = this.createOrRestoreWindow(settings.window, false);
     }
@@ -102,7 +105,7 @@ export class DesktopShell {
       window.restore();
     }
 
-    void this.refreshProjectCatalog();
+    void this.refreshProjectCatalogSnapshot();
     window.show();
     window.focus();
   }
@@ -110,6 +113,7 @@ export class DesktopShell {
   dispose(): void {
     this.trayController?.destroy();
     this.trayController = null;
+    this.stopProjectRefreshLoop();
     void this.mcpBridge.stop();
 
     if (this.isIpcRegistered) {
@@ -143,7 +147,10 @@ export class DesktopShell {
       return;
     }
 
-    ipcMain.handle(desktopChannels.getShellState, async () => this.shellState);
+    ipcMain.handle(desktopChannels.getShellState, async () => {
+      await this.refreshProjectCatalogSnapshot();
+      return this.shellState;
+    });
     ipcMain.handle(desktopChannels.getProjectWorkspace, async (_event, projectId: string) => {
       return this.getProjectWorkspace(projectId);
     });
@@ -347,9 +354,51 @@ export class DesktopShell {
   private updateShellState(
     overrides: Partial<Omit<DesktopShellState, 'runtime' | 'storagePath' | 'statusLabel'>>
   ): void {
-    this.shellState = this.createShellState(overrides);
+    const nextState = this.createShellState(overrides);
+    if (JSON.stringify(nextState) === JSON.stringify(this.shellState)) {
+      return;
+    }
+
+    this.shellState = nextState;
     this.trayController?.setStatusLabel(this.shellState.statusLabel);
     this.broadcastShellState();
+  }
+
+  private startProjectRefreshLoop(): void {
+    if (this.refreshTimer) {
+      return;
+    }
+
+    this.refreshTimer = setInterval(() => {
+      void this.refreshProjectCatalogSnapshot();
+    }, DesktopShell.PROJECT_REFRESH_INTERVAL_MS);
+  }
+
+  private stopProjectRefreshLoop(): void {
+    if (!this.refreshTimer) {
+      return;
+    }
+
+    clearInterval(this.refreshTimer);
+    this.refreshTimer = null;
+  }
+
+  private async refreshProjectCatalogSnapshot(
+    overrides: Partial<Pick<DesktopShellState, 'selectedProjectPath' | 'lastSelectedAt'>> = {}
+  ): Promise<void> {
+    if (this.isRefreshingProjects) {
+      return;
+    }
+
+    this.isRefreshingProjects = true;
+    try {
+      await this.projectCatalog.cleanupStaleProjects();
+      await this.refreshProjectCatalog(overrides);
+    } catch (error) {
+      console.error('[DesktopShell] Failed to refresh project catalog snapshot:', error);
+    } finally {
+      this.isRefreshingProjects = false;
+    }
   }
 
   private async refreshProjectCatalog(

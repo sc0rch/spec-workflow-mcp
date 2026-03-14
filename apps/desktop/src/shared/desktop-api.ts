@@ -38,6 +38,7 @@ export interface DesktopProjectSummary {
     readonly name: string;
     readonly displayName: string;
     readonly createdAt: string;
+    readonly lastModified?: string | undefined;
   } | undefined;
   readonly pendingApprovalCount: number;
   readonly latestImplementation?: {

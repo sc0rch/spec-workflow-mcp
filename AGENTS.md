@@ -46,6 +46,12 @@
 - Prefer unit tests around canonical modules before adding broader integration coverage.
 - Run targeted tests for changed areas and at least one build before finishing substantial changes.
 
+## External agent usage
+
+- Any request to an external coding/review agent through `cursor-agent`, `agent`, or `codex` must allow at least 5 minutes of timeout/runtime budget before treating the run as stalled or failed.
+- Any request that uses an Opus model must allow at least 10 minutes of timeout/runtime budget before treating the run as stalled or failed.
+- Do not prematurely kill external agent runs just because they are quiet; wait for the full timeout budget unless there is a clear local failure signal.
+
 ## Rewrite roadmap
 
 - For the Electron rewrite, use `docs/electron-desktop-rewrite.md` as the canonical roadmap and progress checklist.
