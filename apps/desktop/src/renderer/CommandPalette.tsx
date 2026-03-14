@@ -178,6 +178,7 @@ export function CommandPalette(props: {
                 aria-label={`${item.category} ${item.title}`}
                 aria-selected={index === selectedIndex}
                 className={`command-item ${index === selectedIndex ? 'command-item-active' : ''}`}
+                data-category={item.category.toLowerCase()}
                 id={`${listboxId}-option-${index}`}
                 key={item.id}
                 onClick={() => {

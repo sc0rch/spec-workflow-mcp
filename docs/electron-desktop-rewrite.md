@@ -952,6 +952,32 @@ Implemented:
   - project picker keyboard open-close focus contract
   - markdown review keyboard-selection affordance
 
+### Darcula Semantic Color Pass
+
+Goal: Keep the Darcula-style neutral shell, but restore clearer semantic differentiation between specs, approvals, and implementation without adding more chrome.
+
+Implemented:
+- Added semantic renderer tokens in `apps/desktop/src/renderer/styles.css` for:
+  - spec/info blue
+  - design/document violet
+  - approval/action amber
+  - implementation/success green
+- Applied those tokens to the existing shell instead of inventing new UI structure:
+  - work-mode tabs now keep a cooler blue for `Specs` and a warmer amber for `Inbox` / `Approvals`
+  - inbox callout and queue rows now tint by item meaning rather than sharing one generic accent
+  - spec/document badges, selected spec tabs, approval queue pills, and approval comment highlights now use phase-aware tones
+  - command palette rows now inherit category-aware accents through data attributes instead of one flat active state
+- Reduced theme drift by moving a few remaining review/editor surfaces back onto renderer tokens:
+  - project trigger open state
+  - editor focus state
+  - markdown inline-code and code-block surfaces
+  - blockquote accent borders
+- Followed up with a contrast correction pass after the first Darcula attempt still looked too muddy against the desired IDE-like reference:
+  - shifted the base theme from brownish Darcula toward a cooler graphite/slate dark palette
+  - raised primary, secondary, and muted text significantly
+  - made panels, controls, editor surfaces, and palette layers more solid and less translucent
+  - strengthened borders so cards, controls, and inputs separate cleanly from the app background
+
 ## Current Progress Checklist
 
 - [x] Decide to pursue Electron-first rewrite.

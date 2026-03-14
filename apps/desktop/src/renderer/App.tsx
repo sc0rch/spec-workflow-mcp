@@ -969,6 +969,7 @@ export function App() {
                   <button
                     aria-pressed={activeMode === mode.id}
                     className={`mode-tab ${activeMode === mode.id ? 'mode-tab-active' : ''}`}
+                    data-mode={mode.id}
                     key={mode.id}
                     onClick={() => {
                       setActiveMode(mode.id);
@@ -1247,7 +1248,11 @@ function renderInboxMode(
         </span>
       </div>
       {nextAction ? (
-        <div className="inbox-callout">
+        <div
+          className="inbox-callout"
+          data-kind={nextAction.kind}
+          data-tone={nextAction.badgeClassName}
+        >
           <div>
             <p className="callout-prefix">Next</p>
             <strong className="callout-title">{nextAction.title}</strong>
@@ -1272,6 +1277,8 @@ function renderInboxMode(
           {visibleInboxItems.map((item) => (
             <button
               className="queue-item"
+              data-kind={item.kind}
+              data-tone={item.badgeClassName}
               key={item.id}
               onClick={item.onSelect}
               type="button"
