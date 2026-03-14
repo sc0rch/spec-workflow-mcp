@@ -358,6 +358,8 @@ export function App() {
     : null;
   const hasShellIssues = Boolean(bridgeError || workspaceError || shellState.issues.length > 0);
   const mcpVisibility = createMcpVisibility(shellState);
+  const shellStatusLabel = (isHydrated ? shellState.statusLabel : 'Status: Loading shell')
+    .replace(/^Status:\s*/, '');
 
   const toggleDiagnostics = useEffectEvent(() => {
     setIsDiagnosticsOpen((currentState) => !currentState);
@@ -760,29 +762,34 @@ export function App() {
           <h1>Spec Workflow Desktop</h1>
         </div>
         <div className="shell-header-actions">
-          <span className="status-pill">{isHydrated ? shellState.statusLabel : 'Status: Loading shell'}</span>
-          <button
-            aria-label={isDiagnosticsOpen ? 'Hide MCP status' : 'Open MCP status'}
-            aria-pressed={isDiagnosticsOpen}
-            className={`secondary-action shell-status-button ${isDiagnosticsOpen ? 'shell-status-button-active' : ''}`}
-            onClick={() => {
-              toggleDiagnostics();
-            }}
-            type="button"
-          >
-            <span>MCP</span>
-            <span className={`badge ${mcpVisibility.badgeClassName}`}>{mcpVisibility.summaryLabel}</span>
-          </button>
-          <button
-            className="secondary-action command-trigger"
-            onClick={() => {
-              openPalette();
-            }}
-            type="button"
-          >
-            <span>Command</span>
-            <kbd>⌘K</kbd>
-          </button>
+          <div className="shell-utility-strip">
+            <span className="status-pill">
+              <span className="utility-label">Status</span>
+              <strong className="utility-value">{shellStatusLabel}</strong>
+            </span>
+            <button
+              aria-label={isDiagnosticsOpen ? 'Hide MCP status' : 'Open MCP status'}
+              aria-pressed={isDiagnosticsOpen}
+              className={`secondary-action shell-status-button ${isDiagnosticsOpen ? 'shell-status-button-active' : ''}`}
+              onClick={() => {
+                toggleDiagnostics();
+              }}
+              type="button"
+            >
+              <span className="utility-label">MCP</span>
+              <span className="utility-value">{mcpVisibility.summaryLabel}</span>
+            </button>
+            <button
+              className="secondary-action command-trigger"
+              onClick={() => {
+                openPalette();
+              }}
+              type="button"
+            >
+              <span className="utility-label">Palette</span>
+              <kbd>⌘K</kbd>
+            </button>
+          </div>
           <button
             className="primary-action"
             disabled={!canPickProject || isPickingProject}
@@ -801,11 +808,13 @@ export function App() {
           <article className="panel rail-projects">
             <div className="section-header">
               <h2>Projects</h2>
-              <span className="section-meta">{activeProject ? 'Ready' : 'Empty'}</span>
+              <span className="section-meta">
+                {shellState.projects.length > 0 ? `${shellState.projects.length} saved` : 'None'}
+              </span>
             </div>
             {shellState.projects.length === 0 ? (
               <p className="panel-copy">
-                No remembered projects yet. Add a repo once and it stays recoverable after restart.
+                No saved projects yet. Add a repo once and it stays recoverable after restart.
               </p>
             ) : (
               <div aria-label="Remembered projects" className="project-list" role="list">
@@ -884,7 +893,7 @@ export function App() {
                     <span className="badge badge-neutral">{activeProject.gitBranch}</span>
                   ) : null}
                   <span className={`badge badge-${activeProject.connectionState}`}>
-                    {activeProject.connectionState === 'live' ? 'Live MCP attached' : 'Recovered from memory'}
+                    {activeProject.connectionState === 'live' ? 'Live' : 'Remembered'}
                   </span>
                 </div>
               </div>

@@ -269,7 +269,7 @@ describe('App', () => {
     ).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'Inbox' })).toBeInTheDocument();
     expect(
-      screen.getByText('Status: Project ready')
+      screen.getByText('Project ready')
     ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: /repo-a 2/i })
@@ -333,7 +333,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Open MCP status' }));
 
     expect(await screen.findAllByText('Waiting')).toHaveLength(2);
-    expect(screen.getByText('Remembered')).toBeInTheDocument();
+    expect(screen.getAllByText('Remembered')).toHaveLength(2);
     expect(
       screen.getByText('Open a remembered project in Codex and run a tool or prompt to attach a live MCP session.')
     ).toBeInTheDocument();

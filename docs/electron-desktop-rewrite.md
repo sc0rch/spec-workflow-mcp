@@ -2,7 +2,7 @@
 
 Last updated: 2026-03-14
 Status: Milestone 14 complete
-Current focus: Core rewrite milestones are complete. Further browser-dashboard cleanup is opportunistic maintenance only and should not expand the legacy surface again.
+Current focus: Core rewrite milestones are complete. Post-roadmap Electron refinements are now focused on strengthening the desktop shell's visual identity without falling back into generic AI-dark devtool patterns, while browser cleanup stays opportunistic only.
 
 ## Purpose
 
@@ -286,6 +286,42 @@ This document is the working source of truth for the rewrite. Update it after ea
 - Residual risks called out by the review:
   - `/logs` remains a deep-link/debug route without browser-level e2e coverage for direct URL entry plus back/forward navigation
   - removed-route coverage is still representative rather than exhaustive, so future deletions should continue extending the dedicated regression test
+
+### Latest post-roadmap quieter pass for Electron shell
+
+- A quieter-pass was applied to the Electron renderer after the design critique identified too much same-weight shell chrome competing with active work.
+- The refinement intentionally targeted shell intensity, not workflow structure:
+  - header utilities were regrouped into a quieter status / MCP / palette strip
+  - status copy was shortened from verbose runtime labels to calmer utility labels
+  - project rail chrome was softened and the section meta was reduced to saved-project count
+  - work-mode tabs were flattened into a lighter navigation strip instead of three equally heavy boxed controls
+  - panel borders, fills, command-palette backdrop, and accent saturation were all reduced so the editor/review surfaces stay visually primary
+  - top-level connection-state copy was shortened from `Live MCP attached` / `Recovered from memory` to `Live` / `Remembered`
+- Verification for this pass:
+  - `npm --prefix apps/desktop run test`
+  - `npm --prefix apps/desktop run lint`
+  - `npm --prefix apps/desktop run build`
+- Current environment note:
+  - `npm --prefix apps/desktop run test:e2e` is currently blocked by an already-running Electron desktop instance, so Playwright launches exit immediately on the single-instance lock instead of exercising the shell
+
+### Latest post-roadmap bolder pass for Electron shell
+
+- A follow-up bolder-pass was applied after the quieter pass reduced noise but still left the shell feeling too safe and too close to generic teal-on-dark developer tooling.
+- The direction for this pass was deliberately narrow:
+  - keep shell chrome relatively restrained
+  - make active project context, next-action callout, and review/editor surfaces feel more confident and memorable
+  - shift the shell away from the earlier cool-teal palette into a warmer industrial/editorial tone
+- Implemented changes:
+  - moved the desktop palette from cool teal neutrals to warmer rust/copper-tinted neutrals and accents
+  - added a subtle background grid/field treatment so the shell no longer floats on a flat anonymous dark canvas
+  - enlarged the active project title and gave the workspace head a stronger editorial anchor
+  - turned the inbox callout into a true focal moment with stronger contrast, larger title, and an accent rail
+  - made selected project and approval states feel more intentional through stronger edge treatment instead of generic fill-only highlighting
+  - deepened editor/review surfaces so they read more like working panes than standard dark textareas
+- Verification for this pass:
+  - `npm --prefix apps/desktop run test`
+  - `npm --prefix apps/desktop run lint`
+  - `npm --prefix apps/desktop run build`
 
 ### Review cadence
 

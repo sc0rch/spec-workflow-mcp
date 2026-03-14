@@ -50,3 +50,34 @@
 
 - For the Electron rewrite, use `docs/electron-desktop-rewrite.md` as the canonical roadmap and progress checklist.
 - When work meaningfully advances or direction changes, update that file in the same turn so future sessions can resume from it directly.
+
+## Design Context
+
+### Users
+Primary users are solo developers and team leads working in spec-driven development workflows.
+They use the product to organize projects/specifications, review and approve work, and move tasks forward with low overhead.
+Core job to be done: turn requirements into implemented work with fast navigation, clear status visibility, and minimal friction.
+
+### Brand Personality
+Headache-free, spec-driven workflow.
+Voice and tone should feel calm, technical, practical, and trustworthy.
+Emotional target: calm confidence while making progress through complex technical work.
+
+### Aesthetic Direction
+Use a clean, readable, technical interface with practical UX choices.
+Reference direction:
+- Mail apps mental model: projects as folders, specs as letters, easy text selection/commenting/reply actions.
+- Codex app qualities: readable layout, clean hierarchy, technical clarity, pragmatic controls, theme-aware behavior.
+Anti-direction:
+- Avoid over-designed navigation.
+- Avoid workflows that require too many clicks for simple actions.
+Theme direction:
+- Prioritize dark mode first.
+- Keep theme support extensible for light/dark parity over time.
+
+### Design Principles
+1. Keep navigation shallow and direct: common actions should be reachable in one to two interactions.
+2. Optimize for readability first: clear hierarchy, strong contrast in dark mode, and disciplined information density.
+3. Make review and response workflows effortless: selecting text, commenting, and sending responses should feel immediate.
+4. Prefer practical UI over decorative UI: every component must earn its place by reducing effort or ambiguity.
+5. Preserve user control and comfort: support keyboard-driven font size adjustment in the Electron app.
