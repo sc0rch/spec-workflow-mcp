@@ -38,6 +38,14 @@ export interface DesktopProjectSummary {
     readonly displayName: string;
     readonly createdAt: string;
   } | undefined;
+  readonly pendingApprovalCount: number;
+  readonly latestImplementation?: {
+    readonly taskId: string;
+    readonly summary: string;
+    readonly timestamp: string;
+    readonly specName: string;
+    readonly specDisplayName: string;
+  } | undefined;
   readonly instanceCount: number;
 }
 
@@ -60,6 +68,7 @@ export interface DesktopApi {
   getRuntimeInfo(): DesktopRuntimeInfo;
   getShellState(): Promise<DesktopShellState>;
   pickProjectDirectory(): Promise<ProjectSelectionResult>;
+  rememberProjectPath(projectPath: string): Promise<void>;
   forgetProject(projectId: string): Promise<void>;
   onShellStateChanged(listener: (nextState: DesktopShellState) => void): () => void;
 }
@@ -67,6 +76,7 @@ export interface DesktopApi {
 export const desktopChannels = {
   getShellState: 'desktop:get-shell-state',
   pickProjectDirectory: 'desktop:pick-project-directory',
+  rememberProjectPath: 'desktop:remember-project-path',
   forgetProject: 'desktop:forget-project',
   shellStateChanged: 'desktop:shell-state-changed'
 } as const;

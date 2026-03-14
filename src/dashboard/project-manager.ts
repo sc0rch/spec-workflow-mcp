@@ -3,7 +3,7 @@ import chokidar from 'chokidar';
 import { join } from 'path';
 import { SpecParser } from '../core/parser.js';
 import { SpecWatcher } from './watcher.js';
-import { ApprovalStorage } from './approval-storage.js';
+import { ApprovalStorage } from '../core/approval-storage.js';
 import { SpecArchiveService } from '../core/archive-service.js';
 import { ProjectRegistry, ProjectRegistryEntry, ProjectInstance } from '../core/project-registry.js';
 import { RememberedProjectsStore } from '../core/remembered-projects.js';

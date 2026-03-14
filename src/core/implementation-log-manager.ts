@@ -9,11 +9,9 @@ import { randomUUID } from 'crypto';
  * in the spec's "Implementation Logs" directory
  */
 export class ImplementationLogManager {
-  private specPath: string;
   private logsDir: string;
 
   constructor(specPath: string) {
-    this.specPath = specPath;
     this.logsDir = join(specPath, 'Implementation Logs');
   }
 
@@ -26,25 +24,6 @@ export class ImplementationLogManager {
     } catch (error) {
       // Directory might already exist, ignore
     }
-  }
-
-  /**
-   * Parse markdown filename to extract taskId and entry ID
-   * Expected format: task-{sanitized-taskId}_{timestamp}_{id-prefix}.md
-   */
-  private parseFileName(fileName: string): { taskId?: string; id?: string } | null {
-    if (!fileName.endsWith('.md')) return null;
-
-    const baseName = fileName.slice(0, -3); // Remove .md extension
-    const parts = baseName.split('_');
-
-    if (parts.length < 3 || !parts[0].startsWith('task-')) return null;
-
-    // Reconstruct taskId from the first part (unsanitize)
-    const taskIdPart = parts[0].slice(5); // Remove 'task-' prefix
-    const taskId = taskIdPart.replace(/-/g, '.').replace(/\.{2,}/g, '.'); // Simple unsanitization
-
-    return { taskId };
   }
 
   /**
@@ -66,14 +45,15 @@ export class ImplementationLogManager {
 
       let currentSection = '';
       let currentArtifactType: keyof ImplementationLogEntry['artifacts'] | null = null;
-      let currentItem: any = {};
+      let currentItem: Record<string, unknown> = {};
 
       // Helper function to normalize markdown keys to camelCase
       const normalizeKey = (key: string): string => {
         // Convert "Key Name" to camelCase
         const words = key.toLowerCase().trim().split(/\s+/);
-        if (words.length === 0) return '';
-        return words[0] + words.slice(1).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+        const [firstWord, ...remainingWords] = words;
+        if (!firstWord) return '';
+        return firstWord + remainingWords.map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('');
       };
 
       // Helper function to map markdown property names to TypeScript interface property names
@@ -85,7 +65,7 @@ export class ImplementationLogManager {
       };
 
       // Helper function to convert string values to appropriate types
-      const convertValue = (key: string, value: string): any => {
+      const convertValue = (value: string): unknown => {
         // Convert Yes/No to boolean
         if (value === 'Yes' || value === 'yes') return true;
         if (value === 'No' || value === 'no') return false;
@@ -100,42 +80,60 @@ export class ImplementationLogManager {
       const parseKeyValue = (line: string): { key: string; value: string } | null => {
         // Match pattern: "- **Key:** value" (asterisks close AFTER colon)
         const match = line.match(/^- \*\*([^:]+):\*\* (.*)$/);
-        if (match) {
+        const [, rawKey, rawValue] = match ?? [];
+        if (rawKey && rawValue !== undefined) {
           return {
-            key: normalizeKey(match[1]),
-            value: match[2].trim()
+            key: normalizeKey(rawKey),
+            value: rawValue.trim()
           };
         }
         return null;
       };
 
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
+      const pushCurrentArtifactItem = (): void => {
+        if (!currentArtifactType || Object.keys(currentItem).length === 0) {
+          return;
+        }
+
+        const artifactMap = artifacts as Partial<
+          Record<keyof ImplementationLogEntry['artifacts'], Array<Record<string, unknown>>>
+        >;
+        const existingArtifacts = artifactMap[currentArtifactType] ?? [];
+        existingArtifacts.push(currentItem);
+        artifactMap[currentArtifactType] = existingArtifacts;
+        currentItem = {};
+      };
+
+      for (const line of lines) {
 
         // Parse metadata
         if (line.includes('**Log ID:**')) {
-          idValue = line.split('**Log ID:**')[1]?.trim() || '';
+          const [, logId = ''] = line.split('**Log ID:**');
+          idValue = logId.trim();
         }
         if (line.startsWith('# Implementation Log: Task')) {
-          taskId = line.split('Task ')[1] || '';
+          const [, parsedTaskId = ''] = line.split('Task ');
+          taskId = parsedTaskId;
         }
         if (line.includes('**Summary:**')) {
-          summary = line.split('**Summary:**')[1]?.trim() || '';
+          const [, parsedSummary = ''] = line.split('**Summary:**');
+          summary = parsedSummary.trim();
         }
         if (line.includes('**Timestamp:**')) {
-          timestamp = line.split('**Timestamp:**')[1]?.trim() || new Date().toISOString();
+          const [, parsedTimestamp = ''] = line.split('**Timestamp:**');
+          timestamp = parsedTimestamp.trim() || new Date().toISOString();
         }
         if (line.includes('**Lines Added:**')) {
           const match = line.match(/\+(\d+)/);
-          linesAdded = match ? parseInt(match[1]) : 0;
+          linesAdded = parseInt(match?.[1] ?? '0', 10);
         }
         if (line.includes('**Lines Removed:**')) {
           const match = line.match(/-(\d+)/);
-          linesRemoved = match ? parseInt(match[1]) : 0;
+          linesRemoved = parseInt(match?.[1] ?? '0', 10);
         }
         if (line.includes('**Files Changed:**')) {
           const match = line.match(/(\d+)/);
-          filesChanged = match ? parseInt(match[1]) : 0;
+          filesChanged = parseInt(match?.[1] ?? '0', 10);
         }
 
         // Parse sections (## headers)
@@ -152,11 +150,7 @@ export class ImplementationLogManager {
         // Parse artifact subsections (### headers)
         else if (line.startsWith('### ')) {
           // Save previous item before switching artifact type
-          if (Object.keys(currentItem).length > 0 && currentArtifactType) {
-            if (!artifacts[currentArtifactType]) artifacts[currentArtifactType] = [];
-            (artifacts[currentArtifactType] as any).push(currentItem);
-            currentItem = {};
-          }
+          pushCurrentArtifactItem();
 
           const sectionName = line.slice(4).toLowerCase();
           if (sectionName.includes('api endpoint')) {
@@ -174,20 +168,17 @@ export class ImplementationLogManager {
         // Parse artifact item headers (#### for individual items)
         else if (line.startsWith('#### ') && currentArtifactType) {
           // Save previous item
-          if (Object.keys(currentItem).length > 0) {
-            if (!artifacts[currentArtifactType]) artifacts[currentArtifactType] = [];
-            (artifacts[currentArtifactType] as any).push(currentItem);
-          }
+          pushCurrentArtifactItem();
           currentItem = {};
 
           const itemHeader = line.slice(5).trim();
 
           // For API endpoints, extract method and path from header like "GET /api/users"
           if (currentArtifactType === 'apiEndpoints') {
-            const parts = itemHeader.split(' ');
-            if (parts.length >= 2) {
-              currentItem.method = parts[0];
-              currentItem.path = parts.slice(1).join(' ');
+            const [method, ...pathParts] = itemHeader.split(' ');
+            if (method && pathParts.length > 0) {
+              currentItem.method = method;
+              currentItem.path = pathParts.join(' ');
             } else {
               currentItem.name = itemHeader;
             }
@@ -218,7 +209,7 @@ export class ImplementationLogManager {
               currentItem[mappedKey] = items;
             } else {
               // Convert value to appropriate type (Yes/No → boolean, N/A → empty string, etc.)
-              const convertedValue = convertValue(mappedKey, kv.value);
+              const convertedValue = convertValue(kv.value);
               currentItem[mappedKey] = convertedValue;
             }
           }
@@ -226,10 +217,7 @@ export class ImplementationLogManager {
       }
 
       // Save last artifact item
-      if (Object.keys(currentItem).length > 0 && currentArtifactType) {
-        if (!artifacts[currentArtifactType]) artifacts[currentArtifactType] = [];
-        (artifacts[currentArtifactType] as any).push(currentItem);
-      }
+      pushCurrentArtifactItem();
 
       if (!taskId || !idValue) {
         return null;

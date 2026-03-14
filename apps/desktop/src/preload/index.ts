@@ -21,6 +21,9 @@ const api: DesktopApi = {
   async pickProjectDirectory() {
     return ipcRenderer.invoke(desktopChannels.pickProjectDirectory);
   },
+  async rememberProjectPath(projectPath) {
+    await ipcRenderer.invoke(desktopChannels.rememberProjectPath, projectPath);
+  },
   async forgetProject(projectId) {
     await ipcRenderer.invoke(desktopChannels.forgetProject, projectId);
   },

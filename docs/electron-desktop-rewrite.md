@@ -1,8 +1,8 @@
 # Electron Desktop Rewrite
 
 Last updated: 2026-03-14
-Status: Milestone 3 in progress
-Current focus: Finish approvals/log service extraction behind typed desktop boundaries and harden the new project catalog/home flow with deeper recovery coverage.
+Status: Milestone 5 in progress
+Current focus: Expand the new task-oriented desktop shell from project recovery into deeper project/spec/approval navigation while keeping the extracted domain services as the only workflow source of truth.
 
 ## Purpose
 
@@ -193,15 +193,15 @@ Exit criteria:
 Goal: Stop coupling new UI to legacy transport and page structure.
 
 - [x] Identify reusable workflow modules from current codebase.
-- [ ] Extract or wrap reusable logic for:
+- [x] Extract or wrap reusable logic for:
   - [x] remembered projects
   - [x] project binding/path logic for manual desktop project registration
   - [x] spec parsing
-  - [ ] approvals storage
-  - [ ] implementation logs
+  - [x] approvals storage
+  - [x] implementation logs
 - [x] Create typed desktop service interfaces for renderer use.
-- [ ] Add unit tests for each extracted service boundary.
-- [ ] Remove accidental dependencies on HTTP route handlers from new code.
+- [x] Add unit tests for each extracted service boundary.
+- [x] Remove accidental dependencies on HTTP route handlers from new code.
 
 Implemented so far:
 - Removed duplicate `SpecParser` implementations and kept one canonical parser in `src/core/parser.ts`.
@@ -209,7 +209,9 @@ Implemented so far:
 - Refactored dashboard `ProjectManager` to consume the extracted catalog service instead of duplicating merge/add/remove behavior.
 - Wired desktop `main -> preload -> renderer` through a typed project catalog contract so the Electron shell now reads remembered/live projects through domain services, not ad-hoc UI state.
 - Hardened `src/core/task-parser.ts` to satisfy strict desktop compilation once shared core modules became part of the Electron runtime build.
-- Added focused tests for the extracted project catalog service and parser unification behavior.
+- Moved `ApprovalStorage` and `ImplementationLogManager` into `src/core/`, fixed them up for strict desktop builds, and updated dashboard/tool imports to use the new canonical module locations.
+- Added `ProjectActivityService` in `src/core/project-activity.ts` so project-level approval and implementation summaries can be derived without touching legacy dashboard transport.
+- Added focused tests for the extracted project catalog, project activity, implementation log manager, and approval path-resolution behavior.
 
 Exit criteria:
 - New desktop code calls services, not legacy page/server code.
@@ -227,12 +229,14 @@ Goal: Make startup and restart recovery feel native and immediate.
 - [x] Support forget/remove project behavior.
 - [x] Show disconnected vs live MCP state clearly.
 - [x] Add empty state that does not require manual path typing.
-- [ ] Cover add/remove/restart recovery with e2e tests.
+- [x] Cover add/remove/restart recovery with e2e tests.
 
 Implemented so far:
 - Desktop renderer now shows a real project home with remembered/live projects, latest spec, git branch, workflow root, and a native add-project action.
 - Forget/remove is routed through the typed desktop bridge and updates persisted remembered-project state.
 - Desktop shell refreshes project catalog state on launch and focus, so restart recovery and MCP visibility now appear in the native UI instead of the legacy dashboard only.
+- Desktop shell now exposes a typed `rememberProjectPath()` bridge path that backs native picker persistence and future drag/drop or deep-link entrypoints without reintroducing manual path UX.
+- Electron e2e now verifies remembered project restoration after restart and forget persistence across relaunches with real workflow data on disk.
 
 Exit criteria:
 - Restarting the app still shows the user's project list.
@@ -242,14 +246,20 @@ Exit criteria:
 
 Goal: Replace the current tab-heavy dashboard with a task-oriented layout.
 
-- [ ] Define new information architecture:
+- [x] Define new information architecture:
   - left rail for projects/navigation
   - center workspace for current work
   - right detail/action panel
-- [ ] Implement a compact navigation model around work modes, not legacy tabs.
-- [ ] Add keyboard-friendly project and spec switching.
-- [ ] Reduce modal/page churn for common flows.
-- [ ] Keep renderer state local and explicit; avoid global state sprawl.
+- [x] Implement a compact navigation model around work modes, not legacy tabs.
+- [-] Add keyboard-friendly project and spec switching.
+- [-] Reduce modal/page churn for common flows.
+- [x] Keep renderer state local and explicit; avoid global state sprawl.
+
+Implemented so far:
+- Rebuilt the desktop renderer into a three-zone shell with a project rail, central workspace, and details column instead of the earlier flat card grid.
+- Added mode-based workspace navigation for `Overview`, `Specs`, `Approvals`, and `Activity`, so current work moves through explicit work modes instead of old dashboard tabs.
+- Added keyboard shortcuts for mode switching (`1-4`) and project switching (`J/K`) as the first step toward keyboard-heavy desktop flows.
+- Kept selection and view mode local to the renderer while continuing to derive all project/workflow data from the typed desktop bridge.
 
 Exit criteria:
 - User can move between project, spec, tasks, approvals, and logs with substantially fewer clicks.
@@ -332,7 +342,11 @@ Exit criteria:
 - [x] Decide `v1` keeps Codex-launched MCP.
 - [x] Add this roadmap file as canonical rewrite plan.
 - [x] Add a pointer to this roadmap in repo instructions.
-- [ ] Start Milestone 1.
+- [x] Start Milestone 1.
+- [x] Complete Milestone 2.
+- [x] Complete Milestone 3.
+- [x] Complete Milestone 4.
+- [-] Start Milestone 5.
 
 ## Update Protocol
 

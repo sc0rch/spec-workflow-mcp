@@ -9,6 +9,7 @@ export default [
       'dist/**',
       'node_modules/**',
       'release/**',
+      '.tmp-desktop-e2e/**',
       'playwright-report/**',
       'test-results/**'
     ]

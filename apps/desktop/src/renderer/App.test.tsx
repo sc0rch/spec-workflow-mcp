@@ -35,6 +35,14 @@ const shellState: DesktopShellState = {
         displayName: 'Alpha Spec',
         createdAt: '2026-03-14T09:00:00.000Z'
       },
+      pendingApprovalCount: 2,
+      latestImplementation: {
+        taskId: '1.2',
+        summary: 'Added project home recovery state',
+        timestamp: '2026-03-14T11:15:00.000Z',
+        specName: 'desktop-rewrite',
+        specDisplayName: 'Desktop Rewrite'
+      },
       instanceCount: 1
     }
   ]
@@ -63,7 +71,10 @@ describe('App', () => {
       screen.getByText('Status: Project ready')
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: 'repo-a' })
+      screen.getByRole('button', { name: /repo-a \/tmp\/repo-a/i })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('2 approvals')
     ).toBeInTheDocument();
   });
 
@@ -97,6 +108,18 @@ describe('App', () => {
 
     expect(forgetProject).toHaveBeenCalledWith('project-a');
   });
+
+  it('switches workspace modes without leaving the desktop shell', async () => {
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await screen.findByText('Alpha Spec');
+    await user.keyboard('3');
+
+    expect(await screen.findByText('Approval inbox')).toBeInTheDocument();
+    expect(await screen.findByText('2 items waiting for review')).toBeInTheDocument();
+  });
 });
 
 function createDesktopApiMock(
@@ -109,6 +132,7 @@ function createDesktopApiMock(
       canceled: true,
       path: null
     }),
+    rememberProjectPath: vi.fn().mockResolvedValue(undefined),
     forgetProject: vi.fn().mockResolvedValue(undefined),
     onShellStateChanged: vi.fn().mockReturnValue(() => undefined),
     ...overrides

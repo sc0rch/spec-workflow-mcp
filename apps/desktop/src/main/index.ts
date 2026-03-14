@@ -1,15 +1,17 @@
 import { app } from 'electron';
 import type { DesktopRuntimeInfo } from '../shared/desktop-api.js';
 import { DesktopShell } from './services/desktop-shell.js';
+import { configureDesktopStorageRoot } from './storage-root.js';
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
   app.quit();
 } else {
+  const storageRoot = configureDesktopStorageRoot(app);
   const shell = new DesktopShell({
     rendererUrl: process.env.SPEC_WORKFLOW_DESKTOP_RENDERER_URL,
     runtimeInfo: createRuntimeInfo(),
-    storageRoot: app.getPath('userData')
+    storageRoot
   });
 
   app.on('second-instance', () => {

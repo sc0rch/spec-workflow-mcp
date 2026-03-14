@@ -3,7 +3,7 @@ import { promises as fs } from 'fs';
 import { join, isAbsolute, resolve, basename } from 'path';
 import chokidar from 'chokidar';
 import { diffLines, Change } from 'diff';
-import { PathUtils } from '../core/path-utils.js';
+import { PathUtils } from './path-utils.js';
 
 export interface ApprovalComment {
   type: 'selection' | 'general';
@@ -106,7 +106,7 @@ export class ApprovalStorage extends EventEmitter {
   public originalProjectPath: string; // Original workflow root path for display/registry
   public fileResolutionPath: string; // Base path for resolving approval filePath artifacts
   private approvalsDir: string;
-  private watcher?: chokidar.FSWatcher;
+  private watcher: chokidar.FSWatcher | undefined;
   private pendingEmit: NodeJS.Timeout | null = null;
   private readonly DEBOUNCE_MS = 500;
 
@@ -285,10 +285,12 @@ export class ApprovalStorage extends EventEmitter {
       type,
       status: 'pending',
       createdAt: new Date().toISOString(),
-      metadata,
       category,
       categoryName
     };
+    if (metadata) {
+      approval.metadata = metadata;
+    }
 
     // Create category directory if it doesn't exist
     const categoryDir = join(this.approvalsDir, categoryName);
@@ -372,11 +374,17 @@ export class ApprovalStorage extends EventEmitter {
 
     approval.status = status;
     approval.response = response;
-    approval.annotations = annotations;
     approval.respondedAt = new Date().toISOString();
+    if (annotations !== undefined) {
+      approval.annotations = annotations;
+    } else {
+      delete approval.annotations;
+    }
 
     if (comments) {
       approval.comments = comments;
+    } else {
+      delete approval.comments;
     }
 
     const filePath = await this.findApprovalPath(id);
@@ -443,22 +451,25 @@ export class ApprovalStorage extends EventEmitter {
     }
 
     const version = (originalApproval.revisionHistory.length || 0) + 1;
-    originalApproval.revisionHistory.push({
+    const revisionEntry: NonNullable<ApprovalRequest['revisionHistory']>[number] = {
       version: version - 1,
       content: currentContent,
-      timestamp: originalApproval.respondedAt || originalApproval.createdAt,
-      reason: reason
-    });
+      timestamp: originalApproval.respondedAt || originalApproval.createdAt
+    };
+    if (reason !== undefined) {
+      revisionEntry.reason = reason;
+    }
+    originalApproval.revisionHistory.push(revisionEntry);
 
     // Write the new content to the file
     await fs.writeFile(filePath, newContent, 'utf-8');
 
     // Reset approval status for re-review
     originalApproval.status = 'pending';
-    originalApproval.response = undefined;
-    originalApproval.annotations = undefined;
-    originalApproval.comments = undefined;
-    originalApproval.respondedAt = undefined;
+    delete originalApproval.response;
+    delete originalApproval.annotations;
+    delete originalApproval.comments;
+    delete originalApproval.respondedAt;
 
     const approvalFilePath = await this.findApprovalPath(originalId);
     if (!approvalFilePath) {
@@ -630,9 +641,11 @@ export class ApprovalStorage extends EventEmitter {
         lines: content.split('\n').length,
         lastModified: stats.mtime.toISOString()
       },
-      comments: approval.comments || [],
-      annotations: approval.annotations || undefined
+      comments: approval.comments || []
     };
+    if (approval.annotations !== undefined) {
+      snapshot.annotations = approval.annotations;
+    }
 
     // Write snapshot to disk
     const snapshotPath = join(snapshotsDir, `${snapshotId}.json`);

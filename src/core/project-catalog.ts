@@ -2,6 +2,10 @@ import { access } from 'fs/promises';
 import { join } from 'path';
 import { SpecParser } from './parser.js';
 import {
+  ProjectActivityService,
+  type ProjectLatestImplementation
+} from './project-activity.js';
+import {
   getCurrentGitBranch,
   resolveGitRoot,
   resolveGitWorkspaceRoot
@@ -35,20 +39,25 @@ export interface ProjectCatalogEntry {
   lastSeenAt: string | null;
   gitBranch?: string | undefined;
   latestSpec?: ProjectCatalogLatestSpec | undefined;
+  pendingApprovalCount: number;
+  latestImplementation?: ProjectLatestImplementation | undefined;
 }
 
 export interface ProjectCatalogServiceOptions {
   registry?: ProjectRegistry;
   rememberedProjects?: RememberedProjectsStore;
+  projectActivity?: ProjectActivityService;
 }
 
 export class ProjectCatalogService {
   private readonly registry: ProjectRegistry;
   private readonly rememberedProjects: RememberedProjectsStore;
+  private readonly projectActivity: ProjectActivityService;
 
   constructor(options: ProjectCatalogServiceOptions = {}) {
     this.registry = options.registry ?? new ProjectRegistry();
     this.rememberedProjects = options.rememberedProjects ?? new RememberedProjectsStore();
+    this.projectActivity = options.projectActivity ?? new ProjectActivityService();
   }
 
   async cleanupStaleProjects(): Promise<number> {
@@ -144,7 +153,13 @@ export class ProjectCatalogService {
     const translatedWorkspacePath = PathUtils.translatePath(entry.projectPath);
     const translatedWorkflowRootPath = PathUtils.translatePath(entry.workflowRootPath);
     const parser = new SpecParser(translatedWorkflowRootPath);
-    const latestSpec = await this.computeLatestSpec(parser);
+    const [latestSpec, activity] = await Promise.all([
+      this.computeLatestSpec(parser),
+      this.projectActivity.getProjectActivity({
+        translatedWorkflowRootPath,
+        translatedWorkspacePath
+      })
+    ]);
 
     return {
       projectId: entry.projectId,
@@ -157,7 +172,9 @@ export class ProjectCatalogService {
       addedAt: rememberedEntry?.addedAt ?? null,
       lastSeenAt: rememberedEntry?.lastSeenAt ?? null,
       gitBranch: getCurrentGitBranch(translatedWorkspacePath),
-      latestSpec
+      latestSpec,
+      pendingApprovalCount: activity.pendingApprovalCount,
+      latestImplementation: activity.latestImplementation
     };
   }
 

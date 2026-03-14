@@ -4,7 +4,7 @@ import net from 'net';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { MultiProjectDashboardServer } from '../multi-server.js';
-import { ApprovalStorage } from '../approval-storage.js';
+import { ApprovalStorage } from '../../core/approval-storage.js';
 import { ProjectRegistry, generateProjectId } from '../../core/project-registry.js';
 import { SPEC_WORKFLOW_HOME_ENV } from '../../core/global-dir.js';
 

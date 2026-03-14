@@ -93,6 +93,7 @@ export class DesktopShell {
     if (this.isIpcRegistered) {
       ipcMain.removeHandler(desktopChannels.getShellState);
       ipcMain.removeHandler(desktopChannels.pickProjectDirectory);
+      ipcMain.removeHandler(desktopChannels.rememberProjectPath);
       ipcMain.removeHandler(desktopChannels.forgetProject);
       this.isIpcRegistered = false;
     }
@@ -105,6 +106,9 @@ export class DesktopShell {
 
     ipcMain.handle(desktopChannels.getShellState, async () => this.shellState);
     ipcMain.handle(desktopChannels.pickProjectDirectory, async () => this.pickProjectDirectory());
+    ipcMain.handle(desktopChannels.rememberProjectPath, async (_event, projectPath: string) => {
+      await this.rememberProjectPath(projectPath);
+    });
     ipcMain.handle(desktopChannels.forgetProject, async (_event, projectId: string) => {
       await this.forgetProject(projectId);
     });
@@ -196,7 +200,17 @@ export class DesktopShell {
       };
     }
 
-    const rememberedProject = await this.projectCatalog.addProjectByPath(selectedPath);
+    await this.rememberProjectPath(selectedPath);
+    this.focusWindow();
+
+    return {
+      canceled: false,
+      path: selectedPath
+    };
+  }
+
+  private async rememberProjectPath(projectPath: string): Promise<void> {
+    const rememberedProject = await this.projectCatalog.addProjectByPath(projectPath);
     const selectedProjectPath = rememberedProject.workspacePath;
     this.updateShellState({
       selectedProjectPath,
@@ -218,13 +232,6 @@ export class DesktopShell {
         message: createStorageIssueMessage(error)
       });
     }
-
-    this.focusWindow();
-
-    return {
-      canceled: false,
-      path: selectedProjectPath
-    };
   }
 
   private async forgetProject(projectId: string): Promise<void> {
@@ -372,6 +379,8 @@ function mapProjectSummary(project: Awaited<ReturnType<ProjectCatalogService['ge
     lastSeenAt: project.lastSeenAt,
     gitBranch: project.gitBranch,
     latestSpec: project.latestSpec,
+    pendingApprovalCount: project.pendingApprovalCount,
+    latestImplementation: project.latestImplementation,
     instanceCount: project.instances.length
   };
 }

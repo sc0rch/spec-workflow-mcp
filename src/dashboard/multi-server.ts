@@ -12,7 +12,7 @@ import { validateAndCheckPort, DASHBOARD_TEST_MESSAGE } from './utils.js';
 import { parseTasksFromMarkdown } from '../core/task-parser.js';
 import { ProjectManager } from './project-manager.js';
 import { JobScheduler } from './job-scheduler.js';
-import { ImplementationLogManager } from './implementation-log-manager.js';
+import { ImplementationLogManager } from '../core/implementation-log-manager.js';
 import { DashboardSessionManager } from '../core/dashboard-session.js';
 import {
   getSecurityConfig,

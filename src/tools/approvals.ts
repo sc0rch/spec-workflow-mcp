@@ -1,6 +1,6 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { ToolContext, ToolResponse } from '../types.js';
-import { ApprovalStorage } from '../dashboard/approval-storage.js';
+import { ApprovalStorage } from '../core/approval-storage.js';
 import { join, isAbsolute } from 'path';
 import { validateTasksMarkdown, formatValidationErrors } from '../core/task-validator.js';
 import { validateMarkdownForMdx, formatMdxValidationIssues } from '../core/mdx-validator.js';
