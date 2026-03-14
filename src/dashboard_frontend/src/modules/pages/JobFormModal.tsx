@@ -11,6 +11,16 @@ interface JobFormModalProps {
   isLoading?: boolean;
 }
 
+interface JobFormData {
+  id: string;
+  name: string;
+  type: AutomationJob['type'];
+  enabled: boolean;
+  daysOld: number;
+  schedule: string;
+  createdAt: string;
+}
+
 // Common cron presets
 const CRON_PRESETS = [
   { label: 'Daily at 2 AM', value: '0 2 * * *' },
@@ -46,7 +56,7 @@ export function JobFormModal({ isOpen, onClose, onSubmit, initialJob, isLoading 
   const { t } = useTranslation();
   const isEditMode = !!initialJob;
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<JobFormData>({
     id: '',
     name: '',
     type: 'cleanup-approvals' as const,

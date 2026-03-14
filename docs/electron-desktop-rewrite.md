@@ -1,8 +1,8 @@
 # Electron Desktop Rewrite
 
 Last updated: 2026-03-14
-Status: Milestone 13 complete
-Current focus: Advance Milestone 14 by removing more browser-only landing/admin surface and keeping the legacy dashboard as a narrow compatibility/debugging interface.
+Status: Milestone 14 in progress
+Current focus: Re-evaluate the remaining browser-only automation/settings surface now that shell, notification, route-removal, and list-only task flows have explicit regression guardrails.
 
 ## Purpose
 
@@ -172,6 +172,41 @@ This document is the working source of truth for the rewrite. Update it after ea
   - the legacy signal should behave like a compact status marker, not a campaign panel
 - Those notes directly drove the density pass that reduced the browser notice to a compact inline legacy marker and removed terminal instructions from the UI surface.
 
+### Latest Opus checkpoint after browser-shell cleanup
+
+- Opus judged the browser legacy direction as correct and specific enough to keep trimming instead of redesigning:
+  - compact legacy notice, grouped workflow/utilities nav, and desktop-first empty-state copy are the right shape
+  - the browser surface now reads as secondary without pretending to be feature-parity with Electron
+- Remaining high-value cleanup called out by Opus:
+  - remove mobile-only settings UX from the legacy shell
+  - make the version badge static instead of a changelog modal trigger
+  - remove sidebar collapse/persistence chrome
+  - eventually strip notification-volume polish and Kanban-only UX if the browser surface still feels too productized
+- Those notes directly drove the next cleanup pass now implemented in Milestone 14.
+- A follow-up cleanup slice also removed notification-audio polish from the legacy browser shell instead of carrying it forward as a pseudo-product feature.
+
+### Latest gpt-5.3-codex baseline review
+
+- First whole-repository baseline code review is now part of the rewrite loop and has already been run in headless trust mode.
+- The first pass surfaced concrete issues instead of style-only commentary:
+  - runtime crash path in the legacy dashboard empty state because `AppInner` used `t(...)` without calling `useTranslation()`
+  - shared initial-load ref in `NotificationProvider` that coupled approvals bootstrap with task bootstrap
+  - stale frontend `getChangelog` API contract after the changelog modal was removed
+  - user-facing wording drift between CLI help and dashboard runtime logging
+- Immediate local fixes from that review are now implemented:
+  - restored `useTranslation()` inside `AppInner`
+  - split initial-load refs in `NotificationProvider`
+  - removed dead `getChangelog` frontend API surface
+  - aligned dashboard runtime log wording with the documented project-recovery behavior
+- Follow-up cleanup after that review kept the browser surface moving in the same direction:
+  - removed the `VolumeControl` UI from the legacy header
+  - deleted the browser-only notification sound/volume path from `NotificationProvider`
+  - deleted the unused `VolumeControl` component and CSS
+  - moved theme/language controls into the sidebar footer so mobile still has access without reviving the old settings drawer
+  - removed the stale `howler` dependency from the root package manifest/lock
+- Remaining review gap to address later:
+  - browser dashboard frontend still lacks focused component-level tests, and root `tsc` does not typecheck `src/dashboard_frontend/**`
+
 ### Review cadence
 
 - Ask Opus for UI/UX/design critique at the end of each major renderer milestone:
@@ -179,9 +214,22 @@ This document is the working source of truth for the rewrite. Update it after ea
   - after unified inbox
   - after spec workspace rewrite
   - after approval workflow rewrite
+- Run `gpt-5.3-codex` code review after each meaningful cleanup/refactor slice:
+  - prioritize bugs, regressions, weak boundaries, dead code, and missing tests
+  - prefer review prompts that ask for findings with file references and severity ordering
+  - treat the review as a gate before moving to the next milestone slice when practical
+- Periodically run a broader `gpt-5.3-codex` baseline review across the whole repository:
+  - after major milestone checkpoints
+  - when the rewrite changes both legacy and desktop surfaces in one pass
+  - before declaring a milestone complete
 - Preferred mechanism is to continue the same `cursor-agent` conversation with `--continue` or `--resume [chatId]`.
+- For unattended reviews, use headless `cursor-agent --print --trust --force ...` so Opus does not stall on internal shell approvals.
+- Use the same headless `cursor-agent --print --trust --force ...` flow for `gpt-5.3-codex` reviews so they can run unattended and be copied into the roadmap or chat summary.
 - If the previous chat cannot be resumed, pass the prior Opus critique back into the next prompt so review stays cumulative instead of reset.
 - Treat Opus design critique as a forcing function for direction, not as the source of truth for workflow behavior or domain rules.
+- Treat `gpt-5.3-codex` review findings as engineering quality input:
+  - fix confirmed issues immediately when the change is local and low-risk
+  - otherwise record them in the roadmap/current focus before continuing
 
 ## Target Architecture
 
@@ -562,6 +610,22 @@ Implemented:
 - Updated `README.md` to make the Electron desktop shell the preferred documented interface, move the browser dashboard into a legacy/secondary position, and keep bridge-based Codex setup in the primary onboarding path.
 - Added an explicit legacy notice inside the browser dashboard UI plus a secondary-label treatment in the sidebar so contributors and testers no longer confuse the browser surface for the primary product direction.
 - Removed the old browser `DashboardStatistics` landing page, redirected `/` to `/specs`, and dropped the statistics nav item so the legacy browser surface no longer opens like an admin overview by default.
+- Removed additional browser-only dead weight by deleting the unused `StatusFilterPills` component and leftover `temp_source_update.js` helper, and stripped noisy debug `console.log` traces out of the browser notification and kanban flows.
+- Flattened the legacy browser shell further by removing the donation CTA from the header, dropping sticky blur-heavy treatment, and rewriting the no-project empty state around desktop-first guidance instead of raw terminal commands.
+- Updated CLI help and the legacy-dashboard audit so browser-mode instructions no longer present the web dashboard as the default workflow or depend on per-project terminal launch examples.
+- Ran another Opus review in headless trust mode and used it to remove the browser-only mobile settings drawer, convert the version badge into static diagnostic text, delete the unused `ChangelogModal`, remove sidebar collapse/localStorage state, and make the compact legacy notice dismissible.
+- Split the legacy browser sidebar into explicit workflow vs utility sections while keeping the surface permanently expanded, so the information architecture now reflects compatibility/debugging use instead of a primary product shell.
+- Removed browser-only notification audio/volume controls from the legacy shell, simplifying `NotificationProvider` back to toast state/actions instead of keeping sound preferences and `Howler` wiring for a secondary debugging surface.
+- Removed the Kanban-only browser task board, deleted its `@dnd-kit/*` dependency chain, and kept `TasksPage` list-first so the legacy task flow no longer maintains a separate drag-and-drop interaction model.
+- Added explicit browser-frontend hardening with `tsconfig.dashboard.json`, `vitest.dashboard.config.ts`, and focused jsdom coverage for `App`, `LegacyDashboardNotice`, `PageNavigationSidebar`, and `NotificationProvider`.
+- Folded the new dashboard typecheck into the root `build` path and fixed the latent browser TS defects it surfaced in `api.tsx`, `useMDXEditorTheme.ts`, `JobFormModal.tsx`, `LogsPage.tsx`, and `TasksPage.tsx` instead of weakening the new guardrail.
+- Removed the dead browser changelog tail completely:
+  - deleted stale `changelog` / `volumeControl` locale blocks from every browser locale bundle
+  - removed unused changelog endpoints from `src/dashboard/multi-server.ts`
+  - removed the unused `captureApprovalSnapshot` browser API contract and the matching manual-snapshot HTTP endpoint
+- Added `src/dashboard/__tests__/multi-server-removed-routes.test.ts` so removed changelog routes stay unavailable and `/approvals/:id/snapshot` is locked to the new `Invalid action` behavior instead of silently surviving behind the generic approval-action route.
+- Added focused `TasksPage` regression coverage for the list-only browser task flow, including status filtering and description sort-order toggling after the Kanban removal.
+- Ran scoped `gpt-5.3-codex` reviews after both the hardening pass and the follow-up delete-pass; neither found concrete regressions, and the earlier residual `TasksPage` testing gap is now closed by focused list-flow coverage.
 
 Exit criteria:
 - The desktop app is the default documented interface.

@@ -705,14 +705,14 @@ export class MultiProjectDashboardServer {
           comments?: any[];
         };
 
-        const project = this.projectManager.getProject(projectId);
-        if (!project) {
-          return reply.code(404).send({ error: 'Project not found' });
-        }
-
         const validActions = ['approve', 'reject', 'needs-revision'];
         if (!validActions.includes(action)) {
           return reply.code(400).send({ error: 'Invalid action' });
+        }
+
+        const project = this.projectManager.getProject(projectId);
+        if (!project) {
+          return reply.code(404).send({ error: 'Project not found' });
         }
 
         // Convert action name to status value
@@ -958,21 +958,6 @@ export class MultiProjectDashboardServer {
       }
     });
 
-    // Manual snapshot capture
-    this.app.post('/api/projects/:projectId/approvals/:id/snapshot', async (request, reply) => {
-      const { projectId, id } = request.params as { projectId: string; id: string };
-      const project = this.projectManager.getProject(projectId);
-      if (!project) {
-        return reply.code(404).send({ error: 'Project not found' });
-      }
-      try {
-        await project.approvalStorage.captureSnapshot(id, 'manual');
-        return { success: true, message: 'Snapshot captured successfully' };
-      } catch (error: any) {
-        return reply.code(500).send({ error: `Failed to capture snapshot: ${error.message}` });
-      }
-    });
-
     // Get steering document
     this.app.get('/api/projects/:projectId/steering/:name', async (request, reply) => {
       const { projectId, name } = request.params as { projectId: string; name: string };
@@ -1206,56 +1191,6 @@ export class MultiProjectDashboardServer {
         return stats;
       } catch (error: any) {
         return reply.code(500).send({ error: `Failed to get implementation log stats: ${error.message}` });
-      }
-    });
-
-    // Project-specific changelog endpoint
-    this.app.get('/api/projects/:projectId/changelog/:version', async (request, reply) => {
-      const { version } = request.params as { version: string };
-
-      try {
-        const changelogPath = join(__dirname, '..', '..', 'CHANGELOG.md');
-        const content = await readFile(changelogPath, 'utf-8');
-
-        // Extract the section for the requested version
-        const versionRegex = new RegExp(`## \\[${version}\\][^]*?(?=## \\[|$)`, 'i');
-        const match = content.match(versionRegex);
-
-        if (!match) {
-          return reply.code(404).send({ error: `Changelog for version ${version} not found` });
-        }
-
-        return { content: match[0].trim() };
-      } catch (error: any) {
-        if (error.code === 'ENOENT') {
-          return reply.code(404).send({ error: 'Changelog file not found' });
-        }
-        return reply.code(500).send({ error: `Failed to fetch changelog: ${error.message}` });
-      }
-    });
-
-    // Global changelog endpoint
-    this.app.get('/api/changelog/:version', async (request, reply) => {
-      const { version } = request.params as { version: string };
-
-      try {
-        const changelogPath = join(__dirname, '..', '..', 'CHANGELOG.md');
-        const content = await readFile(changelogPath, 'utf-8');
-
-        // Extract the section for the requested version
-        const versionRegex = new RegExp(`## \\[${version}\\][^]*?(?=## \\[|$)`, 'i');
-        const match = content.match(versionRegex);
-
-        if (!match) {
-          return reply.code(404).send({ error: `Changelog for version ${version} not found` });
-        }
-
-        return { content: match[0].trim() };
-      } catch (error: any) {
-        if (error.code === 'ENOENT') {
-          return reply.code(404).send({ error: 'Changelog file not found' });
-        }
-        return reply.code(500).send({ error: `Failed to fetch changelog: ${error.message}` });
       }
     });
 

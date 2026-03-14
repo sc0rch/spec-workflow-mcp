@@ -121,7 +121,6 @@ type ApiActionsContextType = {
   getApprovalSnapshots: (id: string) => Promise<DocumentSnapshot[]>;
   getApprovalSnapshot: (id: string, version: number) => Promise<DocumentSnapshot>;
   getApprovalDiff: (id: string, fromVersion: number, toVersion?: number | 'current') => Promise<DiffResult>;
-  captureApprovalSnapshot: (id: string) => Promise<{ success: boolean; message: string }>;
   saveSpecDocument: (name: string, document: string, content: string) => Promise<{ ok: boolean; status: number }>;
   saveArchivedSpecDocument: (name: string, document: string, content: string) => Promise<{ ok: boolean; status: number }>;
   archiveSpec: (name: string) => Promise<{ ok: boolean; status: number }>;
@@ -131,7 +130,6 @@ type ApiActionsContextType = {
   addImplementationLog: (specName: string, logData: any) => Promise<{ ok: boolean; status: number; data?: any }>;
   getImplementationLogs: (specName: string, query?: { taskId?: string; search?: string }) => Promise<{ entries: ImplementationLogEntry[] }>;
   getImplementationLogStats: (specName: string, taskId: string) => Promise<any>;
-  getChangelog: (version: string) => Promise<{ content: string }>;
 };
 
 const ApiDataContext = createContext<ApiDataContextType | undefined>(undefined);
@@ -243,7 +241,7 @@ export function ApiProvider({ initial, projectId, children }: ApiProviderProps) 
     };
 
     const handleSteeringUpdate = (data: any) => {
-      setSteeringDocuments(prevDocs => {
+      setSteeringDocuments((prevDocs: ApiDataContextType['steeringDocuments']) => {
         // Simple deep equality check for steering documents
         if (JSON.stringify(prevDocs) === JSON.stringify(data)) {
           return prevDocs;
@@ -291,7 +289,6 @@ export function ApiProvider({ initial, projectId, children }: ApiProviderProps) 
         getApprovalSnapshots: async () => [],
         getApprovalSnapshot: async () => ({} as any),
         getApprovalDiff: async () => ({} as any),
-        captureApprovalSnapshot: async () => ({ success: false, message: 'No project selected' }),
         saveSpecDocument: async () => ({ ok: false, status: 400 }),
         saveArchivedSpecDocument: async () => ({ ok: false, status: 400 }),
         archiveSpec: async () => ({ ok: false, status: 400 }),
@@ -301,7 +298,6 @@ export function ApiProvider({ initial, projectId, children }: ApiProviderProps) 
         addImplementationLog: async () => ({ ok: false, status: 400 }),
         getImplementationLogs: async () => ({ entries: [] }),
         getImplementationLogStats: async () => ({}),
-        getChangelog: async () => ({ content: '' }),
       };
     }
 
@@ -324,7 +320,6 @@ export function ApiProvider({ initial, projectId, children }: ApiProviderProps) 
         const to = toVersion === undefined ? 'current' : toVersion;
         return getJson(`${prefix}/approvals/${encodeURIComponent(id)}/diff?from=${fromVersion}&to=${to}`);
       },
-      captureApprovalSnapshot: (id: string) => postJson(`${prefix}/approvals/${encodeURIComponent(id)}/snapshot`, {}),
       saveSpecDocument: (name: string, document: string, content: string) =>
         putJson(`${prefix}/specs/${encodeURIComponent(name)}/${encodeURIComponent(document)}`, { content }),
       saveArchivedSpecDocument: (name: string, document: string, content: string) =>
@@ -343,7 +338,6 @@ export function ApiProvider({ initial, projectId, children }: ApiProviderProps) 
         return getJson(url);
       },
       getImplementationLogStats: (specName: string, taskId: string) => getJson(`${prefix}/specs/${encodeURIComponent(specName)}/implementation-log/task/${encodeURIComponent(taskId)}/stats`),
-      getChangelog: (version: string) => getJson(`${prefix}/changelog/${encodeURIComponent(version)}`),
     };
   }, [projectId, reloadAll]);
 
@@ -377,5 +371,3 @@ export function useApi(): ApiDataContextType & ApiActionsContextType {
   const actions = useApiActions();
   return { ...data, ...actions };
 }
-
-

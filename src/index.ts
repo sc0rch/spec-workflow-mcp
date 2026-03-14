@@ -53,9 +53,11 @@ MODES OF OPERATION:
    spec-workflow-mcp --dashboard --port 8080
    spec-workflow-mcp --dashboard --no-open
 
-   Runs only the web dashboard without MCP server (default port: ${DEFAULT_DASHBOARD_PORT}).
-   Projects will automatically appear in the dashboard as MCP servers register.
-   Only one dashboard instance is needed for all your projects.
+   Runs only the legacy web dashboard without MCP server
+   (default port: ${DEFAULT_DASHBOARD_PORT}).
+   Projects appear in the dashboard as live MCP sessions register or remembered
+   workspaces are restored.
+   Prefer the Electron desktop shell for the primary local workflow.
    Use --no-open to prevent automatic browser launch (useful in restricted environments).
 
 EXAMPLES:
@@ -65,22 +67,24 @@ EXAMPLES:
   # Start MCP server with a startup project binding
   spec-workflow-mcp ~/projects/my-app
 
-  # Run dashboard (default port ${DEFAULT_DASHBOARD_PORT}) - START THIS FIRST
+  # Run the legacy dashboard (default port ${DEFAULT_DASHBOARD_PORT})
   spec-workflow-mcp --dashboard
 
   # Run dashboard on custom port (if ${DEFAULT_DASHBOARD_PORT} is unavailable)
   spec-workflow-mcp --dashboard --port 8080
 
 TYPICAL WORKFLOW:
-  1. Start the dashboard once:
+  1. Use your MCP client with spec-workflow in project-agnostic mode:
+     spec-workflow-mcp
+
+  2. Optionally open the legacy dashboard when you need browser-based
+     compatibility or debugging:
      spec-workflow-mcp --dashboard
 
-  2. Start MCP servers for your projects (in separate terminals):
-     spec-workflow-mcp ~/project1
-     spec-workflow-mcp ~/project2
-     spec-workflow-mcp ~/project3
+  3. For the preferred local experience, use the Electron desktop shell from
+     this repository instead of treating the browser dashboard as the primary UI.
 
-  All projects will appear in the same dashboard at ${defaultDashboardUrl}
+  The legacy dashboard, when started, is available at ${defaultDashboardUrl}
 
 PARAMETER FORMATS:
   --port 3456             Space-separated format
@@ -326,7 +330,7 @@ async function main() {
       try {
         const dashboardUrl = await dashboardServer.start();
         console.error(`Dashboard started at: ${dashboardUrl}`);
-        console.error('Projects will automatically appear as MCP servers register.');
+        console.error('Projects appear as live MCP sessions register or remembered workspaces are restored.');
         console.error('Press Ctrl+C to stop the dashboard');
       } catch (error: any) {
         console.error(`Failed to start dashboard: ${error.message}`);

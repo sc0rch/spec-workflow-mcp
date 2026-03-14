@@ -70,12 +70,30 @@
     }
   },
   "specViewer": {
-    "header": { "title": "Spec Documents" },
-    "tooltips": { "viewRendered": "View rendered document", "viewSource": "View source markdown" },
-    "empty": { "docNotCreated": "This {{doc}} document hasn't been created yet." }
+    "header": {
+      "title": "Spec Documents"
+    },
+    "tooltips": {
+      "viewRendered": "View rendered document",
+      "viewSource": "View source markdown"
+    },
+    "empty": {
+      "docNotCreated": "This {{doc}} document hasn't been created yet."
+    }
   },
   "language": {
     "select": "Select language"
+  },
+  "legacyDashboard": {
+    "badge": "Legacy browser UI",
+    "description": "The Electron desktop shell is now the preferred daily interface. Keep this browser dashboard for compatibility and debugging.",
+    "emptyTitle": "No projects visible in the browser view",
+    "emptyDescription": "This dashboard only shows workspaces after a live MCP session registers them or after they are remembered by the local app state.",
+    "emptyHint": "Use the Electron desktop shell for the preferred local workflow, or connect Codex/App MCP first and return here for compatibility or debugging.",
+    "dismiss": "Dismiss",
+    "sidebarLabel": "Legacy browser UI",
+    "workflowSection": "Workflow",
+    "utilitySection": "Utilities"
   },
   "common": {
     "viewMode": {
@@ -166,9 +184,15 @@
       "task": "Task",
       "groupBadge": "Task Group"
     },
-    "files": { "label": "Files:" },
-    "implementation": { "label": "Implementation:" },
-    "labels": { "spec": "Spec:" },
+    "files": {
+      "label": "Files:"
+    },
+    "implementation": {
+      "label": "Implementation:"
+    },
+    "labels": {
+      "spec": "Spec:"
+    },
     "noSpecsFound": {
       "title": "No specs found",
       "noMatch": "No specs match \"{{query}}\"",
@@ -511,11 +535,6 @@
     "loading": "Loading logs...",
     "taskBadge": "Task"
   },
-  "volumeControl": {
-    "mute": "Mute notifications",
-    "enable": "Enable notification sounds",
-    "volumeLevel": "Volume: {{percentage}}%"
-  },
   "settings": {
     "title": "Settings",
     "description": "Manage automated cleanup jobs that run across all connected projects",
@@ -540,15 +559,6 @@
     "section": {
       "automatedCleanup": "Automated Cleanup",
       "automatedCleanupDesc": "Automatically delete old approval records, specifications, and archived specifications based on a schedule. Configure cleanup jobs to run on a recurring basis across all connected projects."
-    }
-  },
-  "changelog": {
-    "viewChangelog": "View changelog",
-    "modal": {
-      "title": "Changelog",
-      "version": "Version",
-      "loading": "Loading changelog...",
-      "notFound": "Changelog not found for this version"
     }
   }
 }

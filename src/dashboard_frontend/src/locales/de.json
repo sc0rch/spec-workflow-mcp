@@ -70,12 +70,30 @@
     }
   },
   "specViewer": {
-    "header": { "title": "Spezifikationsdokumente" },
-    "tooltips": { "viewRendered": "Gerenderte Dokument anzeigen", "viewSource": "Quell-Markdown anzeigen" },
-    "empty": { "docNotCreated": "Dieses {{doc}}-Dokument wurde noch nicht erstellt." }
+    "header": {
+      "title": "Spezifikationsdokumente"
+    },
+    "tooltips": {
+      "viewRendered": "Gerenderte Dokument anzeigen",
+      "viewSource": "Quell-Markdown anzeigen"
+    },
+    "empty": {
+      "docNotCreated": "Dieses {{doc}}-Dokument wurde noch nicht erstellt."
+    }
   },
   "language": {
     "select": "Sprache auswählen"
+  },
+  "legacyDashboard": {
+    "badge": "Legacy-Browser-UI",
+    "description": "Die Electron-Desktop-Shell ist jetzt die bevorzugte Oberfläche für die tägliche Arbeit. Behalte dieses Browser-Dashboard nur für Kompatibilität und Debugging.",
+    "emptyTitle": "In der Browseransicht sind keine Projekte sichtbar",
+    "emptyDescription": "Dieses Dashboard zeigt Arbeitsbereiche erst an, nachdem eine aktive MCP-Sitzung sie registriert hat oder sie im lokalen App-Zustand gemerkt wurden.",
+    "emptyHint": "Verwende für den normalen lokalen Ablauf die Electron-Desktop-Shell oder verbinde zuerst Codex/App MCP und kehre dann für Kompatibilität oder Debugging hierher zurück.",
+    "dismiss": "Ausblenden",
+    "sidebarLabel": "Legacy-Browser-UI",
+    "workflowSection": "Workflow",
+    "utilitySection": "Hilfsfunktionen"
   },
   "common": {
     "viewMode": {
@@ -166,9 +184,15 @@
       "task": "Aufgabe",
       "groupBadge": "Aufgabengruppe"
     },
-    "files": { "label": "Dateien:" },
-    "implementation": { "label": "Implementierung:" },
-    "labels": { "spec": "Spezifikation:" },
+    "files": {
+      "label": "Dateien:"
+    },
+    "implementation": {
+      "label": "Implementierung:"
+    },
+    "labels": {
+      "spec": "Spezifikation:"
+    },
     "noSpecsFound": {
       "title": "Keine Spezifikationen gefunden",
       "noMatch": "Keine Spezifikationen passen zu \"{{query}}\"",
@@ -510,11 +534,6 @@
     "loading": "Protokolle werden geladen...",
     "taskBadge": "Aufgabe"
   },
-  "volumeControl": {
-    "mute": "Benachrichtigungen stumm schalten",
-    "enable": "Benachrichtigungstöne aktivieren",
-    "volumeLevel": "Lautstärke: {{percentage}}%"
-  },
   "settings": {
     "title": "Einstellungen",
     "description": "Verwalten Sie automatisierte Bereinigungsaufträge für alle verbundenen Projekte",
@@ -541,14 +560,5 @@
     "cancel": "Abbrechen",
     "close": "Schließen",
     "jobDescription": "Löschen Sie Datensätze, die älter als {{days}} Tage sind, nach Zeitplan: {{schedule}}"
-  },
-  "changelog": {
-    "viewChangelog": "Änderungsprotokoll anzeigen",
-    "modal": {
-      "title": "Änderungsprotokoll",
-      "version": "Version",
-      "loading": "Änderungsprotokoll wird geladen...",
-      "notFound": "Änderungsprotokoll für diese Version nicht gefunden"
-    }
   }
 }

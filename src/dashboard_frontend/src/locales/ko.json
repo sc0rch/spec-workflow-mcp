@@ -70,12 +70,30 @@
     }
   },
   "specViewer": {
-    "header": { "title": "스펙 문서" },
-    "tooltips": { "viewRendered": "렌더된 문서 보기", "viewSource": "소스 마크다운 보기" },
-    "empty": { "docNotCreated": "이 {{doc}} 문서는 아직 생성되지 않았습니다." }
+    "header": {
+      "title": "스펙 문서"
+    },
+    "tooltips": {
+      "viewRendered": "렌더된 문서 보기",
+      "viewSource": "소스 마크다운 보기"
+    },
+    "empty": {
+      "docNotCreated": "이 {{doc}} 문서는 아직 생성되지 않았습니다."
+    }
   },
   "language": {
     "select": "언어 선택"
+  },
+  "legacyDashboard": {
+    "badge": "레거시 브라우저 UI",
+    "description": "Electron 데스크톱 셸이 이제 일상적인 사용을 위한 권장 인터페이스입니다. 이 브라우저 대시보드는 호환성 확인과 디버깅용으로만 유지하세요.",
+    "emptyTitle": "브라우저 보기에서 표시할 프로젝트가 없습니다",
+    "emptyDescription": "이 대시보드는 활성 MCP 세션이 작업공간을 등록했거나 로컬 앱 상태에 기억된 경우에만 작업공간을 표시합니다.",
+    "emptyHint": "기본 로컬 작업에는 Electron 데스크톱 셸을 사용하거나, 먼저 Codex/App MCP를 연결한 뒤 호환성 확인이나 디버깅을 위해 여기로 돌아오세요.",
+    "dismiss": "닫기",
+    "sidebarLabel": "레거시 브라우저 UI",
+    "workflowSection": "워크플로",
+    "utilitySection": "유틸리티"
   },
   "common": {
     "viewMode": {
@@ -166,9 +184,15 @@
       "task": "태스크",
       "groupBadge": "태스크 그룹"
     },
-    "files": { "label": "파일:" },
-    "implementation": { "label": "구현:" },
-    "labels": { "spec": "스펙:" },
+    "files": {
+      "label": "파일:"
+    },
+    "implementation": {
+      "label": "구현:"
+    },
+    "labels": {
+      "spec": "스펙:"
+    },
     "noSpecsFound": {
       "title": "스펙을 찾을 수 없음",
       "noMatch": "\"{{query}}\"와 일치하는 스펙이 없습니다",
@@ -510,11 +534,6 @@
     "loading": "로그 로딩 중...",
     "taskBadge": "작업"
   },
-  "volumeControl": {
-    "mute": "Mute notifications",
-    "enable": "Enable notification sounds",
-    "volumeLevel": "Volume: {{percentage}}%"
-  },
   "settings": {
     "title": "설정",
     "section": {
@@ -541,14 +560,5 @@
     "cancel": "취소",
     "close": "닫기",
     "jobDescription": "{{schedule}} 일정에 따라 {{days}}일 이상 된 레코드 삭제"
-  },
-  "changelog": {
-    "viewChangelog": "변경 로그 보기",
-    "modal": {
-      "title": "변경 로그",
-      "version": "버전",
-      "loading": "변경 로그를 로드 중...",
-      "notFound": "이 버전의 변경 로그를 찾을 수 없음"
-    }
   }
 }

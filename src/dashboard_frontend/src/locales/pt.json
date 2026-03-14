@@ -70,12 +70,30 @@
     }
   },
   "specViewer": {
-    "header": { "title": "Documentos de Especificação" },
-    "tooltips": { "viewRendered": "Ver documento renderizado", "viewSource": "Ver markdown fonte" },
-    "empty": { "docNotCreated": "Este documento {{doc}} ainda não foi criado." }
+    "header": {
+      "title": "Documentos de Especificação"
+    },
+    "tooltips": {
+      "viewRendered": "Ver documento renderizado",
+      "viewSource": "Ver markdown fonte"
+    },
+    "empty": {
+      "docNotCreated": "Este documento {{doc}} ainda não foi criado."
+    }
   },
   "language": {
     "select": "Selecionar idioma"
+  },
+  "legacyDashboard": {
+    "badge": "UI legada do navegador",
+    "description": "O desktop shell em Electron agora e a interface recomendada para o uso diario. Mantenha este dashboard no navegador para compatibilidade e depuracao.",
+    "emptyTitle": "Nenhum projeto visivel na interface do navegador",
+    "emptyDescription": "Este dashboard so mostra workspaces depois que uma sessao MCP ativa os registra ou quando eles ja foram lembrados pelo estado local do aplicativo.",
+    "emptyHint": "Use o desktop shell em Electron para o fluxo local principal, ou conecte primeiro o Codex/App MCP e volte aqui para compatibilidade ou depuracao.",
+    "dismiss": "Fechar",
+    "sidebarLabel": "UI legada do navegador",
+    "workflowSection": "Fluxo de trabalho",
+    "utilitySection": "Utilitarios"
   },
   "common": {
     "viewMode": {
@@ -166,9 +184,15 @@
       "task": "Tarefa",
       "groupBadge": "Grupo de Tarefas"
     },
-    "files": { "label": "Arquivos:" },
-    "implementation": { "label": "Implementação:" },
-    "labels": { "spec": "Especificação:" },
+    "files": {
+      "label": "Arquivos:"
+    },
+    "implementation": {
+      "label": "Implementação:"
+    },
+    "labels": {
+      "spec": "Especificação:"
+    },
     "noSpecsFound": {
       "title": "Nenhuma especificação encontrada",
       "noMatch": "Nenhuma especificação corresponde a \"{{query}}\"",
@@ -510,11 +534,6 @@
     "loading": "Carregando logs...",
     "taskBadge": "Tarefa"
   },
-  "volumeControl": {
-    "mute": "Silenciar notificações",
-    "enable": "Habilitar sons de notificação",
-    "volumeLevel": "Volume: {{percentage}}%"
-  },
   "settings": {
     "title": "Configurações",
     "section": {
@@ -541,14 +560,5 @@
     "cancel": "Cancelar",
     "close": "Fechar",
     "jobDescription": "Excluir registros com mais de {{days}} dias no cronograma: {{schedule}}"
-  },
-  "changelog": {
-    "viewChangelog": "Ver histórico de alterações",
-    "modal": {
-      "title": "Histórico de alterações",
-      "version": "Versão",
-      "loading": "Carregando histórico de alterações...",
-      "notFound": "Histórico de alterações não encontrado para esta versão"
-    }
   }
 }

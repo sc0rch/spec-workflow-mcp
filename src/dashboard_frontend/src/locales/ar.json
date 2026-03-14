@@ -70,12 +70,30 @@
     }
   },
   "specViewer": {
-    "header": { "title": "وثائق المواصفة" },
-    "tooltips": { "viewRendered": "عرض الوثيقة المعروضة", "viewSource": "عرض مصدر الماركداون" },
-    "empty": { "docNotCreated": "لم يتم إنشاء وثيقة {{doc}} هذه بعد." }
+    "header": {
+      "title": "وثائق المواصفة"
+    },
+    "tooltips": {
+      "viewRendered": "عرض الوثيقة المعروضة",
+      "viewSource": "عرض مصدر الماركداون"
+    },
+    "empty": {
+      "docNotCreated": "لم يتم إنشاء وثيقة {{doc}} هذه بعد."
+    }
   },
   "language": {
     "select": "اختر اللغة"
+  },
+  "legacyDashboard": {
+    "badge": "واجهة المتصفح القديمة",
+    "description": "أصبح غلاف Electron لسطح المكتب هو الواجهة الموصى بها للاستخدام اليومي. احتفظ بهذه لوحة المتصفح للتوافق وتصحيح الأخطاء فقط.",
+    "emptyTitle": "لا توجد مشاريع ظاهرة في عرض المتصفح",
+    "emptyDescription": "لا تعرض هذه اللوحة مساحات العمل إلا بعد أن تسجلها جلسة MCP نشطة أو عندما تكون محفوظة بالفعل في حالة التطبيق المحلية.",
+    "emptyHint": "استخدم غلاف Electron لسطح المكتب كمسار العمل المحلي الأساسي، أو قم أولاً بتوصيل Codex/App MCP ثم عد إلى هنا للتوافق أو لتصحيح الأخطاء.",
+    "dismiss": "إخفاء",
+    "sidebarLabel": "واجهة المتصفح القديمة",
+    "workflowSection": "سير العمل",
+    "utilitySection": "الأدوات"
   },
   "common": {
     "viewMode": {
@@ -166,9 +184,15 @@
       "task": "المهمة",
       "groupBadge": "مجموعة المهام"
     },
-    "files": { "label": "الملفات:" },
-    "implementation": { "label": "التنفيذ:" },
-    "labels": { "spec": "المواصفة:" },
+    "files": {
+      "label": "الملفات:"
+    },
+    "implementation": {
+      "label": "التنفيذ:"
+    },
+    "labels": {
+      "spec": "المواصفة:"
+    },
     "noSpecsFound": {
       "title": "لم توجد مواصفات",
       "noMatch": "لا توجد مواصفات تطابق \"{{query}}\"",
@@ -510,11 +534,6 @@
     "loading": "جاري تحميل السجلات...",
     "taskBadge": "المهمة"
   },
-  "volumeControl": {
-    "mute": "Mute notifications",
-    "enable": "Enable notification sounds",
-    "volumeLevel": "Volume: {{percentage}}%"
-  },
   "settings": {
     "title": "الإعدادات",
     "section": {
@@ -541,14 +560,5 @@
     "cancel": "إلغاء",
     "close": "إغلاق",
     "jobDescription": "حذف السجلات الأقدم من {{days}} يوم حسب الجدول الزمني: {{schedule}}"
-  },
-  "changelog": {
-    "viewChangelog": "عرض سجل التغييرات",
-    "modal": {
-      "title": "سجل التغييرات",
-      "version": "الإصدار",
-      "loading": "جاري تحميل سجل التغييرات...",
-      "notFound": "لم يتم العثور على سجل التغييرات لهذا الإصدار"
-    }
   }
 }

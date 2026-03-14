@@ -70,12 +70,30 @@
     }
   },
   "specViewer": {
-    "header": { "title": "仕様ドキュメント" },
-    "tooltips": { "viewRendered": "レンダリング表示", "viewSource": "ソース(Markdown)を表示" },
-    "empty": { "docNotCreated": "この {{doc}} ドキュメントはまだ作成されていません。" }
+    "header": {
+      "title": "仕様ドキュメント"
+    },
+    "tooltips": {
+      "viewRendered": "レンダリング表示",
+      "viewSource": "ソース(Markdown)を表示"
+    },
+    "empty": {
+      "docNotCreated": "この {{doc}} ドキュメントはまだ作成されていません。"
+    }
   },
   "language": {
     "select": "言語を選択"
+  },
+  "legacyDashboard": {
+    "badge": "レガシーブラウザーUI",
+    "description": "Electronデスクトップシェルが日常利用の推奨インターフェースになりました。このブラウザーダッシュボードは互換性確認とデバッグ用として使ってください。",
+    "emptyTitle": "ブラウザービューに表示できるプロジェクトがありません",
+    "emptyDescription": "このダッシュボードには、アクティブなMCPセッションが登録したワークスペース、またはローカルアプリ状態に記憶されたワークスペースのみ表示されます。",
+    "emptyHint": "通常のローカル作業にはElectronデスクトップシェルを使うか、先にCodex/App MCPを接続してから互換性確認やデバッグのためにここへ戻ってください。",
+    "dismiss": "閉じる",
+    "sidebarLabel": "レガシーブラウザーUI",
+    "workflowSection": "ワークフロー",
+    "utilitySection": "ユーティリティ"
   },
   "common": {
     "viewMode": {
@@ -126,9 +144,15 @@
       "task": "タスク",
       "groupBadge": "タスクグループ"
     },
-    "files": { "label": "ファイル:" },
-    "implementation": { "label": "実装:" },
-    "labels": { "spec": "仕様:" },
+    "files": {
+      "label": "ファイル:"
+    },
+    "implementation": {
+      "label": "実装:"
+    },
+    "labels": {
+      "spec": "仕様:"
+    },
     "taskDetails": "タスクの詳細",
     "status": "ステータス",
     "noTasksFound": "タスクが見つかりません",
@@ -510,11 +534,6 @@
     "loading": "ログを読み込み中...",
     "taskBadge": "タスク"
   },
-  "volumeControl": {
-    "mute": "通知をミュート",
-    "enable": "通知音を有効にする",
-    "volumeLevel": "音量: {{percentage}}%"
-  },
   "settings": {
     "title": "設定",
     "section": {
@@ -541,14 +560,5 @@
     "cancel": "キャンセル",
     "close": "閉じる",
     "jobDescription": "{{schedule}}のスケジュールに従い、{{days}}日以上古いレコードを削除"
-  },
-  "changelog": {
-    "viewChangelog": "変更履歴を表示",
-    "modal": {
-      "title": "変更履歴",
-      "version": "バージョン",
-      "loading": "変更履歴を読み込み中...",
-      "notFound": "このバージョンの変更履歴が見つかりません"
-    }
   }
 }

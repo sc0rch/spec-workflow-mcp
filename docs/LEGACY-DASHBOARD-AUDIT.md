@@ -23,8 +23,8 @@ It should no longer be the design center for new UX work.
 Frontend routes are still defined in [src/dashboard_frontend/src/modules/app/App.tsx](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/src/dashboard_frontend/src/modules/app/App.tsx):
 
 - `/`
-  - `DashboardStatistics`
-  - legacy summary landing page
+  - redirects to `/specs`
+  - no longer owns a dedicated landing page
 - `/steering`
   - `SteeringPage`
 - `/specs`
@@ -33,6 +33,7 @@ Frontend routes are still defined in [src/dashboard_frontend/src/modules/app/App
   - `SpecViewerPage`
 - `/tasks`
   - `TasksPage`
+  - list-based task flow only; the old Kanban view is retired
 - `/logs`
   - `LogsPage`
 - `/approvals`
@@ -41,6 +42,9 @@ Frontend routes are still defined in [src/dashboard_frontend/src/modules/app/App
   - `SettingsPage`
 
 Navigation still lives in [src/dashboard_frontend/src/modules/components/PageNavigationSidebar.tsx](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/src/dashboard_frontend/src/modules/components/PageNavigationSidebar.tsx).
+The shell no longer has a dedicated landing page, mobile settings drawer, changelog modal, collapsible desktop sidebar, notification-volume controls, a Kanban task board, or browser changelog endpoints.
+Theme and language controls now live in the sidebar footer instead of the header/drawer so they remain reachable on mobile without reintroducing extra shell chrome.
+This legacy shell now also has its own explicit browser-only typecheck/test guardrails instead of relying on the root Node-only TypeScript build.
 
 ## Keep vs Retire
 
@@ -60,6 +64,9 @@ Do not invest heavily in:
 Retire or simplify later:
 - page-heavy sidebar-first IA as the primary documented workflow
 - browser-only explanatory chrome that duplicates desktop affordances
+- incidental product-marketing/admin chrome inside the browser shell header or empty states
+- mobile-only interaction patterns that are disproportionate for a compatibility/debugging surface
+- browser-only interaction polish such as sound controls when the browser surface is no longer the primary daily UI
 
 ## Canonical Reusable Logic
 
@@ -77,6 +84,8 @@ These areas remain canonical and should stay reusable even if more dashboard UI 
 
 When Milestone 14 moves from audit to deletion, start here:
 
-1. Trim unused dashboard-only UI modules that no longer provide unique value over Electron.
-2. Keep backend and shared domain services, but stop treating browser dashboard screenshots and flows as the primary onboarding path.
-3. Continue shrinking browser-only navigation so it reflects compatibility/debugging use, not a primary product IA.
+1. Keep trimming unused dashboard-only UI modules that no longer provide unique value over Electron.
+2. Continue removing browser-only debug noise and incidental admin-panel behavior from still-kept pages.
+3. Re-evaluate older browser-only automation/settings flows that still assume the dashboard is a primary product shell.
+4. Add or expand focused tests for high-churn legacy pages like `TasksPage` when cleanup changes their behavior materially.
+5. Keep backend and shared domain services, but stop treating browser dashboard screenshots and flows as the primary onboarding path.

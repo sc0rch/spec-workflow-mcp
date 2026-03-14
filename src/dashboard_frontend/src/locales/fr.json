@@ -70,12 +70,30 @@
     }
   },
   "specViewer": {
-    "header": { "title": "Documents de Spécification" },
-    "tooltips": { "viewRendered": "Voir le document rendu", "viewSource": "Voir le markdown source" },
-    "empty": { "docNotCreated": "Ce document {{doc}} n'a pas encore été créé." }
+    "header": {
+      "title": "Documents de Spécification"
+    },
+    "tooltips": {
+      "viewRendered": "Voir le document rendu",
+      "viewSource": "Voir le markdown source"
+    },
+    "empty": {
+      "docNotCreated": "Ce document {{doc}} n'a pas encore été créé."
+    }
   },
   "language": {
     "select": "Sélectionner la langue"
+  },
+  "legacyDashboard": {
+    "badge": "UI navigateur héritée",
+    "description": "Le shell de bureau Electron est maintenant l'interface recommandée au quotidien. Conservez ce tableau de bord navigateur pour la compatibilité et le débogage.",
+    "emptyTitle": "Aucun projet visible dans la vue navigateur",
+    "emptyDescription": "Ce tableau de bord n'affiche les espaces de travail qu'après leur enregistrement par une session MCP active ou lorsqu'ils sont déjà mémorisés dans l'état local de l'application.",
+    "emptyHint": "Utilisez le shell de bureau Electron pour le flux local principal, ou connectez d'abord Codex/App MCP puis revenez ici pour la compatibilité ou le débogage.",
+    "dismiss": "Masquer",
+    "sidebarLabel": "UI navigateur héritée",
+    "workflowSection": "Workflow",
+    "utilitySection": "Utilitaires"
   },
   "common": {
     "viewMode": {
@@ -166,9 +184,15 @@
       "task": "Tâche",
       "groupBadge": "Groupe de Tâches"
     },
-    "files": { "label": "Fichiers :" },
-    "implementation": { "label": "Implémentation :" },
-    "labels": { "spec": "Spécification :" },
+    "files": {
+      "label": "Fichiers :"
+    },
+    "implementation": {
+      "label": "Implémentation :"
+    },
+    "labels": {
+      "spec": "Spécification :"
+    },
     "noSpecsFound": {
       "title": "Aucune spécification trouvée",
       "noMatch": "Aucune spécification ne correspond à \"{{query}}\"",
@@ -510,11 +534,6 @@
     "loading": "Chargement des journaux...",
     "taskBadge": "Tâche"
   },
-  "volumeControl": {
-    "mute": "Désactiver les notifications",
-    "enable": "Activer les sons de notification",
-    "volumeLevel": "Volume: {{percentage}}%"
-  },
   "settings": {
     "title": "Paramètres",
     "section": {
@@ -541,14 +560,5 @@
     "cancel": "Annuler",
     "close": "Fermer",
     "jobDescription": "Supprimer les enregistrements de plus de {{days}} jours selon le calendrier: {{schedule}}"
-  },
-  "changelog": {
-    "viewChangelog": "Voir le journal des modifications",
-    "modal": {
-      "title": "Journal des modifications",
-      "version": "Version",
-      "loading": "Chargement du journal des modifications...",
-      "notFound": "Journal des modifications introuvable pour cette version"
-    }
   }
 }

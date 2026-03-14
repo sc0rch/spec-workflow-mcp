@@ -70,12 +70,30 @@
     }
   },
   "specViewer": {
-    "header": { "title": "规范文档" },
-    "tooltips": { "viewRendered": "查看渲染文档", "viewSource": "查看源 Markdown" },
-    "empty": { "docNotCreated": "该 {{doc}} 文档尚未创建。" }
+    "header": {
+      "title": "规范文档"
+    },
+    "tooltips": {
+      "viewRendered": "查看渲染文档",
+      "viewSource": "查看源 Markdown"
+    },
+    "empty": {
+      "docNotCreated": "该 {{doc}} 文档尚未创建。"
+    }
   },
   "language": {
     "select": "选择语言"
+  },
+  "legacyDashboard": {
+    "badge": "旧版浏览器界面",
+    "description": "Electron 桌面外壳现在是推荐的日常界面。请将这个浏览器仪表板仅用于兼容性检查和调试。",
+    "emptyTitle": "浏览器视图中没有可见项目",
+    "emptyDescription": "只有在活动 MCP 会话注册了工作区，或这些工作区已被本地应用状态记住之后，这个仪表板才会显示它们。",
+    "emptyHint": "首选使用 Electron 桌面外壳进行本地工作，或者先连接 Codex/App MCP，再回到这里进行兼容性检查或调试。",
+    "dismiss": "关闭",
+    "sidebarLabel": "旧版浏览器界面",
+    "workflowSection": "工作流",
+    "utilitySection": "工具"
   },
   "common": {
     "viewMode": {
@@ -126,9 +144,15 @@
       "task": "任务",
       "groupBadge": "任务组"
     },
-    "files": { "label": "文件:" },
-    "implementation": { "label": "实现:" },
-    "labels": { "spec": "规范:" },
+    "files": {
+      "label": "文件:"
+    },
+    "implementation": {
+      "label": "实现:"
+    },
+    "labels": {
+      "spec": "规范:"
+    },
     "taskDetails": "任务详情",
     "status": "状态",
     "noTasksFound": "未找到任务",
@@ -510,11 +534,6 @@
     "loading": "加载日志中...",
     "taskBadge": "任务"
   },
-  "volumeControl": {
-    "mute": "静音通知",
-    "enable": "启用通知声音",
-    "volumeLevel": "音量: {{percentage}}%"
-  },
   "settings": {
     "title": "设置",
     "description": "管理在所有连接项目上运行的自动清理作业",
@@ -541,14 +560,5 @@
     "cancel": "取消",
     "close": "关闭",
     "jobDescription": "删除超过{{days}}天的记录，按计划{{schedule}}"
-  },
-  "changelog": {
-    "viewChangelog": "查看更改日志",
-    "modal": {
-      "title": "更改日志",
-      "version": "版本",
-      "loading": "正在加载更改日志...",
-      "notFound": "找不到此版本的更改日志"
-    }
   }
 }

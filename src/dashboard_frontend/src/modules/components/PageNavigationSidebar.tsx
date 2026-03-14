@@ -1,12 +1,12 @@
 import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavLink, useLocation } from 'react-router-dom';
+import { useTheme } from '../theme/ThemeProvider';
+import { LanguageSelector } from '../../components/LanguageSelector';
 
 interface PageNavigationSidebarProps {
   isOpen: boolean;
-  isCollapsed: boolean;
   onClose: () => void;
-  onToggleCollapse: () => void;
 }
 
 interface NavigationItem {
@@ -16,13 +16,19 @@ interface NavigationItem {
   end?: boolean;
 }
 
+interface NavigationSection {
+  id: string;
+  labelKey: string;
+  defaultLabel: string;
+  items: NavigationItem[];
+}
+
 export function PageNavigationSidebar({
   isOpen,
-  isCollapsed,
   onClose,
-  onToggleCollapse,
 }: PageNavigationSidebarProps) {
   const { t } = useTranslation();
+  const { theme, toggleTheme } = useTheme();
   const location = useLocation();
 
   // Handle ESC key to close sidebar on mobile
@@ -41,7 +47,7 @@ export function PageNavigationSidebar({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  const navigationItems: NavigationItem[] = [
+  const workflowItems: NavigationItem[] = [
     {
       path: '/specs',
       labelKey: 'nav.specs',
@@ -84,6 +90,9 @@ export function PageNavigationSidebar({
         </svg>
       ),
     },
+  ];
+
+  const utilityItems: NavigationItem[] = [
     {
       path: '/logs',
       labelKey: 'nav.logs',
@@ -134,8 +143,21 @@ export function PageNavigationSidebar({
     },
   ];
 
-  // Desktop: Collapsible sidebar
-  // Mobile: Slide-in overlay
+  const navigationSections: NavigationSection[] = [
+    {
+      id: 'workflow',
+      labelKey: 'legacyDashboard.workflowSection',
+      defaultLabel: 'Workflow',
+      items: workflowItems,
+    },
+    {
+      id: 'utilities',
+      labelKey: 'legacyDashboard.utilitySection',
+      defaultLabel: 'Utilities',
+      items: utilityItems,
+    },
+  ];
+
   return (
     <>
       {/* Backdrop for mobile - only show when open */}
@@ -150,47 +172,22 @@ export function PageNavigationSidebar({
       <div
         className={`
         fixed lg:sticky inset-y-0 lg:top-0 left-0 z-50 lg:z-auto
-        ${isCollapsed ? 'lg:w-16' : 'lg:w-64'} w-64
+        w-64
         lg:h-screen
         bg-[var(--surface-panel)]
         border-r border-[var(--border-default)]
         flex flex-col
-        transition-all duration-200 ease-in-out
+        transition-transform duration-200 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0
       `}
       >
-        {/* Header - Desktop collapse toggle */}
-        <div className="hidden lg:flex items-center justify-between p-4 border-b border-[var(--border-default)]">
-          {!isCollapsed && (
-            <div>
-              <h2 className="text-lg font-semibold text-[var(--text-primary)]">
-                Spec Workflow MCP
-              </h2>
-              <div className="mt-1 text-xs font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
-                {t('legacyDashboard.sidebarLabel', 'Legacy browser UI')}
-              </div>
-            </div>
-          )}
-          <button
-            onClick={onToggleCollapse}
-            className="p-1.5 rounded-md hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] ml-auto"
-            aria-label={isCollapsed ? t('nav.expand', 'Expand sidebar') : t('nav.collapse', 'Collapse sidebar')}
-            title={isCollapsed ? t('nav.expand', 'Expand sidebar') : t('nav.collapse', 'Collapse sidebar')}
-          >
-            <svg
-              className={`w-5 h-5 transition-transform ${isCollapsed ? 'rotate-180' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
-              />
-            </svg>
-          </button>
+        <div className="hidden lg:block p-4 border-b border-[var(--border-default)]">
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+            Spec Workflow MCP
+          </h2>
+          <div className="mt-1 text-xs font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
+            {t('legacyDashboard.sidebarLabel', 'Legacy browser UI')}
+          </div>
         </div>
 
         {/* Header - Mobile close button */}
@@ -215,42 +212,56 @@ export function PageNavigationSidebar({
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-          {navigationItems.map((item) => {
-            const isActive = item.end
-              ? location.pathname === item.path
-              : location.pathname.startsWith(item.path);
+        <nav className="flex-1 overflow-y-auto p-4 space-y-4">
+          {navigationSections.map((section) => (
+            <div key={section.id} className="space-y-1">
+              <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                {t(section.labelKey, section.defaultLabel)}
+              </div>
+              {section.items.map((item) => {
+                const isActive = item.end
+                  ? location.pathname === item.path
+                  : location.pathname.startsWith(item.path);
 
-            return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                end={item.end}
-                onClick={() => {
-                  // Only close on mobile
-                  if (window.innerWidth < 1024) {
-                    onClose();
-                  }
-                }}
-                className={({ isActive }) => `
-                  flex items-center gap-3 py-2 px-3 rounded-md transition-colors
-                  ${
-                    isActive
-                      ? 'bg-[color-mix(in_srgb,var(--interactive-primary)_10%,transparent)] text-[var(--interactive-primary)]'
-                      : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]'
-                  }
-                  ${isCollapsed ? 'lg:justify-center' : ''}
-                `}
-                title={isCollapsed ? t(item.labelKey) : undefined}
-              >
-                <div className="flex-shrink-0">{item.icon}</div>
-                {(!isCollapsed || window.innerWidth < 1024) && (
-                  <span className="text-sm font-medium">{t(item.labelKey)}</span>
-                )}
-              </NavLink>
-            );
-          })}
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    end={item.end}
+                    onClick={() => {
+                      if (window.innerWidth < 1024) {
+                        onClose();
+                      }
+                    }}
+                    className={() => `
+                      flex items-center gap-3 py-2 px-3 rounded-md transition-colors
+                      ${
+                        isActive
+                          ? 'bg-[color-mix(in_srgb,var(--interactive-primary)_10%,transparent)] text-[var(--interactive-primary)]'
+                          : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]'
+                      }
+                    `}
+                  >
+                    <div className="flex-shrink-0">{item.icon}</div>
+                    <span className="text-sm font-medium">{t(item.labelKey)}</span>
+                  </NavLink>
+                );
+              })}
+            </div>
+          ))}
         </nav>
+
+        <div className="border-t border-[var(--border-default)] p-4 space-y-3">
+          <LanguageSelector className="w-full" />
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="w-full btn-secondary"
+            title={t('theme.toggle')}
+          >
+            {theme === 'dark' ? t('theme.dark') : t('theme.light')}
+          </button>
+        </div>
       </div>
     </>
   );

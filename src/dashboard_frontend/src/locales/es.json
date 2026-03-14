@@ -70,12 +70,30 @@
     }
   },
   "specViewer": {
-    "header": { "title": "Documentos de Especificación" },
-    "tooltips": { "viewRendered": "Ver documento renderizado", "viewSource": "Ver markdown fuente" },
-    "empty": { "docNotCreated": "Este documento {{doc}} aún no ha sido creado." }
+    "header": {
+      "title": "Documentos de Especificación"
+    },
+    "tooltips": {
+      "viewRendered": "Ver documento renderizado",
+      "viewSource": "Ver markdown fuente"
+    },
+    "empty": {
+      "docNotCreated": "Este documento {{doc}} aún no ha sido creado."
+    }
   },
   "language": {
     "select": "Seleccionar idioma"
+  },
+  "legacyDashboard": {
+    "badge": "UI heredada del navegador",
+    "description": "La shell de escritorio de Electron es ahora la interfaz diaria recomendada. Mantén este panel del navegador para compatibilidad y depuración.",
+    "emptyTitle": "No hay proyectos visibles en la vista del navegador",
+    "emptyDescription": "Este panel solo muestra espacios de trabajo después de que una sesión MCP activa los registre o cuando ya están recordados por el estado local de la aplicación.",
+    "emptyHint": "Usa la shell de escritorio de Electron para el flujo local principal, o conecta primero Codex/App MCP y vuelve aquí para compatibilidad o depuración.",
+    "dismiss": "Ocultar",
+    "sidebarLabel": "UI heredada del navegador",
+    "workflowSection": "Flujo de trabajo",
+    "utilitySection": "Utilidades"
   },
   "common": {
     "viewMode": {
@@ -166,9 +184,15 @@
       "task": "Tarea",
       "groupBadge": "Grupo de Tareas"
     },
-    "files": { "label": "Archivos:" },
-    "implementation": { "label": "Implementación:" },
-    "labels": { "spec": "Especificación:" },
+    "files": {
+      "label": "Archivos:"
+    },
+    "implementation": {
+      "label": "Implementación:"
+    },
+    "labels": {
+      "spec": "Especificación:"
+    },
     "noSpecsFound": {
       "title": "No se encontraron especificaciones",
       "noMatch": "Ninguna especificación coincide con \"{{query}}\"",
@@ -510,11 +534,6 @@
     "loading": "Cargando registros...",
     "taskBadge": "Tarea"
   },
-  "volumeControl": {
-    "mute": "Silenciar notificaciones",
-    "enable": "Habilitar sonidos de notificación",
-    "volumeLevel": "Volumen: {{percentage}}%"
-  },
   "settings": {
     "title": "Configuración",
     "section": {
@@ -541,14 +560,5 @@
     "cancel": "Cancelar",
     "close": "Cerrar",
     "jobDescription": "Eliminar registros más antiguos que {{days}} días según el horario: {{schedule}}"
-  },
-  "changelog": {
-    "viewChangelog": "Ver historial de cambios",
-    "modal": {
-      "title": "Historial de cambios",
-      "version": "Versión",
-      "loading": "Cargando historial de cambios...",
-      "notFound": "Historial de cambios no encontrado para esta versión"
-    }
   }
 }

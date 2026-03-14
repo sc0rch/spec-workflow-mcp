@@ -70,12 +70,30 @@
     }
   },
   "specViewer": {
-    "header": { "title": "Documenti Spec" },
-    "tooltips": { "viewRendered": "Visualizza documento renderizzato", "viewSource": "Visualizza markdown sorgente" },
-    "empty": { "docNotCreated": "Questo documento {{doc}} non è stato ancora creato." }
+    "header": {
+      "title": "Documenti Spec"
+    },
+    "tooltips": {
+      "viewRendered": "Visualizza documento renderizzato",
+      "viewSource": "Visualizza markdown sorgente"
+    },
+    "empty": {
+      "docNotCreated": "Questo documento {{doc}} non è stato ancora creato."
+    }
   },
   "language": {
     "select": "Seleziona lingua"
+  },
+  "legacyDashboard": {
+    "badge": "UI browser legacy",
+    "description": "La shell desktop Electron e ora l'interfaccia consigliata per l'uso quotidiano. Mantieni questa dashboard nel browser per compatibilita e debug.",
+    "emptyTitle": "Nessun progetto visibile nella vista browser",
+    "emptyDescription": "Questa dashboard mostra gli spazi di lavoro solo dopo che una sessione MCP attiva li ha registrati oppure quando sono gia ricordati dallo stato locale dell'app.",
+    "emptyHint": "Usa la shell desktop Electron per il flusso locale principale, oppure collega prima Codex/App MCP e torna qui per compatibilita o debug.",
+    "dismiss": "Nascondi",
+    "sidebarLabel": "UI browser legacy",
+    "workflowSection": "Flusso di lavoro",
+    "utilitySection": "Utilita"
   },
   "common": {
     "viewMode": {
@@ -166,9 +184,15 @@
       "task": "Task",
       "groupBadge": "Gruppo Task"
     },
-    "files": { "label": "File:" },
-    "implementation": { "label": "Implementazione:" },
-    "labels": { "spec": "Spec:" },
+    "files": {
+      "label": "File:"
+    },
+    "implementation": {
+      "label": "Implementazione:"
+    },
+    "labels": {
+      "spec": "Spec:"
+    },
     "noSpecsFound": {
       "title": "Nessuna spec trovata",
       "noMatch": "Nessuna spec corrisponde a \"{{query}}\"",
@@ -510,11 +534,6 @@
     "loading": "Caricamento log...",
     "taskBadge": "Attività"
   },
-  "volumeControl": {
-    "mute": "Mute notifications",
-    "enable": "Enable notification sounds",
-    "volumeLevel": "Volume: {{percentage}}%"
-  },
   "settings": {
     "title": "Impostazioni",
     "section": {
@@ -541,14 +560,5 @@
     "cancel": "Annulla",
     "close": "Chiudi",
     "jobDescription": "Elimina i record più vecchi di {{days}} giorni secondo la pianificazione: {{schedule}}"
-  },
-  "changelog": {
-    "viewChangelog": "Visualizza il registro delle modifiche",
-    "modal": {
-      "title": "Registro delle modifiche",
-      "version": "Versione",
-      "loading": "Caricamento del registro delle modifiche...",
-      "notFound": "Registro delle modifiche non trovato per questa versione"
-    }
   }
 }

@@ -25,7 +25,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "npm run validate:i18n && npm run clean && tsc && npm run build:dashboard",
+    "build": "npm run validate:i18n && npm run clean && tsc && npm run typecheck:dashboard-frontend && npm run build:dashboard",
     "copy-static": "node scripts/copy-static.cjs",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
@@ -38,6 +38,8 @@
     "desktop:package": "npm --prefix apps/desktop run package:dir",
     "dev:dashboard": "vite --config src/dashboard_frontend/vite.config.ts",
     "build:dashboard": "vite build --config src/dashboard_frontend/vite.config.ts && npm run copy-static",
+    "typecheck:dashboard-frontend": "tsc --noEmit -p tsconfig.dashboard.json",
+    "test:dashboard-frontend": "vitest --config vitest.dashboard.config.ts run",
     "clean": "rimraf dist",
     "validate:i18n": "node scripts/validate-i18n.js",
     "sync:plugin-version": "node scripts/sync-plugin-version.js",
@@ -65,9 +67,6 @@
   "author": "",
   "license": "GPL-3.0",
   "dependencies": {
-    "@dnd-kit/core": "^6.1.0",
-    "@dnd-kit/sortable": "^8.0.0",
-    "@dnd-kit/utilities": "^3.2.2",
     "@fastify/cors": "^11.2.0",
     "@fastify/static": "^9.0.0",
     "@fastify/websocket": "^11.2.0",
@@ -85,7 +84,6 @@
     "diff": "^5.2.0",
     "fastify": "^5.7.4",
     "highlight.js": "^11.9.0",
-    "howler": "^2.2.4",
     "i18next": "^25.5.2",
     "i18next-browser-languagedetector": "^8.2.0",
     "markdown-it": "^14.1.0",
@@ -106,6 +104,8 @@
   "devDependencies": {
     "@playwright/test": "^1.58.0",
     "@tailwindcss/typography": "^0.5.16",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/diff": "^5.2.3",
     "@types/node": "^22.18.1",
     "@types/react": "^18.3.5",
@@ -113,6 +113,7 @@
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.3.3",
     "@vitest/coverage-v8": "^4.0.15",
+    "jsdom": "^28.1.0",
     "rimraf": "^6.0.1",
     "tailwindcss": "^4.1.13",
     "tsx": "^4.7.0",
