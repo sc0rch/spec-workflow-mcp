@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {
   DesktopApi,
@@ -392,6 +392,40 @@ describe('App', () => {
     expect(forgetProject).toHaveBeenCalledWith('project-a');
   });
 
+  it('opens the project picker as a dialog with a labeled control relationship', async () => {
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    const trigger = await screen.findByRole('button', { name: 'repo-a' });
+    await user.click(trigger);
+
+    const dialog = await screen.findByRole('dialog', { name: 'Project picker' });
+    expect(trigger).toHaveAttribute('aria-controls', dialog.id);
+    expect(dialog).toBeInTheDocument();
+  });
+
+  it('supports keyboard open and close focus management for the project picker', async () => {
+    render(<App />);
+
+    const trigger = await screen.findByRole('button', { name: 'repo-a' });
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+
+    const dialog = await screen.findByRole('dialog', { name: 'Project picker' });
+    const selectedProjectButton = within(dialog).getByRole('button', { name: /^repo-a/i });
+
+    await waitFor(() => {
+      expect(selectedProjectButton).toHaveFocus();
+    });
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    await waitFor(() => {
+      expect(trigger).toHaveFocus();
+    });
+  });
+
   it('supports keyboard-friendly spec and approval navigation', async () => {
     render(<App />);
 
@@ -437,8 +471,11 @@ describe('App', () => {
     expect(
       await screen.findByRole('dialog', { name: 'Command palette' })
     ).toBeInTheDocument();
+    const commandSearch = screen.getByRole('combobox', { name: 'Command search' });
+    expect(commandSearch).toHaveAttribute('aria-controls');
+    expect(commandSearch).toHaveAttribute('aria-expanded', 'true');
 
-    await user.type(screen.getByLabelText('Command search'), 'design document');
+    await user.type(commandSearch, 'design document');
     await user.keyboard('{Enter}');
 
     expect(await screen.findByLabelText('Desktop Rewrite Design')).toHaveValue(
@@ -446,11 +483,35 @@ describe('App', () => {
     );
 
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
-    await user.type(screen.getByLabelText('Command search'), 'review approval inbox');
+    await user.type(screen.getByRole('combobox', { name: 'Command search' }), 'review approval inbox');
     await user.keyboard('{Enter}');
 
     expect(await screen.findByRole('heading', { name: 'Approvals' })).toBeInTheDocument();
     expect(await screen.findByText(/src\/core\/approval-storage\.ts/)).toBeInTheDocument();
+  });
+
+  it('traps focus inside the command palette and restores focus on close', async () => {
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    const searchTrigger = await screen.findByRole('button', { name: 'Search' });
+    searchTrigger.focus();
+    await user.click(searchTrigger);
+
+    const commandSearch = await screen.findByRole('combobox', { name: 'Command search' });
+    expect(commandSearch).toHaveFocus();
+
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Close command palette' })).toHaveFocus();
+
+    await user.tab();
+    expect(commandSearch).toHaveFocus();
+
+    await user.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(searchTrigger).toHaveFocus();
+    });
   });
 
   it('reloads inbox data when the desktop bridge pushes a new shell state', async () => {

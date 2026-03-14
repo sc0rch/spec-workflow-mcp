@@ -47,6 +47,10 @@ describe('MarkdownReviewSurface', () => {
       />
     );
 
+    expect(screen.getByRole('document', { name: 'Approval review content' })).toBeInTheDocument();
+    const toolbarButton = screen.getByRole('button', { name: 'Comment selection' });
+    expect(toolbarButton).toBeDisabled();
+
     const selectedParagraph = await screen.findByText('Keep restart recovery obvious.');
     const textNode = selectedParagraph.firstChild;
     expect(textNode).not.toBeNull();
@@ -80,8 +84,11 @@ describe('MarkdownReviewSurface', () => {
     const reviewSurface = document.querySelector('.approval-render-surface');
     expect(reviewSurface).not.toBeNull();
     fireEvent.mouseUp(reviewSurface as HTMLElement);
+    fireEvent(document, new Event('selectionchange'));
 
-    await user.click(await screen.findByRole('button', { name: 'Add comment' }));
+    expect(await screen.findByRole('button', { name: 'Comment selection' })).toBeEnabled();
+
+    await user.click(await screen.findByRole('button', { name: 'Comment selection' }));
 
     expect(onRequestSelectionComment).toHaveBeenCalledTimes(1);
     const selection = onRequestSelectionComment.mock.calls[0]?.[0];
@@ -90,5 +97,59 @@ describe('MarkdownReviewSurface', () => {
     expect(selection.endOffset).toEqual(expect.any(Number));
     expect(selection.endOffset).toBeGreaterThan(selection.startOffset);
     expect(removeAllRanges).toHaveBeenCalledTimes(1);
+  });
+
+  it('updates selection comment affordance from keyboard-driven selection changes', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0);
+      return 0;
+    });
+
+    render(
+      <MarkdownReviewSurface
+        activeCommentId={null}
+        comments={[]}
+        content={'# Requirements\n\nKeep restart recovery obvious.'}
+        onRequestSelectionComment={vi.fn()}
+        onSelectComment={vi.fn()}
+      />
+    );
+
+    const selectedParagraph = await screen.findByText('Keep restart recovery obvious.');
+    const textNode = selectedParagraph.firstChild;
+    expect(textNode).not.toBeNull();
+
+    const range = document.createRange();
+    range.setStart(textNode as Text, 0);
+    range.setEnd(textNode as Text, 7);
+    Object.defineProperty(range, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        top: 120,
+        right: 210,
+        bottom: 138,
+        left: 160,
+        width: 50,
+        height: 18,
+        x: 160,
+        y: 120,
+        toJSON: () => ({})
+      })
+    });
+
+    vi.spyOn(window, 'getSelection').mockReturnValue({
+      rangeCount: 1,
+      isCollapsed: false,
+      toString: () => 'Keep re',
+      getRangeAt: () => range,
+      removeAllRanges: vi.fn()
+    } as unknown as Selection);
+
+    const reviewSurface = screen.getByRole('document', { name: 'Approval review content' });
+    reviewSurface.focus();
+    fireEvent.keyUp(reviewSurface, { key: 'ArrowRight', shiftKey: true });
+    document.dispatchEvent(new Event('selectionchange'));
+
+    expect(await screen.findByRole('button', { name: 'Comment selection' })).toBeEnabled();
   });
 });

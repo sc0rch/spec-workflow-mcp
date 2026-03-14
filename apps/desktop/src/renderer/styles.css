@@ -8,8 +8,8 @@
   --border: rgba(90, 96, 105, 0.68);
   --border-strong: rgba(114, 123, 142, 0.84);
   --text-primary: #a9b7c6;
-  --text-secondary: #909ba6;
-  --text-muted: #6f7681;
+  --text-secondary: #9ca6b1;
+  --text-muted: #969fa9;
   --accent: #6897bb;
   --accent-soft: rgba(104, 151, 187, 0.2);
   --success: #6a8759;
@@ -26,7 +26,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: linear-gradient(180deg, #171214 0%, #0f0d0f 100%);
+  background: var(--bg-app);
   color: var(--text-primary);
   font-size: 13px;
   line-height: 1.45;
@@ -50,9 +50,24 @@ textarea::placeholder {
 
 button:focus-visible,
 input:focus-visible,
-textarea:focus-visible {
+textarea:focus-visible,
+summary:focus-visible,
+.approval-comment-anchor:focus-visible,
+.approval-render-surface:focus-visible {
   outline: 2px solid rgba(104, 151, 187, 0.72);
   outline-offset: 1px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 #root {
@@ -89,6 +104,7 @@ textarea:focus-visible {
 .panel dd {
   margin: 0;
   color: var(--text-secondary);
+  overflow-wrap: anywhere;
 }
 
 .shell-header-actions,
@@ -227,6 +243,7 @@ textarea:focus-visible {
 .approval-queue-meta {
   color: var(--text-muted);
   font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .badge,
@@ -327,7 +344,7 @@ kbd {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 32px;
+  min-height: 36px;
   padding: 0 11px;
   cursor: pointer;
 }
@@ -360,8 +377,8 @@ kbd {
 }
 
 .icon-action {
-  width: 34px;
-  min-width: 34px;
+  width: 36px;
+  min-width: 36px;
   padding: 0;
 }
 
@@ -373,7 +390,7 @@ kbd {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 32px;
+  min-height: 36px;
   padding: 0 10px;
   border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
   border-radius: var(--radius-control);
@@ -449,7 +466,7 @@ kbd {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 32px;
+  min-height: 36px;
   padding: 0 8px;
   border: 0;
   border-bottom: 1px solid transparent;
@@ -510,7 +527,7 @@ kbd {
   color: inherit;
   cursor: pointer;
   text-align: left;
-  min-height: 40px;
+  min-height: 44px;
 }
 
 .project-select-row {
@@ -550,8 +567,8 @@ kbd {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   margin-right: 8px;
   border-radius: 6px;
   color: var(--text-muted);
@@ -810,7 +827,7 @@ kbd {
   width: 100%;
   border: 1px solid color-mix(in srgb, rgba(104, 151, 187, 0.22) 28%, var(--border));
   border-radius: var(--radius-panel);
-  background: #2b2b2b;
+  background: color-mix(in srgb, var(--bg-app) 96%, transparent);
   color: var(--text-primary);
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 12px;
@@ -869,7 +886,7 @@ kbd {
   padding: 10px;
   border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
   border-radius: var(--radius-control);
-  background: #2b2b2b;
+  background: color-mix(in srgb, var(--bg-app) 96%, transparent);
   display: grid;
   gap: 6px;
 }
@@ -884,7 +901,7 @@ kbd {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 32px;
+  min-height: 36px;
   padding: 0 10px;
   color: var(--text-primary);
   cursor: pointer;
@@ -916,7 +933,7 @@ kbd {
   margin: 0;
   color: var(--text-muted);
   font-size: 12px;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .review-context {
@@ -942,7 +959,7 @@ kbd {
   padding: 10px;
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: var(--radius-panel);
-  background: #2b2b2b;
+  background: color-mix(in srgb, var(--bg-app) 96%, transparent);
   color: var(--text-primary);
   font-family: inherit;
   font-size: 13px;
@@ -999,6 +1016,7 @@ kbd {
   background: rgba(104, 151, 187, 0.08);
   color: var(--text-secondary);
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .approval-comment-anchor {
@@ -1011,6 +1029,7 @@ kbd {
   text-decoration: underline;
   text-decoration-color: color-mix(in srgb, var(--accent) 46%, transparent);
   text-underline-offset: 2px;
+  overflow-wrap: anywhere;
 }
 
 .approval-comment-anchor:hover {
@@ -1040,7 +1059,7 @@ kbd {
   padding: 16px;
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: var(--radius-panel);
-  background: #2b2b2b;
+  background: color-mix(in srgb, var(--bg-app) 96%, transparent);
   overflow: auto;
 }
 
@@ -1132,6 +1151,7 @@ kbd {
 
 .approval-markdown-view a {
   color: var(--accent);
+  overflow-wrap: anywhere;
 }
 
 .approval-selection-button {
@@ -1193,6 +1213,7 @@ kbd {
   border-radius: var(--radius-control);
   background: rgba(204, 120, 50, 0.12);
   color: #d9a176;
+  overflow-wrap: anywhere;
 }
 
 .focus-list {
@@ -1225,12 +1246,12 @@ kbd {
   padding: 12px;
   border: 1px solid color-mix(in srgb, var(--border-strong) 78%, transparent);
   border-radius: var(--radius-panel);
-  background: #313335;
+  background: color-mix(in srgb, var(--bg-panel) 96%, transparent);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
 }
 
 .command-palette-close {
-  min-height: 28px;
+  min-height: 36px;
   padding: 0 10px;
   border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
   background: color-mix(in srgb, var(--bg-soft) 76%, transparent);
@@ -1248,7 +1269,7 @@ kbd {
   padding: 0 12px;
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: var(--radius-panel);
-  background: #2b2b2b;
+  background: color-mix(in srgb, var(--bg-app) 96%, transparent);
   color: var(--text-primary);
 }
 
@@ -1303,6 +1324,7 @@ kbd {
 .command-empty {
   margin: 0;
   color: var(--text-secondary);
+  overflow-wrap: anywhere;
 }
 
 @media (pointer: coarse) {
@@ -1361,10 +1383,6 @@ kbd {
 
   .mode-tabs {
     flex-wrap: wrap;
-  }
-
-  .mcp-row {
-    flex-direction: column;
   }
 
   .workspace-head {

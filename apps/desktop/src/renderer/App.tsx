@@ -3,6 +3,7 @@ import {
   useDeferredValue,
   useEffect,
   useEffectEvent,
+  useId,
   useRef,
   useState,
   type ReactNode
@@ -115,6 +116,9 @@ export function App() {
   const [forgettingProjectId, setForgettingProjectId] = useState<string | null>(null);
   const [bridgeError, setBridgeError] = useState<string | null>(null);
   const projectMenuRef = useRef<HTMLDivElement | null>(null);
+  const projectMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const projectMenuDialogId = useId();
+  const projectMenuTitleId = useId();
 
   const applyShellState = useEffectEvent((nextState: DesktopShellState) => {
     setShellState(nextState);
@@ -351,6 +355,7 @@ export function App() {
 
   const closeProjectMenu = useEffectEvent(() => {
     setIsProjectMenuOpen(false);
+    projectMenuTriggerRef.current?.focus();
   });
 
   const handlePickProject = async () => {
@@ -478,6 +483,13 @@ export function App() {
     if (!isProjectMenuOpen) {
       return;
     }
+
+    window.requestAnimationFrame(() => {
+      const nextFocusTarget = projectMenuRef.current?.querySelector<HTMLElement>(
+        '[data-project-option][data-selected="true"], [data-project-option]'
+      );
+      nextFocusTarget?.focus();
+    });
 
     const handlePointerDown = (event: PointerEvent) => {
       if (!(event.target instanceof Node)) {
@@ -765,12 +777,23 @@ export function App() {
             <div className={`project-menu ${isProjectMenuOpen ? 'project-menu-open' : ''}`} ref={projectMenuRef}>
               <button
                 aria-label={activeProject?.projectName ?? 'Projects'}
+                aria-controls={isProjectMenuOpen ? projectMenuDialogId : undefined}
                 aria-expanded={isProjectMenuOpen}
                 aria-haspopup="dialog"
                 className="secondary-action project-menu-trigger"
                 onClick={() => {
                   setIsProjectMenuOpen((currentState) => !currentState);
                 }}
+                onKeyDown={(event) => {
+                  if (
+                    !isProjectMenuOpen &&
+                    (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ')
+                  ) {
+                    event.preventDefault();
+                    setIsProjectMenuOpen(true);
+                  }
+                }}
+                ref={projectMenuTriggerRef}
                 type="button"
               >
                 {activeProject ? (
@@ -792,7 +815,15 @@ export function App() {
                 <span aria-hidden="true" className="project-menu-chevron">▾</span>
               </button>
               {isProjectMenuOpen ? (
-                <div className="panel project-menu-popover">
+                <div
+                  aria-labelledby={projectMenuTitleId}
+                  aria-modal="false"
+                  className="panel project-menu-popover"
+                  id={projectMenuDialogId}
+                  role="dialog"
+                  tabIndex={-1}
+                >
+                  <h2 className="sr-only" id={projectMenuTitleId}>Project picker</h2>
                   {shellState.projects.length === 0 ? (
                     <p className="panel-copy project-menu-empty">
                       No projects yet. Add a repository once and it will still be here after restart.
@@ -812,9 +843,12 @@ export function App() {
                               <button
                                 aria-pressed={isSelected}
                                 className="project-select project-select-row"
+                                data-project-option="true"
+                                data-selected={isSelected ? 'true' : 'false'}
                                 onClick={() => {
                                   setActiveProjectPath(project.workspacePath);
                                   setIsProjectMenuOpen(false);
+                                  projectMenuTriggerRef.current?.focus();
                                 }}
                                 type="button"
                               >

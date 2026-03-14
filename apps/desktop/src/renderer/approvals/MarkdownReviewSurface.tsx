@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
@@ -43,6 +43,15 @@ export function MarkdownReviewSurface({
     left: number;
   }) | null>(null);
   const renderedHtml = useMemo(() => markdown.render(content), [content]);
+
+  const refreshSelectionDraft = useEffectEvent(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
+    setSelectionDraft(getSelectionDraft(container));
+  });
 
   useEffect(() => {
     const container = containerRef.current;
@@ -90,6 +99,19 @@ export function MarkdownReviewSurface({
   }, [onSelectComment]);
 
   useEffect(() => {
+    const handleSelectionChange = () => {
+      window.requestAnimationFrame(() => {
+        refreshSelectionDraft();
+      });
+    };
+
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => {
+      document.removeEventListener('selectionchange', handleSelectionChange);
+    };
+  }, []);
+
+  useEffect(() => {
     const clearSelectionDraft = () => {
       setSelectionDraft(null);
     };
@@ -102,13 +124,7 @@ export function MarkdownReviewSurface({
 
   const handlePointerUp = () => {
     window.requestAnimationFrame(() => {
-      const container = containerRef.current;
-      if (!container) {
-        return;
-      }
-
-      const nextDraft = getSelectionDraft(container);
-      setSelectionDraft(nextDraft);
+      refreshSelectionDraft();
     });
   };
 
@@ -126,8 +142,23 @@ export function MarkdownReviewSurface({
     <div className="approval-markdown-shell">
       <div className="approval-review-toolbar">
         <p className="helper-copy">Select text to comment on a specific passage.</p>
+        <button
+          className="secondary-action"
+          disabled={!selectionDraft}
+          onClick={handleAddComment}
+          type="button"
+        >
+          Comment selection
+        </button>
       </div>
-      <div className="approval-render-surface" onMouseUp={handlePointerUp}>
+      <div
+        aria-label="Approval review content"
+        className="approval-render-surface"
+        onKeyUp={handlePointerUp}
+        onMouseUp={handlePointerUp}
+        role="document"
+        tabIndex={0}
+      >
         <div className="approval-markdown-view" ref={containerRef} />
       </div>
       {selectionDraft ? (

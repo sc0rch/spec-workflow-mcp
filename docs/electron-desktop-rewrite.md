@@ -1,8 +1,8 @@
 # Electron Desktop Rewrite
 
 Last updated: 2026-03-14
-Status: Milestone 14 complete; post-roadmap approval review rewrite and desktop refresh hardening implemented
-Current focus: Core rewrite milestones are complete. Post-roadmap Electron refinements are now focused on approval-flow polish, design/code-review loops, and targeted desktop UX cleanup while browser cleanup stays opportunistic only.
+Status: Milestone 14 complete; post-roadmap approval review rewrite, desktop refresh hardening, and accessibility hardening implemented
+Current focus: Core rewrite milestones are complete. Post-roadmap Electron refinements are now focused on approval-flow polish, accessibility cleanup, bundle-weight reduction, and targeted desktop UX cleanup while browser cleanup stays opportunistic only.
 
 ## Purpose
 
@@ -915,6 +915,42 @@ Implemented:
   - refresh snapshot failures are swallowed and logged instead of rejecting IPC/timer paths
   - active workspace reloads no longer fire for unrelated shell-state pushes
   - remembered live-project metadata updates again without regressing into constant store rewrites
+
+### Accessibility Hardening
+
+Goal: Fix the highest-value renderer resilience gaps from the Electron audit without changing product direction.
+
+Implemented:
+- Hardened command palette semantics in `apps/desktop/src/renderer/CommandPalette.tsx`:
+  - real dialog labeling
+  - combobox-to-listbox wiring via `aria-controls` / `aria-activedescendant`
+  - focus restoration on close
+  - tab-loop containment inside the modal surface
+- Hardened the top-left project picker in `apps/desktop/src/renderer/App.tsx`:
+  - real popup dialog semantics with explicit labeling
+  - trigger-to-popup control relationship
+  - initial focus on the selected project action
+  - keyboard opening with `ArrowDown` / `Enter` / `Space`
+  - focus return to the trigger on keyboard close
+- Hardened approval markdown review in `apps/desktop/src/renderer/approvals/MarkdownReviewSurface.tsx`:
+  - focusable review surface with `role="document"`
+  - selection detection now reacts to `selectionchange`, not only mouse-up
+  - persistent `Comment selection` toolbar action so text-anchored comments are not mouse-only
+- Hardened shell CSS in `apps/desktop/src/renderer/styles.css`:
+  - raised muted/secondary text contrast to pass normal text AA in the main dark surfaces
+  - added reusable `.sr-only`
+  - added missing focus-visible treatment for `summary`, approval comment anchors, and the rendered review surface
+  - increased utility control hit areas
+  - added overflow wrapping for long metadata/error/comment content
+  - removed one dead legacy responsive selector and reduced some theme drift by moving more surfaces back onto theme tokens
+- Added focused regression coverage for:
+  - command palette accessibility wiring through the app shell
+  - project picker dialog semantics
+  - focusable markdown review with toolbar-based selection comments
+- Ran a scoped `gpt-5.3-codex` review on the hardening diff; it found no concrete bugs or regressions, only three missing focused tests, and those gaps were closed immediately:
+  - command palette focus trap / focus restore
+  - project picker keyboard open-close focus contract
+  - markdown review keyboard-selection affordance
 
 ## Current Progress Checklist
 
