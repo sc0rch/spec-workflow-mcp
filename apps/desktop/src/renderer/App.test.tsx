@@ -1,6 +1,11 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { DesktopApi, DesktopShellState } from '../shared/desktop-api.js';
+import type {
+  DesktopApi,
+  DesktopApprovalReview,
+  DesktopProjectWorkspace,
+  DesktopShellState
+} from '../shared/desktop-api.js';
 import { App } from './App.js';
 
 const shellState: DesktopShellState = {
@@ -31,8 +36,8 @@ const shellState: DesktopShellState = {
       lastSeenAt: '2026-03-14T12:34:56.000Z',
       gitBranch: 'feature/demo',
       latestSpec: {
-        name: 'alpha-spec',
-        displayName: 'Alpha Spec',
+        name: 'desktop-rewrite',
+        displayName: 'Desktop Rewrite',
         createdAt: '2026-03-14T09:00:00.000Z'
       },
       pendingApprovalCount: 2,
@@ -48,6 +53,204 @@ const shellState: DesktopShellState = {
   ]
 };
 
+const rememberedOnlyShellState: DesktopShellState = {
+  ...shellState,
+  projects: shellState.projects.map((project) => ({
+    ...project,
+    connectionState: 'remembered',
+    instanceCount: 0
+  }))
+};
+
+const projectWorkspace: DesktopProjectWorkspace = {
+  specs: [
+    {
+      name: 'desktop-rewrite',
+      displayName: 'Desktop Rewrite',
+      lastModified: '2026-03-14T12:10:00.000Z',
+      phaseState: 'active',
+      phases: {
+        requirements: {
+          exists: true,
+          lastModified: '2026-03-14T09:10:00.000Z',
+          content: '# Requirements\nKeep restart recovery obvious.'
+        },
+        design: {
+          exists: true,
+          lastModified: '2026-03-14T10:10:00.000Z',
+          content: '# Design\nUse a left rail and detail panel.'
+        },
+        tasks: {
+          exists: true,
+          lastModified: '2026-03-14T11:10:00.000Z',
+          content: '- [-] 1.1 Build desktop shell\n- [ ] 1.2 Add approval inbox'
+        }
+      },
+      taskSummary: {
+        total: 2,
+        completed: 0,
+        pending: 1,
+        inProgress: 1
+      },
+      pendingApprovalCount: 1,
+      activeTask: {
+        id: '1.1',
+        description: 'Build desktop shell',
+        status: 'in-progress'
+      },
+      nextTask: {
+        id: '1.2',
+        description: 'Add approval inbox',
+        status: 'pending'
+      },
+      latestImplementation: {
+        taskId: '1.2',
+        summary: 'Added project home recovery state',
+        timestamp: '2026-03-14T11:15:00.000Z'
+      },
+      implementationEntries: [
+        {
+          id: 'log-1',
+          taskId: '1.2',
+          summary: 'Added project home recovery state',
+          timestamp: '2026-03-14T11:15:00.000Z',
+          filesModified: ['apps/desktop/src/renderer/App.tsx'],
+          filesCreated: []
+        }
+      ]
+    },
+    {
+      name: 'approval-inbox',
+      displayName: 'Approval Inbox',
+      lastModified: '2026-03-14T12:20:00.000Z',
+      phaseState: 'ready',
+      phases: {
+        requirements: {
+          exists: true,
+          lastModified: '2026-03-14T09:20:00.000Z',
+          content: '# Requirements\nMake review fast.'
+        },
+        design: {
+          exists: true,
+          lastModified: '2026-03-14T10:20:00.000Z',
+          content: '# Design\nReviewer flow ready for keyboard review.'
+        },
+        tasks: {
+          exists: true,
+          lastModified: '2026-03-14T11:20:00.000Z',
+          content: '- [ ] 2.1 Add queue-first review'
+        }
+      },
+      taskSummary: {
+        total: 1,
+        completed: 0,
+        pending: 1,
+        inProgress: 0
+      },
+      pendingApprovalCount: 1,
+      nextTask: {
+        id: '2.1',
+        description: 'Add queue-first review',
+        status: 'pending'
+      },
+      implementationEntries: []
+    }
+  ],
+  pendingApprovals: [
+    {
+      approvalId: 'approval-1',
+      title: 'Review desktop shell',
+      filePath: 'apps/desktop/src/renderer/App.tsx',
+      type: 'document',
+      category: 'spec',
+      categoryName: 'desktop-rewrite',
+      createdAt: '2026-03-14T11:00:00.000Z'
+    },
+    {
+      approvalId: 'approval-2',
+      title: 'Review approval inbox',
+      filePath: 'src/core/approval-storage.ts',
+      type: 'document',
+      category: 'spec',
+      categoryName: 'approval-inbox',
+      createdAt: '2026-03-14T11:30:00.000Z'
+    }
+  ]
+};
+
+const approvalReview: DesktopApprovalReview = {
+  approval: {
+    id: 'approval-1',
+    title: 'Review desktop shell',
+    filePath: 'apps/desktop/src/renderer/App.tsx',
+    type: 'document',
+    status: 'pending',
+    createdAt: '2026-03-14T11:00:00.000Z',
+    category: 'spec',
+    categoryName: 'desktop-rewrite'
+  },
+  currentContent: 'export const shell = true;\n',
+  diff: {
+    additions: 2,
+    deletions: 0,
+    changes: 0,
+    chunks: [
+      {
+        oldStart: 1,
+        oldLines: 0,
+        newStart: 1,
+        newLines: 2,
+        lines: [
+          {
+            type: 'add',
+            newLineNumber: 1,
+            content: 'export const shell = true;'
+          },
+          {
+            type: 'add',
+            newLineNumber: 2,
+            content: ''
+          }
+        ]
+      }
+    ]
+  }
+};
+
+const approvalInboxReview: DesktopApprovalReview = {
+  approval: {
+    id: 'approval-2',
+    title: 'Review approval inbox',
+    filePath: 'src/core/approval-storage.ts',
+    type: 'document',
+    status: 'pending',
+    createdAt: '2026-03-14T11:30:00.000Z',
+    category: 'spec',
+    categoryName: 'approval-inbox'
+  },
+  currentContent: 'export const approvalStorage = true;\n',
+  diff: {
+    additions: 1,
+    deletions: 0,
+    changes: 0,
+    chunks: [
+      {
+        oldStart: 1,
+        oldLines: 0,
+        newStart: 1,
+        newLines: 1,
+        lines: [
+          {
+            type: 'add',
+            newLineNumber: 1,
+            content: 'export const approvalStorage = true;'
+          }
+        ]
+      }
+    ]
+  }
+};
+
 describe('App', () => {
   beforeEach(() => {
     window.desktop = createDesktopApiMock();
@@ -58,24 +261,29 @@ describe('App', () => {
     vi.restoreAllMocks();
   });
 
-  it('hydrates shell state from the preload bridge', async () => {
+  it('hydrates shell state and project workspace from the preload bridge', async () => {
     render(<App />);
 
     expect(
       screen.getByRole('heading', { name: 'Spec Workflow Desktop' })
     ).toBeInTheDocument();
-    expect(
-      await screen.findByText('Alpha Spec')
-    ).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Inbox' })).toBeInTheDocument();
     expect(
       screen.getByText('Status: Project ready')
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: /repo-a \/tmp\/repo-a/i })
+      screen.getByRole('button', { name: /repo-a 2/i })
     ).toBeInTheDocument();
     expect(
-      screen.getByText('2 approvals')
+      screen.getByText(/2 approvals/)
     ).toBeInTheDocument();
+    expect(
+      screen.getAllByText('Review desktop shell')
+    ).toHaveLength(1);
+    expect(
+      screen.getByText('Desktop Rewrite · apps/desktop/src/renderer/App.tsx')
+    ).toBeInTheDocument();
+    expect(screen.getByText('Desktop Rewrite · 1.2')).toBeInTheDocument();
   });
 
   it('invokes the native folder picker through the desktop bridge', async () => {
@@ -90,9 +298,45 @@ describe('App', () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: 'Choose project folder' }));
+    await user.click(await screen.findByRole('button', { name: 'Add project' }));
 
     expect(pickProjectDirectory).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows MCP visibility diagnostics for live workspaces and runtime details', async () => {
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Inbox' });
+    await user.click(screen.getByRole('button', { name: 'Open MCP status' }));
+
+    expect(await screen.findByRole('heading', { name: 'MCP visibility' })).toBeInTheDocument();
+    expect(screen.getAllByText('1 live')).toHaveLength(3);
+    expect(screen.getAllByText('/tmp/repo-a')).toHaveLength(2);
+    expect(screen.getByText('Runtime details')).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByRole('heading', { name: 'MCP visibility' })).not.toBeInTheDocument();
+  });
+
+  it('shows waiting guidance when projects are remembered but MCP is not attached', async () => {
+    const user = userEvent.setup();
+    window.desktop = createDesktopApiMock({
+      getShellState: vi.fn().mockResolvedValue(rememberedOnlyShellState)
+    });
+
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Inbox' });
+    await user.click(screen.getByRole('button', { name: 'Open MCP status' }));
+
+    expect(await screen.findAllByText('Waiting')).toHaveLength(2);
+    expect(screen.getByText('Remembered')).toBeInTheDocument();
+    expect(
+      screen.getByText('Open a remembered project in Codex and run a tool or prompt to attach a live MCP session.')
+    ).toBeInTheDocument();
   });
 
   it('forgets a remembered project through the desktop bridge', async () => {
@@ -104,21 +348,159 @@ describe('App', () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole('button', { name: 'Forget project' }));
+    await user.click(await screen.findByRole('button', { name: 'Forget repo-a' }));
 
     expect(forgetProject).toHaveBeenCalledWith('project-a');
   });
 
-  it('switches workspace modes without leaving the desktop shell', async () => {
+  it('supports keyboard-friendly spec and approval navigation', async () => {
     const user = userEvent.setup();
 
     render(<App />);
 
-    await screen.findByText('Alpha Spec');
+    await screen.findByRole('heading', { name: 'Inbox' });
+    await user.keyboard('2');
+
+    expect(await screen.findByText('Spec workspace')).toBeInTheDocument();
+    expect(await screen.findByText('Cmd/Ctrl+S saves the current document. Esc returns to inbox.')).toBeInTheDocument();
+    expect(await screen.findByText(/Current: 1\.1 Build desktop shell/)).toBeInTheDocument();
+
+    await user.keyboard('l');
+
+    expect(await screen.findByLabelText('Approval Inbox Requirements')).toHaveValue(
+      '# Requirements\nMake review fast.'
+    );
+
+    await user.keyboard('{Escape}');
+
+    expect(await screen.findByRole('heading', { name: 'Inbox' })).toBeInTheDocument();
+
     await user.keyboard('3');
 
     expect(await screen.findByText('Approval inbox')).toBeInTheDocument();
-    expect(await screen.findByText('2 items waiting for review')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Review desktop shell response')).toBeInTheDocument();
+
+    await user.keyboard('l');
+
+    expect(await screen.findByLabelText('Review approval inbox response')).toBeInTheDocument();
+    expect(
+      await screen.findByText('+ export const approvalStorage = true;')
+    ).toBeInTheDocument();
+  });
+
+  it('routes across workspace and approvals through the command palette', async () => {
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Inbox' });
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Command palette' })
+    ).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Command search'), 'design document');
+    await user.keyboard('{Enter}');
+
+    expect(await screen.findByText('Spec workspace')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Desktop Rewrite Design')).toHaveValue(
+      '# Design\nUse a left rail and detail panel.'
+    );
+
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+    await user.type(screen.getByLabelText('Command search'), 'review approval inbox');
+    await user.keyboard('{Enter}');
+
+    expect(await screen.findByText('Approval inbox')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Review approval inbox response')).toBeInTheDocument();
+  });
+
+  it('cycles workspace documents with Tab and Shift+Tab outside the editor', async () => {
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Inbox' });
+    await user.keyboard('2');
+
+    expect(await screen.findByLabelText('Desktop Rewrite Requirements')).toBeInTheDocument();
+
+    await user.keyboard('{Tab}');
+
+    expect(await screen.findByLabelText('Desktop Rewrite Design')).toBeInTheDocument();
+
+    await user.keyboard('{Shift>}{Tab}{/Shift}');
+
+    expect(await screen.findByLabelText('Desktop Rewrite Requirements')).toBeInTheDocument();
+  });
+
+  it('saves spec documents through the desktop bridge with a keyboard shortcut', async () => {
+    const user = userEvent.setup();
+    const saveSpecDocument = vi.fn<DesktopApi['saveSpecDocument']>().mockResolvedValue({
+      filePath: '/tmp/repo-a/.spec-workflow/specs/desktop-rewrite/requirements.md',
+      savedAt: '2026-03-14T12:40:00.000Z'
+    });
+    window.desktop = createDesktopApiMock({
+      saveSpecDocument
+    });
+
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Inbox' });
+    await user.keyboard('2');
+    const editor = await screen.findByLabelText('Desktop Rewrite Requirements');
+    await user.clear(editor);
+    await user.type(editor, '# Requirements\n\nPersist save state');
+    await user.keyboard('{Control>}s{/Control}');
+
+    expect(saveSpecDocument).toHaveBeenCalledWith(
+      'project-a',
+      'desktop-rewrite',
+      'requirements',
+      '# Requirements\n\nPersist save state'
+    );
+    expect(await screen.findByText(/Saved/)).toBeInTheDocument();
+  });
+
+  it('responds to approvals through keyboard shortcuts and auto-advances to the next item', async () => {
+    const user = userEvent.setup();
+    const respondToApproval = vi.fn<DesktopApi['respondToApproval']>().mockResolvedValue(undefined);
+    const nextWorkspace: DesktopProjectWorkspace = {
+      ...projectWorkspace,
+      specs: projectWorkspace.specs.map((spec) => ({
+        ...spec,
+        pendingApprovalCount: spec.name === 'desktop-rewrite' ? 0 : spec.pendingApprovalCount
+      })),
+      pendingApprovals: [projectWorkspace.pendingApprovals[1]]
+    };
+    const getProjectWorkspace = vi.fn<DesktopApi['getProjectWorkspace']>()
+      .mockResolvedValueOnce(projectWorkspace)
+      .mockResolvedValueOnce(nextWorkspace);
+    window.desktop = createDesktopApiMock({
+      respondToApproval,
+      getProjectWorkspace
+    });
+
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Inbox' });
+    await user.keyboard('3');
+    await screen.findByText('Approval inbox');
+    await user.type(
+      await screen.findByLabelText('Review desktop shell response'),
+      'Ship it.'
+    );
+    await user.keyboard('{Control>}{Enter}{/Control}');
+
+    expect(respondToApproval).toHaveBeenCalledWith(
+      'project-a',
+      'approval-1',
+      'approve',
+      'Ship it.'
+    );
+    expect(await screen.findByText(/src\/core\/approval-storage\.ts/)).toBeInTheDocument();
+    expect(await screen.findByLabelText('Review approval inbox response')).toHaveValue('');
   });
 });
 
@@ -128,6 +510,15 @@ function createDesktopApiMock(
   return {
     getRuntimeInfo: () => shellState.runtime,
     getShellState: vi.fn().mockResolvedValue(shellState),
+    getProjectWorkspace: vi.fn().mockResolvedValue(projectWorkspace),
+    getApprovalReview: vi.fn().mockImplementation((_projectId, approvalId) => Promise.resolve(
+      approvalId === 'approval-2' ? approvalInboxReview : approvalReview
+    )),
+    saveSpecDocument: vi.fn().mockResolvedValue({
+      filePath: '/tmp/repo-a/.spec-workflow/specs/desktop-rewrite/requirements.md',
+      savedAt: '2026-03-14T12:40:00.000Z'
+    }),
+    respondToApproval: vi.fn().mockResolvedValue(undefined),
     pickProjectDirectory: vi.fn().mockResolvedValue({
       canceled: true,
       path: null

@@ -13,6 +13,7 @@ import { parseTasksFromMarkdown } from '../core/task-parser.js';
 import { ProjectManager } from './project-manager.js';
 import { JobScheduler } from './job-scheduler.js';
 import { ImplementationLogManager } from '../core/implementation-log-manager.js';
+import { SpecDocumentsService } from '../core/spec-documents.js';
 import { DashboardSessionManager } from '../core/dashboard-session.js';
 import {
   getSecurityConfig,
@@ -27,6 +28,7 @@ import { SecurityConfig } from '../types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+const specDocumentsService = new SpecDocumentsService();
 
 interface WebSocketConnection {
   socket: WebSocket;
@@ -566,13 +568,18 @@ export class MultiProjectDashboardServer {
         return reply.code(400).send({ error: 'Content must be a string' });
       }
 
-      const docPath = join(project.projectPath, '.spec-workflow', 'specs', name, `${document}.md`);
-
       try {
-        const specDir = join(project.projectPath, '.spec-workflow', 'specs', name);
-        await fs.mkdir(specDir, { recursive: true });
-        await fs.writeFile(docPath, content, 'utf-8');
-        return { success: true, message: 'Document saved successfully' };
+        const result = await specDocumentsService.saveDocument({
+          workflowRootPath: project.projectPath,
+          specName: name,
+          document: document as 'requirements' | 'design' | 'tasks',
+          content
+        });
+        return {
+          success: true,
+          message: 'Document saved successfully',
+          savedAt: result.savedAt
+        };
       } catch (error: any) {
         return reply.code(500).send({ error: `Failed to save document: ${error.message}` });
       }

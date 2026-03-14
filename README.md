@@ -85,6 +85,17 @@ The dashboard will be accessible at: http://localhost:5091
 
 Install [Spec Workflow MCP Extension](https://marketplace.visualstudio.com/items?itemName=Pimzino.spec-workflow-mcp) from the VSCode marketplace.
 
+**Option C: Electron Desktop Shell** (Rewrite preview)
+
+Run the desktop shell from the repository root:
+```bash
+npm --prefix apps/desktop run dev
+```
+
+The current desktop app is a local control surface for remembered projects, approvals, specs, and diagnostics.
+
+> **Lifecycle note:** In `v1`, Codex still launches the MCP server over stdio. The Electron desktop app observes that state, shows live vs remembered workspaces, and complements Codex with native desktop UX instead of replacing Codex's MCP lifecycle yet.
+
 ## 📝 How to Use
 
 Simply mention spec-workflow in your conversation:

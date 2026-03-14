@@ -3,6 +3,7 @@ import type { OpenDialogOptions } from 'electron';
 import type {
   DesktopProjectSummary,
   DesktopRuntimeInfo,
+  DesktopSpecDocumentName,
   DesktopShellState,
   ProjectSelectionResult,
   StartupIssue,
@@ -10,6 +11,10 @@ import type {
 } from '../../shared/desktop-api.js';
 import { desktopChannels } from '../../shared/desktop-api.js';
 import { ProjectCatalogService } from '../../../../../src/core/project-catalog.js';
+import { ApprovalReviewService } from '../../../../../src/core/approval-review.js';
+import { PathUtils } from '../../../../../src/core/path-utils.js';
+import { ProjectWorkspaceService } from '../../../../../src/core/project-workspace.js';
+import { SpecDocumentsService } from '../../../../../src/core/spec-documents.js';
 import { getRendererEntryPath, getTrayIconPath } from '../runtime-paths.js';
 import { createMainWindow } from '../window.js';
 import { SettingsStore, type WindowState } from './settings-store.js';
@@ -25,6 +30,9 @@ export interface DesktopShellOptions {
 export class DesktopShell {
   private readonly settingsStore: SettingsStore;
   private readonly projectCatalog: ProjectCatalogService;
+  private readonly approvalReview: ApprovalReviewService;
+  private readonly projectWorkspace: ProjectWorkspaceService;
+  private readonly specDocuments: SpecDocumentsService;
   private mainWindow: BrowserWindow | null = null;
   private trayController: TrayController | null = null;
   private isIpcRegistered = false;
@@ -33,6 +41,9 @@ export class DesktopShell {
   constructor(private readonly options: DesktopShellOptions) {
     this.settingsStore = new SettingsStore(options.storageRoot);
     this.projectCatalog = new ProjectCatalogService();
+    this.approvalReview = new ApprovalReviewService();
+    this.projectWorkspace = new ProjectWorkspaceService();
+    this.specDocuments = new SpecDocumentsService();
     this.shellState = {
       runtime: options.runtimeInfo,
       selectedProjectPath: null,
@@ -92,6 +103,10 @@ export class DesktopShell {
 
     if (this.isIpcRegistered) {
       ipcMain.removeHandler(desktopChannels.getShellState);
+      ipcMain.removeHandler(desktopChannels.getProjectWorkspace);
+      ipcMain.removeHandler(desktopChannels.getApprovalReview);
+      ipcMain.removeHandler(desktopChannels.saveSpecDocument);
+      ipcMain.removeHandler(desktopChannels.respondToApproval);
       ipcMain.removeHandler(desktopChannels.pickProjectDirectory);
       ipcMain.removeHandler(desktopChannels.rememberProjectPath);
       ipcMain.removeHandler(desktopChannels.forgetProject);
@@ -105,6 +120,30 @@ export class DesktopShell {
     }
 
     ipcMain.handle(desktopChannels.getShellState, async () => this.shellState);
+    ipcMain.handle(desktopChannels.getProjectWorkspace, async (_event, projectId: string) => {
+      return this.getProjectWorkspace(projectId);
+    });
+    ipcMain.handle(desktopChannels.getApprovalReview, async (_event, projectId: string, approvalId: string) => {
+      return this.getApprovalReview(projectId, approvalId);
+    });
+    ipcMain.handle(
+      desktopChannels.saveSpecDocument,
+      async (_event, projectId: string, specName: string, document: DesktopSpecDocumentName, content: string) => {
+        return this.saveSpecDocument(projectId, specName, document, content);
+      }
+    );
+    ipcMain.handle(
+      desktopChannels.respondToApproval,
+      async (
+        _event,
+        projectId: string,
+        approvalId: string,
+        action: 'approve' | 'reject' | 'needs-revision',
+        response: string
+      ) => {
+        await this.respondToApproval(projectId, approvalId, action, response);
+      }
+    );
     ipcMain.handle(desktopChannels.pickProjectDirectory, async () => this.pickProjectDirectory());
     ipcMain.handle(desktopChannels.rememberProjectPath, async (_event, projectPath: string) => {
       await this.rememberProjectPath(projectPath);
@@ -303,6 +342,79 @@ export class DesktopShell {
         : null,
       projects: projects.map(mapProjectSummary)
     });
+  }
+
+  private async getProjectWorkspace(projectId: string) {
+    const project = await this.projectCatalog.getProjectById(projectId);
+    if (!project) {
+      return null;
+    }
+
+    return this.projectWorkspace.getWorkspaceSnapshot({
+      translatedWorkflowRootPath: PathUtils.translatePath(project.workflowRootPath),
+      translatedWorkspacePath: PathUtils.translatePath(project.workspacePath)
+    });
+  }
+
+  private async saveSpecDocument(
+    projectId: string,
+    specName: string,
+    document: DesktopSpecDocumentName,
+    content: string
+  ) {
+    const project = await this.projectCatalog.getProjectById(projectId);
+    if (!project) {
+      throw new Error('Project not found');
+    }
+
+    const result = await this.specDocuments.saveDocument({
+      workflowRootPath: PathUtils.translatePath(project.workflowRootPath),
+      specName,
+      document,
+      content
+    });
+
+    await this.refreshProjectCatalog();
+    return result;
+  }
+
+  private async getApprovalReview(projectId: string, approvalId: string) {
+    const project = await this.projectCatalog.getProjectById(projectId);
+    if (!project) {
+      return null;
+    }
+
+    return this.approvalReview.getApprovalReview(
+      {
+        translatedWorkflowRootPath: PathUtils.translatePath(project.workflowRootPath),
+        translatedWorkspacePath: PathUtils.translatePath(project.workspacePath)
+      },
+      approvalId
+    );
+  }
+
+  private async respondToApproval(
+    projectId: string,
+    approvalId: string,
+    action: 'approve' | 'reject' | 'needs-revision',
+    response: string
+  ) {
+    const project = await this.projectCatalog.getProjectById(projectId);
+    if (!project) {
+      throw new Error('Project not found');
+    }
+
+    await this.approvalReview.respondToApproval(
+      {
+        translatedWorkflowRootPath: PathUtils.translatePath(project.workflowRootPath),
+        translatedWorkspacePath: PathUtils.translatePath(project.workspacePath)
+      },
+      approvalId,
+      action,
+      response
+    );
+
+    await this.refreshProjectCatalog();
   }
 
   private broadcastShellState(): void {

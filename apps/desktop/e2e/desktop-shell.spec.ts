@@ -28,10 +28,12 @@ test('adds a project through the desktop bridge and restores it after restart', 
       await window.desktop.rememberProjectPath(projectPath);
     }, workspacePath);
     await expect(firstPage.locator('.workspace-head h2')).toHaveText('repo-recovery');
-    await expect(firstPage.locator('.project-list .badge-remembered')).toHaveText('Remembered');
-    await expect(firstPage.getByText('1 approvals')).toBeVisible();
+    await expect(firstPage.getByText('Recovered from memory')).toBeVisible();
+    await expect(firstPage.getByRole('button', { name: /^repo-recovery/ })).toBeVisible();
+    await expect(firstPage.locator('.workspace-grid > .workspace-card .section-meta').first()).toHaveText(
+      '1 approvals · 0 active specs'
+    );
     await expect(firstPage.getByText('Desktop Rewrite · 3.4')).toBeVisible();
-    await expect(firstPage.locator('.project-meta')).toHaveText(workspacePath);
   } finally {
     await firstRun.close();
   }
@@ -44,8 +46,11 @@ test('adds a project through the desktop bridge and restores it after restart', 
   try {
     const secondPage = await secondRun.firstWindow();
     await expect(secondPage.locator('.workspace-head h2')).toHaveText('repo-recovery');
-    await expect(secondPage.getByText('1 approvals')).toBeVisible();
-    await expect(secondPage.locator('.project-meta')).toHaveText(workspacePath);
+    await expect(secondPage.getByText('Recovered from memory')).toBeVisible();
+    await expect(secondPage.locator('.workspace-grid > .workspace-card .section-meta').first()).toHaveText(
+      '1 approvals · 0 active specs'
+    );
+    await expect(secondPage.getByRole('button', { name: /^repo-recovery/ })).toBeVisible();
   } finally {
     await secondRun.close();
     await rm(sandboxPath, { recursive: true, force: true });
@@ -70,7 +75,7 @@ test('forgets a remembered project and keeps it hidden after restart', async () 
       await window.desktop.rememberProjectPath(projectPath);
     }, workspacePath);
     await expect(firstPage.locator('.workspace-head h2')).toHaveText('repo-forget');
-    await firstPage.getByRole('button', { name: 'Forget project' }).click();
+    await firstPage.getByRole('button', { name: 'Forget repo-forget' }).click();
     await expect(firstPage.getByText(/no remembered projects yet/i)).toBeVisible();
   } finally {
     await firstRun.close();

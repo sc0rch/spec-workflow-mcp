@@ -18,6 +18,18 @@ const api: DesktopApi = {
   async getShellState() {
     return ipcRenderer.invoke(desktopChannels.getShellState);
   },
+  async getProjectWorkspace(projectId) {
+    return ipcRenderer.invoke(desktopChannels.getProjectWorkspace, projectId);
+  },
+  async getApprovalReview(projectId, approvalId) {
+    return ipcRenderer.invoke(desktopChannels.getApprovalReview, projectId, approvalId);
+  },
+  async saveSpecDocument(projectId, specName, document, content) {
+    return ipcRenderer.invoke(desktopChannels.saveSpecDocument, projectId, specName, document, content);
+  },
+  async respondToApproval(projectId, approvalId, action, response) {
+    return ipcRenderer.invoke(desktopChannels.respondToApproval, projectId, approvalId, action, response);
+  },
   async pickProjectDirectory() {
     return ipcRenderer.invoke(desktopChannels.pickProjectDirectory);
   },
