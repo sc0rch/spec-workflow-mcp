@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { SpecParser } from '../parser.js';
+import { SpecParser } from '../../core/parser.js';
 
 describe('SpecParser ignores empty spec directories', () => {
   let tempDir: string;
@@ -49,4 +49,3 @@ describe('SpecParser ignores empty spec directories', () => {
     expect(archivedSpecs.map(s => s.name).sort()).toEqual(['real-archived']);
   });
 });
-

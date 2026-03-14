@@ -31,6 +31,9 @@ function parseStructuredPrompt(promptText: string): PromptSection[] | undefined 
   
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
+    if (!part) {
+      continue;
+    }
     // Part is guaranteed to be non-empty due to filter above
     
     // Special handling for the first part - it might contain preamble text before the first key
@@ -91,8 +94,9 @@ function parseStructuredPrompt(promptText: string): PromptSection[] | undefined 
       // If no valid colon position, treat as continuation only if previous section exists
       if (sections.length > 0) {
         const cleanedPart = part.replace(/^_+|_+$/g, '').trim();
-        if (cleanedPart) {
-          sections[sections.length - 1].value += ' | ' + cleanedPart;
+        const lastSection = sections.at(-1);
+        if (cleanedPart && lastSection) {
+          lastSection.value += ' | ' + cleanedPart;
         }
       }
     }
@@ -150,7 +154,8 @@ export function parseTasksFromMarkdown(content: string): TaskParserResult {
   // Find all lines with checkboxes (supports both - and * list markers)
   const checkboxIndices: number[] = [];
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].match(/^\s*[-*]\s+\[([ x\-])\]/)) {
+    const line = lines[i];
+    if (line && line.match(/^\s*[-*]\s+\[([ x\-])\]/)) {
       checkboxIndices.push(i);
     }
   }
@@ -158,17 +163,25 @@ export function parseTasksFromMarkdown(content: string): TaskParserResult {
   // Process each checkbox task
   for (let idx = 0; idx < checkboxIndices.length; idx++) {
     const lineNumber = checkboxIndices[idx];
+    if (lineNumber === undefined) {
+      continue;
+    }
     const endLine = idx < checkboxIndices.length - 1 ? checkboxIndices[idx + 1] : lines.length;
     
     const line = lines[lineNumber];
+    if (!line || endLine === undefined) {
+      continue;
+    }
     const checkboxMatch = line.match(/^(\s*)([-*])\s+\[([ x\-])\]\s+(.+)/);
     
     if (!checkboxMatch) continue;
 
     const indent = checkboxMatch[1];
-    const listMarker = checkboxMatch[2]; // '-' or '*'
     const statusChar = checkboxMatch[3];
     const taskText = checkboxMatch[4];
+    if (indent === undefined || !statusChar || !taskText) {
+      continue;
+    }
     
     // Determine status
     let status: 'pending' | 'in-progress' | 'completed';
@@ -189,8 +202,14 @@ export function parseTasksFromMarkdown(content: string): TaskParserResult {
     let description: string;
     
     if (taskMatch) {
-      taskId = taskMatch[1];
-      description = taskMatch[2];
+      const parsedTaskId = taskMatch[1];
+      const parsedDescription = taskMatch[2];
+      if (!parsedTaskId || !parsedDescription) {
+        continue;
+      }
+
+      taskId = parsedTaskId;
+      description = parsedDescription;
     } else {
       // No task number found, skip this task
       continue;
@@ -205,7 +224,12 @@ export function parseTasksFromMarkdown(content: string): TaskParserResult {
     let prompt: string | undefined;
     
     for (let lineIdx = lineNumber + 1; lineIdx < endLine; lineIdx++) {
-      const contentLine = lines[lineIdx].trim();
+      const rawContentLine = lines[lineIdx];
+      if (rawContentLine === undefined) {
+        continue;
+      }
+
+      const contentLine = rawContentLine.trim();
       
       // Skip empty lines
       if (!contentLine) continue;
@@ -215,17 +239,22 @@ export function parseTasksFromMarkdown(content: string): TaskParserResult {
         // Capture everything after _Prompt: until the final closing underscore
         const promptMatch = contentLine.match(/_Prompt:\s*(.+)_$/);
         if (promptMatch) {
-          prompt = promptMatch[1].trim();
+          prompt = (promptMatch[1] ?? '').trim();
         } else {
           // If no closing underscore on same line, capture multi-line
           const afterPrompt = contentLine.match(/_Prompt:\s*(.+)$/);
-          let promptText = afterPrompt ? afterPrompt[1] : '';
+          let promptText = afterPrompt?.[1] ?? '';
           promptText = promptText.replace(/_$/, '').trim();
 
           // Accumulate continuation lines that are not new bullets/metadata
           let j = lineIdx + 1;
           while (j < endLine) {
-            const nextTrim = lines[j].trim();
+            const nextLine = lines[j];
+            if (nextLine === undefined) {
+              break;
+            }
+
+            const nextTrim = nextLine.trim();
             if (!nextTrim) break; // stop at blank line
             // Stop if we hit another bullet/metadata marker or files/purpose sections
             if (
@@ -246,7 +275,7 @@ export function parseTasksFromMarkdown(content: string): TaskParserResult {
         // Only process if not inside a prompt
         const reqMatch = contentLine.match(/_Requirements:\s*([^_]+?)_/);
         if (reqMatch) {
-          const reqText = reqMatch[1].trim();
+          const reqText = (reqMatch[1] ?? '').trim();
           // Split by comma and filter out empty/NFR
           requirements.push(...reqText.split(',').map(r => r.trim()).filter(r => r && r !== 'NFR'));
         }
@@ -254,14 +283,14 @@ export function parseTasksFromMarkdown(content: string): TaskParserResult {
         // Only process if not inside a prompt
         const levMatch = contentLine.match(/_Leverage:\s*([^_]+?)_/);
         if (levMatch) {
-          const levText = levMatch[1].trim();
+          const levText = (levMatch[1] ?? '').trim();
           leverage.push(...levText.split(',').map(l => l.trim()).filter(l => l));
         }
       } else if (contentLine.match(/Files?:/)) {
         const fileMatch = contentLine.match(/Files?:\s*(.+)$/);
         if (fileMatch) {
           // Split by comma and clean up each file path
-          const filePaths = fileMatch[1]
+          const filePaths = (fileMatch[1] ?? '')
             .split(',')
             .map(f => f.trim().replace(/\(.*?\)/, '').trim())
             .filter(f => f.length > 0);
@@ -352,6 +381,9 @@ export function updateTaskStatus(
   // Find and update the task line
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    if (!line) {
+      continue;
+    }
 
     // Match checkbox line with task ID in the description (supports both - and * list markers)
     // Pattern: - [x] 1.1 Task description  or  * [x] 1.1 Task description
@@ -361,6 +393,9 @@ export function updateTaskStatus(
       const prefix = checkboxMatch[1];
       const listMarker = checkboxMatch[2]; // Preserve original list marker
       const taskText = checkboxMatch[4];
+      if (!prefix || !listMarker || !taskText) {
+        continue;
+      }
 
       // Check if this line contains our target task ID
       // Match patterns like "1. Description", "1.1 Description", "2.1. Description" etc

@@ -19,6 +19,7 @@ export function App() {
   const [shellState, setShellState] = useState<DesktopShellState>(() => createFallbackShellState());
   const [isHydrated, setIsHydrated] = useState<boolean>(() => !window.desktop);
   const [isPickingProject, setIsPickingProject] = useState(false);
+  const [forgettingProjectId, setForgettingProjectId] = useState<string | null>(null);
   const [bridgeError, setBridgeError] = useState<string | null>(null);
 
   const applyShellState = useEffectEvent((nextState: DesktopShellState) => {
@@ -77,6 +78,21 @@ export function App() {
     }
   };
 
+  const handleForgetProject = async (projectId: string) => {
+    if (!window.desktop) {
+      return;
+    }
+
+    setForgettingProjectId(projectId);
+    try {
+      await window.desktop.forgetProject(projectId);
+    } catch (error) {
+      setBridgeError(error instanceof Error ? error.message : 'Forget project request failed.');
+    } finally {
+      setForgettingProjectId(null);
+    }
+  };
+
   return (
     <main className="shell">
       <section className="hero">
@@ -113,6 +129,79 @@ export function App() {
               ? 'Available through the typed preload bridge.'
               : 'Browser preview mode does not expose native dialogs.'}
           </p>
+        </article>
+
+        <article className="panel">
+          <h2>Project home</h2>
+          {shellState.projects.length === 0 ? (
+            <p className="panel-copy">
+              No remembered projects yet. Use the native folder picker once and the desktop shell
+              will restore that workspace after restart.
+            </p>
+          ) : (
+            <div aria-label="Remembered projects" className="project-list" role="list">
+              {shellState.projects.map((project) => {
+                const isSelected = shellState.selectedProjectPath === project.workspacePath;
+                const isForgetting = forgettingProjectId === project.projectId;
+
+                return (
+                  <article
+                    className={`project-card ${isSelected ? 'project-card-selected' : ''}`}
+                    key={project.projectId}
+                    role="listitem"
+                  >
+                    <div className="project-card-header">
+                      <div>
+                        <h3>{project.projectName}</h3>
+                        <p className="project-meta">{project.workspacePath}</p>
+                      </div>
+                      <div className="project-badges">
+                        <span className={`badge badge-${project.connectionState}`}>
+                          {project.connectionState === 'live' ? 'Live' : 'Remembered'}
+                        </span>
+                        {project.instanceCount > 0 ? (
+                          <span className="badge badge-neutral">{project.instanceCount} MCP</span>
+                        ) : null}
+                      </div>
+                    </div>
+                    <dl className="project-stats">
+                      <div>
+                        <dt>Latest spec</dt>
+                        <dd>{project.latestSpec?.displayName ?? 'No specs yet'}</dd>
+                      </div>
+                      <div>
+                        <dt>Git branch</dt>
+                        <dd>{project.gitBranch ?? 'Unavailable'}</dd>
+                      </div>
+                      <div>
+                        <dt>Workflow root</dt>
+                        <dd>{project.workflowRootPath}</dd>
+                      </div>
+                    </dl>
+                    <div className="project-actions">
+                      <span className="helper-copy">
+                        {project.source === 'manual'
+                          ? 'Added manually in desktop'
+                          : project.source === 'mcp'
+                            ? 'Observed from MCP activity'
+                            : 'Catalog entry'}
+                      </span>
+                      <button
+                        className="secondary-action"
+                        disabled={!window.desktop || isForgetting}
+                        onClick={() => {
+                          void handleForgetProject(project.projectId);
+                        }}
+                        type="button"
+                      >
+                        {isForgetting ? 'Forgetting...' : 'Forget project'}
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </article>
 
         <article className="panel">
@@ -201,7 +290,8 @@ function createFallbackShellState(): DesktopShellState {
     lastSelectedAt: null,
     storagePath: runtime.isElectron ? 'Loading shell state...' : 'Browser preview has no desktop storage path.',
     statusLabel: runtime.isElectron ? 'Status: Starting' : 'Status: Browser preview',
-    issues: []
+    issues: [],
+    projects: []
   };
 }
 

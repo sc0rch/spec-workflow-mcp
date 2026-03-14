@@ -3,7 +3,7 @@ import { join } from 'path';
 
 test('opens the desktop shell smoke screen', async () => {
   const app = await electron.launch({
-    args: [join(process.cwd(), 'dist', 'main', 'index.js')]
+    args: [join(process.cwd(), 'dist', 'apps', 'desktop', 'src', 'main', 'index.js')]
   });
 
   const page = await app.firstWindow();

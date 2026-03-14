@@ -2,7 +2,7 @@
 
 Last updated: 2026-03-14
 Status: Milestone 3 in progress
-Current focus: Extract reusable workflow/domain services behind typed desktop boundaries without carrying legacy HTTP/page coupling into the new app.
+Current focus: Finish approvals/log service extraction behind typed desktop boundaries and harden the new project catalog/home flow with deeper recovery coverage.
 
 ## Purpose
 
@@ -192,16 +192,24 @@ Exit criteria:
 
 Goal: Stop coupling new UI to legacy transport and page structure.
 
-- [ ] Identify reusable workflow modules from current codebase.
+- [x] Identify reusable workflow modules from current codebase.
 - [ ] Extract or wrap reusable logic for:
-  - remembered projects
-  - project binding/path logic
-  - spec parsing
-  - approvals storage
-  - implementation logs
-- [ ] Create typed desktop service interfaces for renderer use.
+  - [x] remembered projects
+  - [x] project binding/path logic for manual desktop project registration
+  - [x] spec parsing
+  - [ ] approvals storage
+  - [ ] implementation logs
+- [x] Create typed desktop service interfaces for renderer use.
 - [ ] Add unit tests for each extracted service boundary.
 - [ ] Remove accidental dependencies on HTTP route handlers from new code.
+
+Implemented so far:
+- Removed duplicate `SpecParser` implementations and kept one canonical parser in `src/core/parser.ts`.
+- Added `ProjectCatalogService` in `src/core/project-catalog.ts` for remembered/live project merge, latest spec lookup, manual add/forget, and live/disconnected state.
+- Refactored dashboard `ProjectManager` to consume the extracted catalog service instead of duplicating merge/add/remove behavior.
+- Wired desktop `main -> preload -> renderer` through a typed project catalog contract so the Electron shell now reads remembered/live projects through domain services, not ad-hoc UI state.
+- Hardened `src/core/task-parser.ts` to satisfy strict desktop compilation once shared core modules became part of the Electron runtime build.
+- Added focused tests for the extracted project catalog service and parser unification behavior.
 
 Exit criteria:
 - New desktop code calls services, not legacy page/server code.
@@ -210,16 +218,21 @@ Exit criteria:
 
 Goal: Make startup and restart recovery feel native and immediate.
 
-- [ ] Build desktop home screen with:
+- [x] Build desktop home screen with:
   - recent/remembered projects
   - project status
   - last active workspace
   - add project action
-- [ ] Show remembered projects immediately on launch.
-- [ ] Support forget/remove project behavior.
-- [ ] Show disconnected vs live MCP state clearly.
-- [ ] Add empty state that does not require manual path typing.
+- [x] Show remembered projects immediately on launch.
+- [x] Support forget/remove project behavior.
+- [x] Show disconnected vs live MCP state clearly.
+- [x] Add empty state that does not require manual path typing.
 - [ ] Cover add/remove/restart recovery with e2e tests.
+
+Implemented so far:
+- Desktop renderer now shows a real project home with remembered/live projects, latest spec, git branch, workflow root, and a native add-project action.
+- Forget/remove is routed through the typed desktop bridge and updates persisted remembered-project state.
+- Desktop shell refreshes project catalog state on launch and focus, so restart recovery and MCP visibility now appear in the native UI instead of the legacy dashboard only.
 
 Exit criteria:
 - Restarting the app still shows the user's project list.

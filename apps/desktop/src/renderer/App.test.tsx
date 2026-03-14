@@ -18,7 +18,26 @@ const shellState: DesktopShellState = {
   lastSelectedAt: '2026-03-14T12:34:56.000Z',
   storagePath: '/tmp/spec-workflow-desktop/desktop-settings.json',
   statusLabel: 'Status: Project ready',
-  issues: []
+  issues: [],
+  projects: [
+    {
+      projectId: 'project-a',
+      projectName: 'repo-a',
+      workspacePath: '/tmp/repo-a',
+      workflowRootPath: '/tmp/repo-a',
+      connectionState: 'live',
+      source: 'mcp',
+      addedAt: '2026-03-14T10:00:00.000Z',
+      lastSeenAt: '2026-03-14T12:34:56.000Z',
+      gitBranch: 'feature/demo',
+      latestSpec: {
+        name: 'alpha-spec',
+        displayName: 'Alpha Spec',
+        createdAt: '2026-03-14T09:00:00.000Z'
+      },
+      instanceCount: 1
+    }
+  ]
 };
 
 describe('App', () => {
@@ -38,10 +57,13 @@ describe('App', () => {
       screen.getByRole('heading', { name: 'Spec Workflow Desktop' })
     ).toBeInTheDocument();
     expect(
-      await screen.findByText('/tmp/repo-a')
+      await screen.findByText('Alpha Spec')
     ).toBeInTheDocument();
     expect(
       screen.getByText('Status: Project ready')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'repo-a' })
     ).toBeInTheDocument();
   });
 
@@ -61,6 +83,20 @@ describe('App', () => {
 
     expect(pickProjectDirectory).toHaveBeenCalledTimes(1);
   });
+
+  it('forgets a remembered project through the desktop bridge', async () => {
+    const user = userEvent.setup();
+    const forgetProject = vi.fn<DesktopApi['forgetProject']>().mockResolvedValue(undefined);
+    window.desktop = createDesktopApiMock({
+      forgetProject
+    });
+
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Forget project' }));
+
+    expect(forgetProject).toHaveBeenCalledWith('project-a');
+  });
 });
 
 function createDesktopApiMock(
@@ -73,6 +109,7 @@ function createDesktopApiMock(
       canceled: true,
       path: null
     }),
+    forgetProject: vi.fn().mockResolvedValue(undefined),
     onShellStateChanged: vi.fn().mockReturnValue(() => undefined),
     ...overrides
   };

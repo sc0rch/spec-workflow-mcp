@@ -29,12 +29,17 @@ export default [
   },
   {
     files: ['**/*.ts', '**/*.tsx'],
+    ignores: ['**/*.config.ts', 'e2e/**/*.ts'],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
         ecmaVersion: 2023,
         sourceType: 'module',
-        projectService: true,
+        project: [
+          './tsconfig.electron.json',
+          './tsconfig.renderer.json',
+          './tsconfig.test.json'
+        ],
         tsconfigRootDir: import.meta.dirname
       },
       globals: {
@@ -47,6 +52,32 @@ export default [
         it: 'readonly',
         test: 'readonly',
         vi: 'readonly'
+      }
+    },
+    plugins: {
+      '@typescript-eslint': tseslint
+    },
+    rules: {
+      '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      'curly': ['error', 'all'],
+      'eqeqeq': ['error', 'always'],
+      'no-undef': 'off',
+      'no-unused-vars': 'off',
+      'no-console': ['error', { allow: ['error', 'warn'] }]
+    }
+  },
+  {
+    files: ['**/*.config.ts', 'e2e/**/*.ts'],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        ecmaVersion: 2023,
+        sourceType: 'module'
+      },
+      globals: {
+        ...globals.browser,
+        ...globals.node
       }
     },
     plugins: {

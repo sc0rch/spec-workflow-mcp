@@ -21,6 +21,9 @@ const api: DesktopApi = {
   async pickProjectDirectory() {
     return ipcRenderer.invoke(desktopChannels.pickProjectDirectory);
   },
+  async forgetProject(projectId) {
+    await ipcRenderer.invoke(desktopChannels.forgetProject, projectId);
+  },
   onShellStateChanged(listener) {
     const handleShellStateChanged = (_event: Electron.IpcRendererEvent, nextState: Awaited<ReturnType<DesktopApi['getShellState']>>) => {
       listener(nextState);

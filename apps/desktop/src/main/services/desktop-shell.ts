@@ -1,6 +1,7 @@
 import { BrowserWindow, app, dialog, ipcMain } from 'electron';
 import type { OpenDialogOptions } from 'electron';
 import type {
+  DesktopProjectSummary,
   DesktopRuntimeInfo,
   DesktopShellState,
   ProjectSelectionResult,
@@ -8,6 +9,7 @@ import type {
   StartupIssueCode
 } from '../../shared/desktop-api.js';
 import { desktopChannels } from '../../shared/desktop-api.js';
+import { ProjectCatalogService } from '../../../../../src/core/project-catalog.js';
 import { getRendererEntryPath, getTrayIconPath } from '../runtime-paths.js';
 import { createMainWindow } from '../window.js';
 import { SettingsStore, type WindowState } from './settings-store.js';
@@ -22,6 +24,7 @@ export interface DesktopShellOptions {
 
 export class DesktopShell {
   private readonly settingsStore: SettingsStore;
+  private readonly projectCatalog: ProjectCatalogService;
   private mainWindow: BrowserWindow | null = null;
   private trayController: TrayController | null = null;
   private isIpcRegistered = false;
@@ -29,13 +32,15 @@ export class DesktopShell {
 
   constructor(private readonly options: DesktopShellOptions) {
     this.settingsStore = new SettingsStore(options.storageRoot);
+    this.projectCatalog = new ProjectCatalogService();
     this.shellState = {
       runtime: options.runtimeInfo,
       selectedProjectPath: null,
       lastSelectedAt: null,
       storagePath: this.settingsStore.getSettingsPath(),
       statusLabel: 'Status: Starting',
-      issues: []
+      issues: [],
+      projects: []
     };
   }
 
@@ -56,6 +61,11 @@ export class DesktopShell {
 
     this.registerIpcHandlers();
     this.trayController = this.createTrayIfAvailable();
+    await this.projectCatalog.cleanupStaleProjects();
+    await this.refreshProjectCatalog({
+      selectedProjectPath: settings.lastSelectedProjectPath,
+      lastSelectedAt: settings.lastSelectedAt
+    });
     this.mainWindow = this.createOrRestoreWindow(settings.window);
     this.broadcastShellState();
   }
@@ -71,6 +81,7 @@ export class DesktopShell {
       window.restore();
     }
 
+    void this.refreshProjectCatalog();
     window.show();
     window.focus();
   }
@@ -82,6 +93,7 @@ export class DesktopShell {
     if (this.isIpcRegistered) {
       ipcMain.removeHandler(desktopChannels.getShellState);
       ipcMain.removeHandler(desktopChannels.pickProjectDirectory);
+      ipcMain.removeHandler(desktopChannels.forgetProject);
       this.isIpcRegistered = false;
     }
   }
@@ -93,6 +105,9 @@ export class DesktopShell {
 
     ipcMain.handle(desktopChannels.getShellState, async () => this.shellState);
     ipcMain.handle(desktopChannels.pickProjectDirectory, async () => this.pickProjectDirectory());
+    ipcMain.handle(desktopChannels.forgetProject, async (_event, projectId: string) => {
+      await this.forgetProject(projectId);
+    });
     this.isIpcRegistered = true;
   }
 
@@ -181,15 +196,17 @@ export class DesktopShell {
       };
     }
 
+    const rememberedProject = await this.projectCatalog.addProjectByPath(selectedPath);
+    const selectedProjectPath = rememberedProject.workspacePath;
     this.updateShellState({
-      selectedProjectPath: selectedPath,
+      selectedProjectPath,
       lastSelectedAt: new Date().toISOString()
     });
 
     try {
-      await this.settingsStore.setLastSelectedProjectPath(selectedPath);
+      await this.settingsStore.setLastSelectedProjectPath(selectedProjectPath);
       const settings = this.settingsStore.getSettings();
-      this.updateShellState({
+      await this.refreshProjectCatalog({
         selectedProjectPath: settings.lastSelectedProjectPath,
         lastSelectedAt: settings.lastSelectedAt
       });
@@ -206,8 +223,36 @@ export class DesktopShell {
 
     return {
       canceled: false,
-      path: selectedPath
+      path: selectedProjectPath
     };
+  }
+
+  private async forgetProject(projectId: string): Promise<void> {
+    await this.projectCatalog.forgetProjectById(projectId);
+
+    const selectedProjectPath = this.shellState.selectedProjectPath;
+    if (!selectedProjectPath) {
+      await this.refreshProjectCatalog();
+      return;
+    }
+
+    const remainingProjects = await this.projectCatalog.getProjects();
+    const selectedStillVisible = remainingProjects.some(
+      (project) => project.workspacePath === selectedProjectPath
+    );
+
+    if (!selectedStillVisible) {
+      await this.settingsStore.setLastSelectedProjectPath(null);
+      await this.refreshProjectCatalog({
+        selectedProjectPath: null,
+        lastSelectedAt: null
+      });
+      return;
+    }
+
+    this.updateShellState({
+      projects: remainingProjects.map(mapProjectSummary)
+    });
   }
 
   private createShellState(
@@ -233,6 +278,24 @@ export class DesktopShell {
     this.shellState = this.createShellState(overrides);
     this.trayController?.setStatusLabel(this.shellState.statusLabel);
     this.broadcastShellState();
+  }
+
+  private async refreshProjectCatalog(
+    overrides: Partial<Pick<DesktopShellState, 'selectedProjectPath' | 'lastSelectedAt'>> = {}
+  ): Promise<void> {
+    const projects = await this.projectCatalog.getProjects();
+    const selectedProjectPath = overrides.selectedProjectPath ?? this.shellState.selectedProjectPath;
+    const selectedStillVisible = selectedProjectPath
+      ? projects.some((project) => project.workspacePath === selectedProjectPath)
+      : false;
+
+    this.updateShellState({
+      selectedProjectPath: selectedStillVisible ? selectedProjectPath : null,
+      lastSelectedAt: selectedStillVisible
+        ? (overrides.lastSelectedAt ?? this.shellState.lastSelectedAt)
+        : null,
+      projects: projects.map(mapProjectSummary)
+    });
   }
 
   private broadcastShellState(): void {
@@ -295,4 +358,20 @@ function createTrayIssueMessage(error: unknown): string {
   }
 
   return 'Tray menu is unavailable.';
+}
+
+function mapProjectSummary(project: Awaited<ReturnType<ProjectCatalogService['getProjects']>>[number]): DesktopProjectSummary {
+  return {
+    projectId: project.projectId,
+    projectName: project.projectName,
+    workspacePath: project.workspacePath,
+    workflowRootPath: project.workflowRootPath,
+    connectionState: project.connectionState,
+    source: project.source,
+    addedAt: project.addedAt,
+    lastSeenAt: project.lastSeenAt,
+    gitBranch: project.gitBranch,
+    latestSpec: project.latestSpec,
+    instanceCount: project.instances.length
+  };
 }

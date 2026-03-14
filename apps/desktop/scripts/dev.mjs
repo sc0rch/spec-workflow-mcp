@@ -7,8 +7,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, '..');
 const rendererUrl = 'http://127.0.0.1:5174';
 
-const electronEntry = join(projectRoot, 'dist', 'main', 'index.js');
-const preloadEntry = join(projectRoot, 'dist', 'preload', 'index.js');
+const electronEntry = join(projectRoot, 'dist', 'apps', 'desktop', 'src', 'main', 'index.js');
+const preloadEntry = join(projectRoot, 'dist', 'apps', 'desktop', 'src', 'preload', 'index.js');
 
 const childProcesses = [];
 
@@ -89,7 +89,7 @@ try {
     waitForUrl(rendererUrl)
   ]);
 
-  const electronApp = spawnProcess('electron', ['dist/main/index.js'], {
+  const electronApp = spawnProcess('electron', ['dist/apps/desktop/src/main/index.js'], {
     SPEC_WORKFLOW_DESKTOP_RENDERER_URL: rendererUrl
   });
 
