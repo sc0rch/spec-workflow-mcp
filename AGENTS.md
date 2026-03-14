@@ -45,3 +45,8 @@
 - Add or update focused tests for any change to binding, CLI argument parsing, tool contracts, or dashboard registration behavior.
 - Prefer unit tests around canonical modules before adding broader integration coverage.
 - Run targeted tests for changed areas and at least one build before finishing substantial changes.
+
+## Rewrite roadmap
+
+- For the Electron rewrite, use `docs/electron-desktop-rewrite.md` as the canonical roadmap and progress checklist.
+- When work meaningfully advances or direction changes, update that file in the same turn so future sessions can resume from it directly.

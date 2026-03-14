@@ -1,0 +1,68 @@
+{
+  "name": "@sc0rch/spec-workflow-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main/index.js",
+  "description": "Electron-first desktop shell for Spec Workflow",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "clean": "node ./scripts/clean.mjs",
+    "dev": "node ./scripts/dev.mjs",
+    "build": "npm run clean && npm run build:electron && npm run build:renderer",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "build:renderer": "vite build --config vite.config.ts",
+    "lint": "eslint .",
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
+    "test:e2e": "npm run build && playwright test --config playwright.config.ts",
+    "package:dir": "npm run build && electron-builder --dir"
+  },
+  "build": {
+    "appId": "com.sc0rch.specworkflow.desktop",
+    "productName": "Spec Workflow Desktop",
+    "files": [
+      "dist/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "target": [
+        "dir"
+      ]
+    },
+    "extraMetadata": {
+      "main": "dist/main/index.js"
+    }
+  },
+  "dependencies": {
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.58.2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^22.18.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@typescript-eslint/eslint-plugin": "^8.57.0",
+    "@typescript-eslint/parser": "^8.57.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "electron": "^41.0.2",
+    "electron-builder": "^26.8.1",
+    "eslint": "^10.0.3",
+    "globals": "^17.4.0",
+    "jsdom": "^28.1.0",
+    "typescript": "^5.7.2",
+    "vite": "^8.0.0",
+    "vitest": "^4.0.15"
+  }
+}
