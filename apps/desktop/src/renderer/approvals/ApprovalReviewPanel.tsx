@@ -28,8 +28,8 @@ interface ApprovalReviewPanelProps {
 }
 
 type ComposerState =
-  | { mode: 'general' }
-  | ({ mode: 'selection' } & ApprovalSelectionDraft)
+  | { mode: 'general'; editingCommentId?: string | undefined }
+  | ({ mode: 'selection'; editingCommentId?: string | undefined } & ApprovalSelectionDraft)
   | null;
 
 export function ApprovalReviewPanel({
@@ -46,6 +46,19 @@ export function ApprovalReviewPanel({
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
   const [composerState, setComposerState] = useState<ComposerState>(null);
   const [commentDraft, setCommentDraft] = useState('');
+
+  const focusComment = (commentId: string) => {
+    setActiveCommentId((currentCommentId) => {
+      if (currentCommentId !== commentId) {
+        return commentId;
+      }
+
+      window.requestAnimationFrame(() => {
+        setActiveCommentId(commentId);
+      });
+      return null;
+    });
+  };
 
   useEffect(() => {
     setComments(
@@ -193,7 +206,7 @@ export function ApprovalReviewPanel({
               setComposerState({ mode: 'selection', ...selection });
               setCommentDraft('');
             },
-            onSelectComment: setActiveCommentId
+            onSelectComment: focusComment
           })}
         </article>
 
@@ -247,17 +260,31 @@ export function ApprovalReviewPanel({
                   disabled={commentDraft.trim().length === 0}
                   onClick={() => {
                     const nextComment = createComment(commentDraft, composerState);
-                    setComments((currentComments) => [
-                      ...currentComments,
-                      nextComment
-                    ]);
-                    setActiveCommentId(nextComment.id ?? null);
+                    const focusedCommentId = composerState.editingCommentId ?? nextComment.id ?? null;
+                    setComments((currentComments) => {
+                      if (!composerState.editingCommentId) {
+                        return [...currentComments, nextComment];
+                      }
+
+                      return currentComments.map((currentComment) =>
+                        currentComment.id === composerState.editingCommentId
+                          ? {
+                              ...nextComment,
+                              id: currentComment.id,
+                              timestamp: currentComment.timestamp
+                            }
+                          : currentComment
+                      );
+                    });
+                    if (focusedCommentId) {
+                      focusComment(focusedCommentId);
+                    }
                     setComposerState(null);
                     setCommentDraft('');
                   }}
                   type="button"
                 >
-                  Save comment
+                  {composerState.editingCommentId ? 'Save changes' : 'Save comment'}
                 </button>
               </div>
             </section>
@@ -276,41 +303,85 @@ export function ApprovalReviewPanel({
             ) : (
               comments.map((comment) => (
                 <article
-                  className={`approval-comment-card ${activeCommentId === comment.id ? 'approval-comment-card-active' : ''}`}
+                  aria-pressed={comment.type === 'selection' && comment.id ? activeCommentId === comment.id : undefined}
+                  className={`approval-comment-card ${activeCommentId === comment.id ? 'approval-comment-card-active' : ''} ${comment.type === 'selection' && comment.id ? 'approval-comment-card-selectable' : ''}`}
                   key={comment.id ?? comment.timestamp}
+                  onClick={() => {
+                    if (comment.type === 'selection' && comment.id) {
+                      focusComment(comment.id);
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (
+                      comment.type === 'selection'
+                      && comment.id
+                      && (event.key === 'Enter' || event.key === ' ')
+                    ) {
+                      event.preventDefault();
+                      focusComment(comment.id);
+                    }
+                  }}
+                  role={comment.type === 'selection' && comment.id ? 'button' : undefined}
+                  tabIndex={comment.type === 'selection' && comment.id ? 0 : undefined}
                 >
                   <div className="section-header">
                     <span className="queue-item-kind">
                       {comment.type === 'selection' ? 'Selection' : 'General'}
                     </span>
-                    <button
-                      aria-label={`Delete comment ${comment.id ?? comment.timestamp}`}
-                      className="project-forget approval-comment-delete"
-                      onClick={() => {
-                        setComments((currentComments) =>
-                          currentComments.filter((currentComment) => currentComment !== comment)
-                        );
-                        if (activeCommentId === comment.id) {
-                          setActiveCommentId(null);
-                        }
-                      }}
-                      type="button"
-                    >
-                      ×
-                    </button>
+                    <div className="approval-comment-actions">
+                      <button
+                        aria-label={`Edit comment ${comment.id ?? comment.timestamp}`}
+                        className="secondary-action approval-comment-delete"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setComposerState(
+                            comment.type === 'selection'
+                              && typeof comment.startOffset === 'number'
+                              && typeof comment.endOffset === 'number'
+                              && comment.selectedText
+                              ? {
+                                  mode: 'selection',
+                                  editingCommentId: comment.id,
+                                  selectedText: comment.selectedText,
+                                  startOffset: comment.startOffset,
+                                  endOffset: comment.endOffset
+                                }
+                              : {
+                                  mode: 'general',
+                                  editingCommentId: comment.id
+                                }
+                          );
+                          setCommentDraft(comment.comment);
+                          if (comment.id) {
+                            focusComment(comment.id);
+                          }
+                        }}
+                        type="button"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        aria-label={`Delete comment ${comment.id ?? comment.timestamp}`}
+                        className="secondary-action approval-comment-delete"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setComments((currentComments) =>
+                            currentComments.filter((currentComment) => currentComment !== comment)
+                          );
+                          if (activeCommentId === comment.id) {
+                            setActiveCommentId(null);
+                          }
+                        }}
+                        type="button"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
                   {comment.type === 'selection' && comment.selectedText ? (
-                    <button
-                      className="approval-comment-anchor"
-                      onClick={() => {
-                        if (comment.id) {
-                          setActiveCommentId(comment.id);
-                        }
-                      }}
-                      type="button"
-                    >
+                    <p className="approval-comment-selection">
                       {comment.selectedText}
-                    </button>
+                    </p>
                   ) : null}
                   <p className="stack-card-copy">{comment.comment}</p>
                 </article>

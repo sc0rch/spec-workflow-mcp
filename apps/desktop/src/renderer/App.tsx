@@ -815,7 +815,6 @@ export function App() {
               type="button"
             >
               <span className="header-action-label">Search</span>
-              <kbd>⌘K</kbd>
             </button>
             <div
               aria-label={`MCP ${mcpStatus.label}`}
@@ -862,7 +861,6 @@ export function App() {
                     type="button"
                   >
                     <span>{mode.label}</span>
-                    <kbd>{mode.shortcut}</kbd>
                   </button>
                 ))}
               </nav>
@@ -1436,7 +1434,6 @@ function createCommandPaletteItems(context: CommandItemContext): CommandPaletteI
       meta: context.activeProject
         ? `${context.activeProject.projectName} · ${mode.label.toLowerCase()}`
         : 'Pick a project first.',
-      shortcut: mode.shortcut,
       keywords: ['mode', mode.id, mode.label.toLowerCase()],
       onSelect: () => {
         context.onSelectMode(mode.id);

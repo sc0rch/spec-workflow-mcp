@@ -1052,6 +1052,37 @@ Implemented:
   - one or more comments: only `Request revisions`, which submits a reject with the saved comments
 - aligned keyboard behavior so approve is no longer available once comments exist
 
+### Approval Comment Cleanup
+
+Goal: Make approval comments easier to manage and make selection comments visibly map back to the reviewed markdown.
+
+Implemented:
+- replaced the subtle hover-only delete affordance with a visible `Remove` action inside comment cards
+- changed saved selection excerpts from fake link styling to plain text preview
+- strengthened inline markdown highlighting for commented text and kept active highlights visually distinct
+- hardened renderer behavior so missing `scrollIntoView` implementations do not break approval review in tests or lightweight environments
+
+### Approval Comment Interaction Pass
+
+Goal: Make saved selection comments editable and make comment-card navigation symmetric with inline markdown highlights.
+
+Implemented:
+- added `Edit` actions for saved approval comments
+- made selection comment cards themselves selectable so tapping a comment in the sidebar jumps back to the highlighted markdown text
+- changed highlight offset calculations to align with rendered `textContent` instead of range string serialization
+- added a selected-text fallback matcher for persisted comments so highlight recovery survives whitespace normalization and more complex inline markdown structure
+- replaced `Range.surroundContents()` with text-node segment wrapping so selection highlights can span more inline markdown structures without silently failing
+
+### Keybind Badge Cleanup
+
+Goal: Keep keyboard shortcuts working without rendering them as persistent UI noise.
+
+Implemented:
+- removed visible shortcut badges from the header `Search` action
+- removed visible `1 / 2 / 3` shortcut hints from work-mode tabs
+- removed visible shortcut badges from command-palette result rows
+- kept all existing keyboard shortcuts functional in renderer logic
+
 ## Current Progress Checklist
 
 - [x] Decide to pursue Electron-first rewrite.

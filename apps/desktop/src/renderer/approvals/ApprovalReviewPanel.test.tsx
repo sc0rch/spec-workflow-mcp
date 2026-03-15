@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type {
   DesktopApprovalReview,
@@ -123,5 +124,66 @@ describe('ApprovalReviewPanel', () => {
     );
 
     expect(container.querySelector('.approval-queue-meta')).toBeNull();
+  });
+
+  it('shows selected text as plain preview and lets the reviewer remove the comment', async () => {
+    const user = userEvent.setup();
+
+    const { container } = render(
+      <ApprovalReviewPanel
+        approvalActionState={{ status: 'idle' }}
+        approvalReview={approvalReview}
+        approvalReviewError={null}
+        isLoadingApprovalReview={false}
+        onSelectApproval={vi.fn()}
+        onSubmitDecision={vi.fn().mockResolvedValue(undefined)}
+        projectWorkspace={projectWorkspace}
+        selectedApprovalId="approval-1"
+      />
+    );
+
+    expect(container.querySelector('.approval-comment-selection')).toHaveTextContent(
+      'Keep restart recovery obvious.'
+    );
+    expect(screen.queryByRole('button', { name: 'Keep restart recovery obvious.' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Delete comment/i })).toHaveTextContent('Remove');
+
+    await user.click(screen.getByRole('button', { name: /Delete comment/i }));
+
+    expect(screen.queryByText('Tighten this sentence.')).not.toBeInTheDocument();
+  });
+
+  it('lets the reviewer edit an existing comment and focus its highlighted text from the comments column', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <ApprovalReviewPanel
+        approvalActionState={{ status: 'idle' }}
+        approvalReview={approvalReview}
+        approvalReviewError={null}
+        isLoadingApprovalReview={false}
+        onSelectApproval={vi.fn()}
+        onSubmitDecision={vi.fn().mockResolvedValue(undefined)}
+        projectWorkspace={projectWorkspace}
+        selectedApprovalId="approval-1"
+      />
+    );
+
+    const selectionPreview = container.querySelector('.approval-comment-selection');
+    expect(selectionPreview).not.toBeNull();
+    await user.click(selectionPreview as HTMLElement);
+
+    expect(container.querySelector('.approval-inline-comment-active')).not.toBeNull();
+
+    await user.click(screen.getByRole('button', { name: /Edit comment/i }));
+
+    const commentField = await screen.findByLabelText('Approval comment');
+    expect(commentField).toHaveValue('Tighten this sentence.');
+
+    await user.clear(commentField);
+    await user.type(commentField, 'Clarify this sentence.');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(screen.getByText('Clarify this sentence.')).toBeInTheDocument();
+    expect(screen.queryByText('Tighten this sentence.')).not.toBeInTheDocument();
   });
 });

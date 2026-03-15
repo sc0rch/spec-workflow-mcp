@@ -5,7 +5,6 @@ export type CommandPaletteItem = {
   title: string;
   category: string;
   meta?: string | undefined;
-  shortcut?: string | undefined;
   onSelect: () => void | Promise<void>;
   keywords?: string[] | undefined;
 };
@@ -193,7 +192,6 @@ export function CommandPalette(props: {
                   </div>
                   {item.meta ? <p className="command-item-meta">{item.meta}</p> : null}
                 </div>
-                {item.shortcut ? <kbd>{item.shortcut}</kbd> : null}
               </div>
             ))}
           </div>

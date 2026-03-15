@@ -151,4 +151,30 @@ describe('MarkdownReviewSurface', () => {
 
     expect(await screen.findByRole('button', { name: 'Add comment' })).toBeEnabled();
   });
+
+  it('highlights commented text inside rendered markdown', async () => {
+    render(
+      <MarkdownReviewSurface
+        activeCommentId="comment-1"
+        comments={[
+          {
+            id: 'comment-1',
+            type: 'selection',
+            comment: 'Tighten this sentence.',
+            selectedText: 'Keep restart recovery obvious.',
+            startOffset: 0,
+            endOffset: 30,
+            timestamp: '2026-03-16T10:00:00.000Z'
+          }
+        ]}
+        content={'Keep restart recovery obvious.'}
+        onRequestSelectionComment={vi.fn()}
+        onSelectComment={vi.fn()}
+      />
+    );
+
+    const highlight = await screen.findByTitle('Tighten this sentence.');
+    expect(highlight).toHaveClass('approval-inline-comment-active');
+    expect(highlight).toHaveTextContent('Keep restart recovery obvious.');
+  });
 });

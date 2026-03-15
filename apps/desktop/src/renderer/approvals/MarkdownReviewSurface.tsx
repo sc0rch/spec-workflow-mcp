@@ -49,9 +49,14 @@ export function MarkdownReviewSurface({
     applyCommentHighlights(container, comments, activeCommentId);
 
     if (activeCommentId) {
-      container.querySelector<HTMLElement>(`[data-comment-id="${activeCommentId}"]`)?.scrollIntoView({
-        block: 'center'
-      });
+      const activeCommentElement = container.querySelector<HTMLElement>(
+        `[data-comment-id="${activeCommentId}"]`
+      );
+      if (activeCommentElement && typeof activeCommentElement.scrollIntoView === 'function') {
+        activeCommentElement.scrollIntoView({
+          block: 'center'
+        });
+      }
     }
   }, [activeCommentId, comments, renderedHtml]);
 
@@ -206,7 +211,7 @@ function getRangeOffset(
     offsetRange.setEnd(range.endContainer, range.endOffset);
   }
 
-  return offsetRange.toString().length;
+  return offsetRange.cloneContents().textContent?.length ?? 0;
 }
 
 function applyCommentHighlights(
@@ -230,60 +235,150 @@ function applyCommentHighlights(
     .sort((left, right) => right.startOffset - left.startOffset);
 
   for (const comment of highlightableComments) {
-    const range = createContentRange(container, comment.startOffset, comment.endOffset);
-    if (!range) {
+    const highlightRange = resolveHighlightRange(container, comment);
+    if (!highlightRange) {
       continue;
     }
 
-    const marker = document.createElement('mark');
-    marker.className = `approval-inline-comment${comment.id === activeCommentId ? ' approval-inline-comment-active' : ''}`;
-    marker.dataset.commentId = comment.id;
-    marker.title = comment.comment;
-
-    try {
-      range.surroundContents(marker);
-    } catch {
-      // Ignore invalid or overlapping ranges.
-    }
+    wrapTextRange(
+      container,
+      highlightRange.startOffset,
+      highlightRange.endOffset,
+      comment.id,
+      comment.comment,
+      comment.id === activeCommentId
+    );
   }
 }
 
-function createContentRange(
+function resolveHighlightRange(
+  container: HTMLElement,
+  comment: DesktopApprovalComment & {
+    id: string;
+    startOffset: number;
+    endOffset: number;
+  }
+): { startOffset: number; endOffset: number } | null {
+  const contentText = container.textContent ?? '';
+  const directText = contentText.slice(comment.startOffset, comment.endOffset);
+  if (
+    directText.length > 0
+    && (!comment.selectedText || normalizeText(directText) === normalizeText(comment.selectedText))
+  ) {
+    return {
+      startOffset: comment.startOffset,
+      endOffset: comment.endOffset
+    };
+  }
+
+  if (!comment.selectedText) {
+    return null;
+  }
+
+  const normalizedNeedle = normalizeText(comment.selectedText);
+  if (normalizedNeedle.length === 0) {
+    return null;
+  }
+
+  const normalizedContent = normalizeTextWithMap(contentText);
+  const fallbackIndex = normalizedContent.normalizedText.indexOf(normalizedNeedle);
+  if (fallbackIndex === -1) {
+    return null;
+  }
+
+  const rawStart = normalizedContent.rawIndexMap[fallbackIndex];
+  const rawEnd = normalizedContent.rawIndexMap[fallbackIndex + normalizedNeedle.length - 1];
+  if (rawStart === undefined || rawEnd === undefined) {
+    return null;
+  }
+
+  return {
+    startOffset: rawStart,
+    endOffset: rawEnd + 1
+  };
+}
+
+function wrapTextRange(
   container: HTMLElement,
   startOffset: number,
-  endOffset: number
-): Range | null {
-  const range = document.createRange();
+  endOffset: number,
+  commentId: string,
+  commentText: string,
+  isActive: boolean
+): void {
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-  let currentOffset = 0;
-  let startNode: Text | null = null;
-  let endNode: Text | null = null;
-  let startNodeOffset = 0;
-  let endNodeOffset = 0;
-
+  const textNodes: Text[] = [];
   while (walker.nextNode()) {
-    const node = walker.currentNode as Text;
+    textNodes.push(walker.currentNode as Text);
+  }
+
+  let currentOffset = 0;
+
+  for (const node of textNodes) {
     const nextOffset = currentOffset + node.data.length;
+    const overlapStart = Math.max(startOffset, currentOffset);
+    const overlapEnd = Math.min(endOffset, nextOffset);
 
-    if (!startNode && startOffset >= currentOffset && startOffset <= nextOffset) {
-      startNode = node;
-      startNodeOffset = startOffset - currentOffset;
-    }
+    if (overlapStart < overlapEnd) {
+      const relativeStart = overlapStart - currentOffset;
+      const relativeEnd = overlapEnd - currentOffset;
+      let targetNode = node;
 
-    if (!endNode && endOffset >= currentOffset && endOffset <= nextOffset) {
-      endNode = node;
-      endNodeOffset = endOffset - currentOffset;
-      break;
+      if (relativeStart > 0) {
+        targetNode = targetNode.splitText(relativeStart);
+      }
+
+      if (relativeEnd - relativeStart < targetNode.data.length) {
+        targetNode.splitText(relativeEnd - relativeStart);
+      }
+
+      const marker = document.createElement('mark');
+      marker.className = `approval-inline-comment${isActive ? ' approval-inline-comment-active' : ''}`;
+      marker.dataset.commentId = commentId;
+      marker.title = commentText;
+      targetNode.parentNode?.replaceChild(marker, targetNode);
+      marker.appendChild(targetNode);
     }
 
     currentOffset = nextOffset;
   }
+}
 
-  if (!startNode || !endNode) {
-    return null;
+function normalizeText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function normalizeTextWithMap(value: string): {
+  normalizedText: string;
+  rawIndexMap: number[];
+} {
+  let normalizedText = '';
+  const rawIndexMap: number[] = [];
+  let pendingSpace = false;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (!character) {
+      continue;
+    }
+
+    if (/\s/.test(character)) {
+      pendingSpace = normalizedText.length > 0;
+      continue;
+    }
+
+    if (pendingSpace) {
+      normalizedText += ' ';
+      rawIndexMap.push(index);
+      pendingSpace = false;
+    }
+
+    normalizedText += character;
+    rawIndexMap.push(index);
   }
 
-  range.setStart(startNode, startNodeOffset);
-  range.setEnd(endNode, endNodeOffset);
-  return range;
+  return {
+    normalizedText: normalizedText.trimEnd(),
+    rawIndexMap
+  };
 }
