@@ -2,6 +2,7 @@ import { BrowserWindow, app, dialog, ipcMain } from 'electron';
 import type { OpenDialogOptions } from 'electron';
 import type {
   DesktopApprovalComment,
+  DesktopApprovalDraftInput,
   DesktopProjectSummary,
   DesktopRuntimeInfo,
   DesktopSpecDocumentName,
@@ -120,6 +121,7 @@ export class DesktopShell {
       ipcMain.removeHandler(desktopChannels.getShellState);
       ipcMain.removeHandler(desktopChannels.getProjectWorkspace);
       ipcMain.removeHandler(desktopChannels.getApprovalReview);
+      ipcMain.removeHandler(desktopChannels.saveApprovalDraft);
       ipcMain.removeHandler(desktopChannels.saveSpecDocument);
       ipcMain.removeHandler(desktopChannels.respondToApproval);
       ipcMain.removeHandler(desktopChannels.pickProjectDirectory);
@@ -157,6 +159,12 @@ export class DesktopShell {
     ipcMain.handle(desktopChannels.getApprovalReview, async (_event, projectId: string, approvalId: string) => {
       return this.getApprovalReview(projectId, approvalId);
     });
+    ipcMain.handle(
+      desktopChannels.saveApprovalDraft,
+      async (_event, projectId: string, approvalId: string, draft: DesktopApprovalDraftInput | null) => {
+        await this.saveApprovalDraft(projectId, approvalId, draft);
+      }
+    );
     ipcMain.handle(
       desktopChannels.saveSpecDocument,
       async (_event, projectId: string, specName: string, document: DesktopSpecDocumentName, content: string) => {
@@ -493,6 +501,26 @@ export class DesktopShell {
     );
 
     await this.refreshProjectCatalog();
+  }
+
+  private async saveApprovalDraft(
+    projectId: string,
+    approvalId: string,
+    draft: DesktopApprovalDraftInput | null
+  ) {
+    const project = await this.projectCatalog.getProjectById(projectId);
+    if (!project) {
+      throw new Error('Project not found');
+    }
+
+    await this.approvalReview.saveApprovalDraft(
+      {
+        translatedWorkflowRootPath: PathUtils.translatePath(project.workflowRootPath),
+        translatedWorkspacePath: PathUtils.translatePath(project.workspacePath)
+      },
+      approvalId,
+      draft
+    );
   }
 
   private broadcastShellState(): void {

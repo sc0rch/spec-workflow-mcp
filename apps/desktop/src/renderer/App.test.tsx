@@ -259,6 +259,7 @@ const approvalReview: DesktopApprovalReview = {
     categoryName: 'desktop-rewrite'
   },
   currentContent: '# Requirements\n\nKeep restart recovery obvious.\n\n```ts\nconst ready = true;\n```\n',
+  draft: null,
   diff: {
     additions: 6,
     deletions: 0,
@@ -318,6 +319,7 @@ const approvalInboxReview: DesktopApprovalReview = {
     categoryName: 'approval-inbox'
   },
   currentContent: 'export const approvalStorage = true;\n',
+  draft: null,
   diff: {
     additions: 1,
     deletions: 0,
@@ -812,6 +814,40 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Approvals' })).toBeInTheDocument();
     expect(screen.getByLabelText('Approval comment')).toHaveValue('Keep this draft.');
   });
+
+  it('autosaves approval draft comments through the desktop bridge', async () => {
+    const user = userEvent.setup();
+    const saveApprovalDraft = vi.fn<DesktopApi['saveApprovalDraft']>().mockResolvedValue(undefined);
+    window.desktop = createDesktopApiMock({
+      saveApprovalDraft
+    });
+
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Inbox' });
+    fireEvent.keyDown(window, { key: '3' });
+    await screen.findByRole('heading', { name: 'Approvals' });
+    await user.click(screen.getByRole('button', { name: 'Add comment' }));
+
+    const commentField = await screen.findByLabelText('Approval comment');
+    await user.type(commentField, 'Persist this review note.');
+    await user.click(screen.getByRole('button', { name: 'Save comment' }));
+
+    await waitFor(() => {
+      expect(saveApprovalDraft).toHaveBeenCalledWith(
+        'project-a',
+        'approval-1',
+        expect.objectContaining({
+          comments: [
+            expect.objectContaining({
+              type: 'general',
+              comment: 'Persist this review note.'
+            })
+          ]
+        })
+      );
+    });
+  });
 });
 
 function createDesktopApiMock(
@@ -824,6 +860,7 @@ function createDesktopApiMock(
     getApprovalReview: vi.fn().mockImplementation((_projectId, approvalId) => Promise.resolve(
       approvalId === 'approval-2' ? approvalInboxReview : approvalReview
     )),
+    saveApprovalDraft: vi.fn().mockResolvedValue(undefined),
     saveSpecDocument: vi.fn().mockResolvedValue({
       filePath: '/tmp/repo-a/.spec-workflow/specs/desktop-rewrite/requirements.md',
       savedAt: '2026-03-14T12:40:00.000Z'

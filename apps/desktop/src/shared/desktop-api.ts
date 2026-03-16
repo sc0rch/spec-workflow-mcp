@@ -154,6 +154,26 @@ export interface DesktopApprovalComment {
   readonly endOffset?: number | undefined;
 }
 
+export interface DesktopApprovalComposerDraft {
+  readonly mode: 'general' | 'selection';
+  readonly editingCommentId?: string | undefined;
+  readonly commentDraft: string;
+  readonly selectedText?: string | undefined;
+  readonly startOffset?: number | undefined;
+  readonly endOffset?: number | undefined;
+}
+
+export interface DesktopApprovalDraft {
+  readonly updatedAt: string;
+  readonly comments: DesktopApprovalComment[];
+  readonly composer?: DesktopApprovalComposerDraft | undefined;
+}
+
+export interface DesktopApprovalDraftInput {
+  readonly comments: DesktopApprovalComment[];
+  readonly composer?: DesktopApprovalComposerDraft | undefined;
+}
+
 export interface DesktopApprovalReview {
   readonly approval: {
     readonly id: string;
@@ -169,6 +189,7 @@ export interface DesktopApprovalReview {
     readonly categoryName: string;
   };
   readonly currentContent: string | null;
+  readonly draft: DesktopApprovalDraft | null;
   readonly diff: {
     readonly additions: number;
     readonly deletions: number;
@@ -203,6 +224,11 @@ export interface DesktopApi {
   getShellState(): Promise<DesktopShellState>;
   getProjectWorkspace(projectId: string): Promise<DesktopProjectWorkspace | null>;
   getApprovalReview(projectId: string, approvalId: string): Promise<DesktopApprovalReview | null>;
+  saveApprovalDraft(
+    projectId: string,
+    approvalId: string,
+    draft: DesktopApprovalDraftInput | null
+  ): Promise<void>;
   saveSpecDocument(
     projectId: string,
     specName: string,
@@ -226,6 +252,7 @@ export const desktopChannels = {
   getShellState: 'desktop:get-shell-state',
   getProjectWorkspace: 'desktop:get-project-workspace',
   getApprovalReview: 'desktop:get-approval-review',
+  saveApprovalDraft: 'desktop:save-approval-draft',
   saveSpecDocument: 'desktop:save-spec-document',
   respondToApproval: 'desktop:respond-to-approval',
   pickProjectDirectory: 'desktop:pick-project-directory',

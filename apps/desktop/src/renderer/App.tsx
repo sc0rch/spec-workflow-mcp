@@ -15,6 +15,7 @@ import { TaskKanbanBoard } from './specs/TaskKanbanBoard.js';
 import { getApprovalDisplayTitle } from './approvals/approval-display.js';
 import type {
   DesktopApprovalComment,
+  DesktopApprovalDraftInput,
   DesktopApprovalReview,
   DesktopSpecDocumentName,
   DesktopProjectWorkspace,
@@ -893,7 +894,19 @@ export function App() {
                     setActiveSpecName(approval.categoryName);
                   }
                 },
-                onApprovalAction: handleApprovalAction
+                onApprovalAction: handleApprovalAction,
+                onSaveApprovalDraft: (draft) => {
+                  if (!window.desktop || !activeProject || !selectedApprovalId) {
+                    return;
+                  }
+
+                  void window.desktop.saveApprovalDraft(activeProject.projectId, selectedApprovalId, draft)
+                    .catch((error) => {
+                      setBridgeError(
+                        error instanceof Error ? error.message : 'Approval draft could not be saved.'
+                      );
+                    });
+                }
               })}
             </div>
           </>
@@ -945,6 +958,7 @@ function renderWorkspaceContent(options: {
     action: 'approve' | 'reject',
     comments: DesktopApprovalComment[]
   ) => Promise<void>;
+  onSaveApprovalDraft: (draft: DesktopApprovalDraftInput | null) => void;
 }): ReactNode {
   const {
     activeMode,
@@ -963,7 +977,8 @@ function renderWorkspaceContent(options: {
     onSelectSpec,
     onSelectTab,
     onSelectApproval,
-    onApprovalAction
+    onApprovalAction,
+    onSaveApprovalDraft
   } = options;
 
   if (isLoadingWorkspace) {
@@ -1011,9 +1026,11 @@ function renderWorkspaceContent(options: {
     return (
       <ApprovalReviewPanel
         approvalActionState={approvalActionState}
+        approvalDraft={approvalReview?.draft ?? null}
         approvalReview={approvalReview}
         approvalReviewError={approvalReviewError}
         isLoadingApprovalReview={isLoadingApprovalReview}
+        onSaveDraft={onSaveApprovalDraft}
         onSelectApproval={onSelectApproval}
         onSubmitDecision={onApprovalAction}
         projectWorkspace={projectWorkspace}

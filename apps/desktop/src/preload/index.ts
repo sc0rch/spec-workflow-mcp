@@ -24,6 +24,9 @@ const api: DesktopApi = {
   async getApprovalReview(projectId, approvalId) {
     return ipcRenderer.invoke(desktopChannels.getApprovalReview, projectId, approvalId);
   },
+  async saveApprovalDraft(projectId, approvalId, draft) {
+    return ipcRenderer.invoke(desktopChannels.saveApprovalDraft, projectId, approvalId, draft);
+  },
   async saveSpecDocument(projectId, specName, document, content) {
     return ipcRenderer.invoke(desktopChannels.saveSpecDocument, projectId, specName, document, content);
   },

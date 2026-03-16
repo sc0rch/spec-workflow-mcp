@@ -1,6 +1,9 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
 import type {
   DesktopApprovalComment,
+  DesktopApprovalComposerDraft,
+  DesktopApprovalDraft,
+  DesktopApprovalDraftInput,
   DesktopApprovalReview,
   DesktopProjectWorkspace
 } from '../../shared/desktop-api.js';
@@ -14,6 +17,7 @@ interface ApprovalReviewPanelProps {
   readonly projectWorkspace: DesktopProjectWorkspace;
   readonly selectedApprovalId: string | null;
   readonly approvalReview: DesktopApprovalReview | null;
+  readonly approvalDraft: DesktopApprovalDraft | null;
   readonly isLoadingApprovalReview: boolean;
   readonly approvalReviewError: string | null;
   readonly approvalActionState: {
@@ -25,6 +29,7 @@ interface ApprovalReviewPanelProps {
     action: 'approve' | 'reject',
     comments: DesktopApprovalComment[]
   ) => Promise<void>;
+  readonly onSaveDraft: (draft: DesktopApprovalDraftInput | null) => void;
 }
 
 type ComposerState =
@@ -36,16 +41,39 @@ export function ApprovalReviewPanel({
   projectWorkspace,
   selectedApprovalId,
   approvalReview,
+  approvalDraft,
   isLoadingApprovalReview,
   approvalReviewError,
   approvalActionState,
   onSelectApproval,
-  onSubmitDecision
+  onSubmitDecision,
+  onSaveDraft
 }: ApprovalReviewPanelProps) {
   const [comments, setComments] = useState<DesktopApprovalComment[]>([]);
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
   const [composerState, setComposerState] = useState<ComposerState>(null);
   const [commentDraft, setCommentDraft] = useState('');
+  const saveDraftTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingDraftRef = useRef<DesktopApprovalDraftInput | null>(null);
+
+  const persistDraft = useEffectEvent((nextDraft: DesktopApprovalDraftInput | null, immediate = false) => {
+    pendingDraftRef.current = nextDraft;
+
+    if (saveDraftTimeoutRef.current) {
+      clearTimeout(saveDraftTimeoutRef.current);
+      saveDraftTimeoutRef.current = null;
+    }
+
+    if (immediate) {
+      onSaveDraft(nextDraft);
+      return;
+    }
+
+    saveDraftTimeoutRef.current = setTimeout(() => {
+      onSaveDraft(nextDraft);
+      saveDraftTimeoutRef.current = null;
+    }, 300);
+  });
 
   const focusComment = (commentId: string) => {
     setActiveCommentId((currentCommentId) => {
@@ -62,14 +90,44 @@ export function ApprovalReviewPanel({
 
   useEffect(() => {
     setComments(
-      (approvalReview?.approval.comments ?? []).map((comment, index) =>
+      (approvalDraft?.comments ?? approvalReview?.approval.comments ?? []).map((comment, index) =>
         ensureCommentId(comment, index)
       )
     );
-    setActiveCommentId(null);
-    setComposerState(null);
-    setCommentDraft('');
-  }, [approvalReview?.approval.id]);
+    setComposerState(createComposerState(approvalDraft?.composer));
+    setCommentDraft(approvalDraft?.composer?.commentDraft ?? '');
+    setActiveCommentId(approvalDraft?.composer?.editingCommentId ?? null);
+  }, [approvalDraft, approvalReview?.approval.id]);
+
+  useEffect(() => {
+    if (!approvalReview) {
+      return undefined;
+    }
+
+    return () => {
+      if (saveDraftTimeoutRef.current) {
+        clearTimeout(saveDraftTimeoutRef.current);
+        saveDraftTimeoutRef.current = null;
+        onSaveDraft(pendingDraftRef.current);
+      }
+    };
+  }, [approvalReview, onSaveDraft]);
+
+  useEffect(() => {
+    if (!approvalReview) {
+      return undefined;
+    }
+
+    const nextDraft = createApprovalDraftInput(comments, composerState, commentDraft);
+    persistDraft(nextDraft);
+
+    return () => {
+      if (saveDraftTimeoutRef.current) {
+        clearTimeout(saveDraftTimeoutRef.current);
+        saveDraftTimeoutRef.current = null;
+      }
+    };
+  }, [approvalReview, commentDraft, comments, composerState, persistDraft]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -260,27 +318,25 @@ export function ApprovalReviewPanel({
                   disabled={commentDraft.trim().length === 0}
                   onClick={() => {
                     const nextComment = createComment(commentDraft, composerState);
+                    const nextComments = !composerState.editingCommentId
+                      ? [...comments, nextComment]
+                      : comments.map((currentComment) =>
+                          currentComment.id === composerState.editingCommentId
+                            ? {
+                                ...nextComment,
+                                id: currentComment.id,
+                                timestamp: currentComment.timestamp
+                              }
+                            : currentComment
+                        );
                     const focusedCommentId = composerState.editingCommentId ?? nextComment.id ?? null;
-                    setComments((currentComments) => {
-                      if (!composerState.editingCommentId) {
-                        return [...currentComments, nextComment];
-                      }
-
-                      return currentComments.map((currentComment) =>
-                        currentComment.id === composerState.editingCommentId
-                          ? {
-                              ...nextComment,
-                              id: currentComment.id,
-                              timestamp: currentComment.timestamp
-                            }
-                          : currentComment
-                      );
-                    });
+                    setComments(nextComments);
                     if (focusedCommentId) {
                       focusComment(focusedCommentId);
                     }
                     setComposerState(null);
                     setCommentDraft('');
+                    persistDraft(createApprovalDraftInput(nextComments, null, ''), true);
                   }}
                   type="button"
                 >
@@ -365,12 +421,17 @@ export function ApprovalReviewPanel({
                         className="secondary-action approval-comment-delete"
                         onClick={(event) => {
                           event.stopPropagation();
-                          setComments((currentComments) =>
-                            currentComments.filter((currentComment) => currentComment !== comment)
+                          const nextComments = comments.filter(
+                            (currentComment) => currentComment !== comment
                           );
+                          setComments(nextComments);
                           if (activeCommentId === comment.id) {
                             setActiveCommentId(null);
                           }
+                          persistDraft(
+                            createApprovalDraftInput(nextComments, composerState, commentDraft),
+                            true
+                          );
                         }}
                         type="button"
                       >
@@ -513,6 +574,80 @@ function createComment(commentText: string, composerState: Exclude<ComposerState
   }
 
   return baseComment;
+}
+
+function createComposerState(
+  composer: DesktopApprovalComposerDraft | undefined
+): ComposerState {
+  if (!composer) {
+    return null;
+  }
+
+  if (
+    composer.mode === 'selection'
+    && composer.selectedText
+    && typeof composer.startOffset === 'number'
+    && typeof composer.endOffset === 'number'
+  ) {
+    return {
+      mode: 'selection',
+      editingCommentId: composer.editingCommentId,
+      selectedText: composer.selectedText,
+      startOffset: composer.startOffset,
+      endOffset: composer.endOffset
+    };
+  }
+
+  return {
+    mode: 'general',
+    editingCommentId: composer.editingCommentId
+  };
+}
+
+function createApprovalDraftInput(
+  comments: DesktopApprovalComment[],
+  composerState: ComposerState,
+  commentDraft: string
+): DesktopApprovalDraftInput | null {
+  const composer = createComposerDraft(composerState, commentDraft);
+  if (comments.length === 0 && !composer) {
+    return null;
+  }
+
+  return {
+    comments,
+    ...(composer ? { composer } : {})
+  };
+}
+
+function createComposerDraft(
+  composerState: ComposerState,
+  commentDraft: string
+): DesktopApprovalComposerDraft | undefined {
+  if (!composerState) {
+    return undefined;
+  }
+
+  if (composerState.mode === 'selection') {
+    return {
+      mode: 'selection',
+      commentDraft,
+      ...(composerState.editingCommentId ? { editingCommentId: composerState.editingCommentId } : {}),
+      selectedText: composerState.selectedText,
+      startOffset: composerState.startOffset,
+      endOffset: composerState.endOffset
+    };
+  }
+
+  if (!composerState.editingCommentId && commentDraft.trim().length === 0) {
+    return undefined;
+  }
+
+  return {
+    mode: 'general',
+    commentDraft,
+    ...(composerState.editingCommentId ? { editingCommentId: composerState.editingCommentId } : {})
+  };
 }
 
 function ensureCommentId(comment: DesktopApprovalComment, index: number): DesktopApprovalComment {

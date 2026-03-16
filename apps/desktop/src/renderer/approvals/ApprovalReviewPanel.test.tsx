@@ -87,6 +87,7 @@ const approvalReview: DesktopApprovalReview = {
     ]
   },
   currentContent: 'Keep restart recovery obvious.',
+  draft: null,
   diff: null
 };
 
@@ -95,9 +96,11 @@ describe('ApprovalReviewPanel', () => {
     const { container } = render(
       <ApprovalReviewPanel
         approvalActionState={{ status: 'idle' }}
+        approvalDraft={null}
         approvalReview={approvalReview}
         approvalReviewError={null}
         isLoadingApprovalReview={false}
+        onSaveDraft={vi.fn()}
         onSelectApproval={vi.fn()}
         onSubmitDecision={vi.fn().mockResolvedValue(undefined)}
         projectWorkspace={projectWorkspace}
@@ -113,9 +116,11 @@ describe('ApprovalReviewPanel', () => {
     const { container } = render(
       <ApprovalReviewPanel
         approvalActionState={{ status: 'idle' }}
+        approvalDraft={null}
         approvalReview={approvalReview}
         approvalReviewError={null}
         isLoadingApprovalReview={false}
+        onSaveDraft={vi.fn()}
         onSelectApproval={vi.fn()}
         onSubmitDecision={vi.fn().mockResolvedValue(undefined)}
         projectWorkspace={projectWorkspace}
@@ -132,9 +137,11 @@ describe('ApprovalReviewPanel', () => {
     const { container } = render(
       <ApprovalReviewPanel
         approvalActionState={{ status: 'idle' }}
+        approvalDraft={null}
         approvalReview={approvalReview}
         approvalReviewError={null}
         isLoadingApprovalReview={false}
+        onSaveDraft={vi.fn()}
         onSelectApproval={vi.fn()}
         onSubmitDecision={vi.fn().mockResolvedValue(undefined)}
         projectWorkspace={projectWorkspace}
@@ -158,9 +165,11 @@ describe('ApprovalReviewPanel', () => {
     const { container } = render(
       <ApprovalReviewPanel
         approvalActionState={{ status: 'idle' }}
+        approvalDraft={null}
         approvalReview={approvalReview}
         approvalReviewError={null}
         isLoadingApprovalReview={false}
+        onSaveDraft={vi.fn()}
         onSelectApproval={vi.fn()}
         onSubmitDecision={vi.fn().mockResolvedValue(undefined)}
         projectWorkspace={projectWorkspace}
@@ -185,5 +194,43 @@ describe('ApprovalReviewPanel', () => {
 
     expect(screen.getByText('Clarify this sentence.')).toBeInTheDocument();
     expect(screen.queryByText('Tighten this sentence.')).not.toBeInTheDocument();
+  });
+
+  it('persists a saved comment immediately instead of waiting for debounce', async () => {
+    const user = userEvent.setup();
+    const onSaveDraft = vi.fn();
+
+    render(
+      <ApprovalReviewPanel
+        approvalActionState={{ status: 'idle' }}
+        approvalDraft={null}
+        approvalReview={approvalReview}
+        approvalReviewError={null}
+        isLoadingApprovalReview={false}
+        onSaveDraft={onSaveDraft}
+        onSelectApproval={vi.fn()}
+        onSubmitDecision={vi.fn().mockResolvedValue(undefined)}
+        projectWorkspace={projectWorkspace}
+        selectedApprovalId="approval-1"
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add comment' }));
+    const commentField = await screen.findByLabelText('Approval comment');
+    await user.type(commentField, 'Persist this now.');
+    onSaveDraft.mockClear();
+
+    await user.click(screen.getByRole('button', { name: 'Save comment' }));
+
+    expect(onSaveDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        comments: expect.arrayContaining([
+          expect.objectContaining({
+            comment: 'Persist this now.',
+            type: 'general'
+          })
+        ])
+      })
+    );
   });
 });

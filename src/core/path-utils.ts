@@ -242,6 +242,10 @@ export class PathUtils {
     return this.safeJoin(projectPath, '.spec-workflow', 'approvals');
   }
 
+  static getReviewDraftsPath(projectPath: string): string {
+    return this.safeJoin(projectPath, '.spec-workflow', 'review-drafts');
+  }
+
   static getSpecApprovalPath(projectPath: string, specName: string): string {
     return this.safeJoin(projectPath, '.spec-workflow', 'approvals', specName);
   }

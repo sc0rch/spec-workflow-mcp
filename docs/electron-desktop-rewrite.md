@@ -1073,6 +1073,19 @@ Implemented:
 - added a selected-text fallback matcher for persisted comments so highlight recovery survives whitespace normalization and more complex inline markdown structure
 - replaced `Range.surroundContents()` with text-node segment wrapping so selection highlights can span more inline markdown structures without silently failing
 
+### Approval Draft Persistence Pass
+
+Goal: Keep in-progress approval review comments and composer state across reloads without polluting canonical approval records.
+
+Implemented:
+- added a dedicated core draft store in `src/core/approval-draft-storage.ts`
+- stored review drafts separately from approval records under workspace-scoped paths in `.spec-workflow/review-drafts/approvals/<workspace-hash>/`
+- extended approval review loading so the desktop app restores saved draft comments and composer state when reopening an approval
+- autosaved draft comments and composer state through the Electron bridge instead of mutating canonical approval JSON
+- persisted committed comment adds/edits/removals immediately so closing the app right after `Save comment` does not lose the draft state behind a debounce timer
+- invalidated stale drafts when the approval creation timestamp no longer matched the current approval record
+- cleared saved drafts automatically after final approval responses
+
 ### Keybind Badge Cleanup
 
 Goal: Keep keyboard shortcuts working without rendering them as persistent UI noise.
