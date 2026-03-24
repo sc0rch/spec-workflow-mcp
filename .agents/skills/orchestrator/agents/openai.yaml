@@ -1,0 +1,7 @@
+interface:
+  display_name: "Orchestrator"
+  short_description: "Coordinate implementer/reviewer Codex loops"
+  default_prompt: "Use $orchestrator to coordinate separate implementer and reviewer Codex runs with resume-based fix loops."
+
+policy:
+  allow_implicit_invocation: true
