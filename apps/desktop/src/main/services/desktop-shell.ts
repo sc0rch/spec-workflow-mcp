@@ -12,7 +12,6 @@ import type {
   StartupIssueCode
 } from '../../shared/desktop-api.js';
 import { desktopChannels } from '../../shared/desktop-api.js';
-import { ProjectCatalogService } from '../../../../../src/core/project-catalog.js';
 import { ApprovalReviewService } from '../../../../../src/core/approval-review.js';
 import { PathUtils } from '../../../../../src/core/path-utils.js';
 import { ProjectWorkspaceService } from '../../../../../src/core/project-workspace.js';
@@ -20,9 +19,9 @@ import { SpecDocumentsService } from '../../../../../src/core/spec-documents.js'
 import { getRendererEntryPath, getTrayIconPath } from '../runtime-paths.js';
 import { createMainWindow } from '../window.js';
 import { SettingsStore, type WindowState } from './settings-store.js';
+import { DesktopProjectService } from './project-service.js';
 import { runStartupChecks } from './startup-checks.js';
 import { createTrayController, type TrayController } from './tray.js';
-import { McpBridgeService } from './mcp-bridge-service.js';
 
 export interface DesktopShellOptions {
   readonly rendererUrl?: string | undefined;
@@ -34,11 +33,10 @@ export interface DesktopShellOptions {
 export class DesktopShell {
   private static readonly PROJECT_REFRESH_INTERVAL_MS = 2_000;
   private readonly settingsStore: SettingsStore;
-  private readonly projectCatalog: ProjectCatalogService;
+  private readonly projectService: DesktopProjectService;
   private readonly approvalReview: ApprovalReviewService;
   private readonly projectWorkspace: ProjectWorkspaceService;
   private readonly specDocuments: SpecDocumentsService;
-  private readonly mcpBridge: McpBridgeService;
   private mainWindow: BrowserWindow | null = null;
   private trayController: TrayController | null = null;
   private isIpcRegistered = false;
@@ -48,18 +46,15 @@ export class DesktopShell {
 
   constructor(private readonly options: DesktopShellOptions) {
     this.settingsStore = new SettingsStore(options.storageRoot);
-    this.projectCatalog = new ProjectCatalogService();
+    this.projectService = new DesktopProjectService(options.storageRoot);
     this.approvalReview = new ApprovalReviewService();
     this.projectWorkspace = new ProjectWorkspaceService();
     this.specDocuments = new SpecDocumentsService();
-    this.mcpBridge = new McpBridgeService({
-      storageRoot: options.storageRoot
-    });
     this.shellState = {
       runtime: options.runtimeInfo,
       selectedProjectPath: null,
       lastSelectedAt: null,
-      storagePath: this.settingsStore.getSettingsPath(),
+      storagePath: options.storageRoot,
       statusLabel: 'Status: Starting',
       issues: [],
       projects: []
@@ -83,7 +78,6 @@ export class DesktopShell {
 
     this.registerIpcHandlers();
     this.trayController = this.createTrayIfAvailable();
-    await this.startMcpBridge();
     await this.refreshProjectCatalogSnapshot({
       selectedProjectPath: settings.lastSelectedProjectPath,
       lastSelectedAt: settings.lastSelectedAt
@@ -115,7 +109,6 @@ export class DesktopShell {
     this.trayController?.destroy();
     this.trayController = null;
     this.stopProjectRefreshLoop();
-    void this.mcpBridge.stop();
 
     if (this.isIpcRegistered) {
       ipcMain.removeHandler(desktopChannels.getShellState);
@@ -128,19 +121,6 @@ export class DesktopShell {
       ipcMain.removeHandler(desktopChannels.rememberProjectPath);
       ipcMain.removeHandler(desktopChannels.forgetProject);
       this.isIpcRegistered = false;
-    }
-  }
-
-  private async startMcpBridge(): Promise<void> {
-    try {
-      await this.mcpBridge.start();
-      this.clearIssue('bridge-unavailable');
-    } catch (error) {
-      this.upsertIssue({
-        code: 'bridge-unavailable',
-        severity: 'warning',
-        message: createBridgeIssueMessage(error)
-      });
     }
   }
 
@@ -290,7 +270,7 @@ export class DesktopShell {
   }
 
   private async rememberProjectPath(projectPath: string): Promise<void> {
-    const rememberedProject = await this.projectCatalog.addProjectByPath(projectPath);
+    const rememberedProject = await this.projectService.rememberProjectPath(projectPath);
     const selectedProjectPath = rememberedProject.workspacePath;
     this.updateShellState({
       selectedProjectPath,
@@ -315,7 +295,7 @@ export class DesktopShell {
   }
 
   private async forgetProject(projectId: string): Promise<void> {
-    await this.projectCatalog.forgetProjectById(projectId);
+    await this.projectService.forgetProject(projectId);
 
     const selectedProjectPath = this.shellState.selectedProjectPath;
     if (!selectedProjectPath) {
@@ -323,7 +303,7 @@ export class DesktopShell {
       return;
     }
 
-    const remainingProjects = await this.projectCatalog.getProjects();
+    const remainingProjects = await this.projectService.getProjects();
     const selectedStillVisible = remainingProjects.some(
       (project) => project.workspacePath === selectedProjectPath
     );
@@ -349,7 +329,7 @@ export class DesktopShell {
       ...this.shellState,
       ...overrides,
       runtime: this.options.runtimeInfo,
-      storagePath: this.settingsStore.getSettingsPath(),
+      storagePath: this.options.storageRoot,
       statusLabel: ''
     };
 
@@ -400,7 +380,6 @@ export class DesktopShell {
 
     this.isRefreshingProjects = true;
     try {
-      await this.projectCatalog.cleanupStaleProjects();
       await this.refreshProjectCatalog(overrides);
     } catch (error) {
       console.error('[DesktopShell] Failed to refresh project catalog snapshot:', error);
@@ -412,7 +391,7 @@ export class DesktopShell {
   private async refreshProjectCatalog(
     overrides: Partial<Pick<DesktopShellState, 'selectedProjectPath' | 'lastSelectedAt'>> = {}
   ): Promise<void> {
-    const projects = await this.projectCatalog.getProjects();
+    const projects = await this.projectService.getProjects();
     const selectedProjectPath = overrides.selectedProjectPath ?? this.shellState.selectedProjectPath;
     const selectedStillVisible = selectedProjectPath
       ? projects.some((project) => project.workspacePath === selectedProjectPath)
@@ -428,7 +407,7 @@ export class DesktopShell {
   }
 
   private async getProjectWorkspace(projectId: string) {
-    const project = await this.projectCatalog.getProjectById(projectId);
+    const project = await this.projectService.getProjectById(projectId);
     if (!project) {
       return null;
     }
@@ -445,7 +424,7 @@ export class DesktopShell {
     document: DesktopSpecDocumentName,
     content: string
   ) {
-    const project = await this.projectCatalog.getProjectById(projectId);
+    const project = await this.projectService.getProjectById(projectId);
     if (!project) {
       throw new Error('Project not found');
     }
@@ -462,7 +441,7 @@ export class DesktopShell {
   }
 
   private async getApprovalReview(projectId: string, approvalId: string) {
-    const project = await this.projectCatalog.getProjectById(projectId);
+    const project = await this.projectService.getProjectById(projectId);
     if (!project) {
       return null;
     }
@@ -483,7 +462,7 @@ export class DesktopShell {
     response: string,
     comments?: DesktopApprovalComment[]
   ) {
-    const project = await this.projectCatalog.getProjectById(projectId);
+    const project = await this.projectService.getProjectById(projectId);
     if (!project) {
       throw new Error('Project not found');
     }
@@ -508,7 +487,7 @@ export class DesktopShell {
     approvalId: string,
     draft: DesktopApprovalDraftInput | null
   ) {
-    const project = await this.projectCatalog.getProjectById(projectId);
+    const project = await this.projectService.getProjectById(projectId);
     if (!project) {
       throw new Error('Project not found');
     }
@@ -585,28 +564,18 @@ function createTrayIssueMessage(error: unknown): string {
   return 'Tray menu is unavailable.';
 }
 
-function createBridgeIssueMessage(error: unknown): string {
-  if (error instanceof Error && error.message) {
-    return `Desktop MCP bridge is unavailable. ${error.message}`;
-  }
-
-  return 'Desktop MCP bridge is unavailable.';
-}
-
-function mapProjectSummary(project: Awaited<ReturnType<ProjectCatalogService['getProjects']>>[number]): DesktopProjectSummary {
+function mapProjectSummary(
+  project: Awaited<ReturnType<DesktopProjectService['getProjects']>>[number]
+): DesktopProjectSummary {
   return {
     projectId: project.projectId,
     projectName: project.projectName,
     workspacePath: project.workspacePath,
     workflowRootPath: project.workflowRootPath,
-    connectionState: project.connectionState,
-    source: project.source,
     addedAt: project.addedAt,
-    lastSeenAt: project.lastSeenAt,
     gitBranch: project.gitBranch,
     latestSpec: project.latestSpec,
     pendingApprovalCount: project.pendingApprovalCount,
-    latestImplementation: project.latestImplementation,
-    instanceCount: project.instances.length
+    latestImplementation: project.latestImplementation
   };
 }

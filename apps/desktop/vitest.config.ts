@@ -18,12 +18,18 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    exclude: [
+      'src/bridge/**',
+      'src/main/services/mcp-bridge-service.test.ts',
+      'src/main/services/socket-mcp-transport.test.ts'
+    ],
     coverage: {
       reporter: ['text', 'html'],
       exclude: [
         'dist/**',
         'e2e/**',
         'scripts/**',
+        'src/bridge/**',
         '**/*.config.*',
         '**/*.d.ts'
       ]

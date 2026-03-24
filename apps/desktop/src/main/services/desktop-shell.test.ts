@@ -40,24 +40,18 @@ describe('DesktopShell refresh handling', () => {
       runtimeInfo: createRuntimeInfo()
     });
     const shellAccess = shell as unknown as {
-      projectCatalog: {
-        cleanupStaleProjects: ReturnType<typeof vi.fn>;
-      };
       refreshProjectCatalog: ReturnType<typeof vi.fn>;
       refreshProjectCatalogSnapshot: () => Promise<void>;
       isRefreshingProjects: boolean;
     };
-    const refreshError = new Error('catalog exploded');
+    const refreshError = new Error('project refresh exploded');
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-    shellAccess.projectCatalog = {
-      cleanupStaleProjects: vi.fn().mockRejectedValue(refreshError)
-    };
-    shellAccess.refreshProjectCatalog = vi.fn();
+    shellAccess.refreshProjectCatalog = vi.fn().mockRejectedValue(refreshError);
 
     await expect(shellAccess.refreshProjectCatalogSnapshot()).resolves.toBeUndefined();
 
-    expect(shellAccess.refreshProjectCatalog).not.toHaveBeenCalled();
+    expect(shellAccess.refreshProjectCatalog).toHaveBeenCalledTimes(1);
     expect(shellAccess.isRefreshingProjects).toBe(false);
     expect(consoleError).toHaveBeenCalledWith(
       '[DesktopShell] Failed to refresh project catalog snapshot:',
@@ -76,29 +70,19 @@ describe('DesktopShell refresh handling', () => {
     });
     const shellAccess = shell as unknown as {
       refreshProjectCatalogSnapshot: ReturnType<typeof vi.fn>;
-      mcpBridge: {
-        stop: ReturnType<typeof vi.fn>;
-      };
       startProjectRefreshLoop: () => void;
     };
     const refreshProjectCatalogSnapshot = vi.fn().mockResolvedValue(undefined);
-    const stopBridge = vi.fn().mockResolvedValue(undefined);
 
     shellAccess.refreshProjectCatalogSnapshot = refreshProjectCatalogSnapshot;
-    shellAccess.mcpBridge = {
-      stop: stopBridge
-    };
 
     shellAccess.startProjectRefreshLoop();
     await vi.advanceTimersByTimeAsync(4_000);
 
     expect(refreshProjectCatalogSnapshot).toHaveBeenCalledTimes(2);
-
     shell.dispose();
     await vi.advanceTimersByTimeAsync(4_000);
-
     expect(refreshProjectCatalogSnapshot).toHaveBeenCalledTimes(2);
-    expect(stopBridge).toHaveBeenCalledTimes(1);
   });
 
   it('returns early when a refresh is already in progress', async () => {
@@ -108,22 +92,22 @@ describe('DesktopShell refresh handling', () => {
     });
     const shellAccess = shell as unknown as {
       isRefreshingProjects: boolean;
-      projectCatalog: {
-        cleanupStaleProjects: ReturnType<typeof vi.fn>;
+      projectService: {
+        getProjects: ReturnType<typeof vi.fn>;
       };
       refreshProjectCatalog: ReturnType<typeof vi.fn>;
       refreshProjectCatalogSnapshot: () => Promise<void>;
     };
 
     shellAccess.isRefreshingProjects = true;
-    shellAccess.projectCatalog = {
-      cleanupStaleProjects: vi.fn()
+    shellAccess.projectService = {
+      getProjects: vi.fn()
     };
     shellAccess.refreshProjectCatalog = vi.fn();
 
     await expect(shellAccess.refreshProjectCatalogSnapshot()).resolves.toBeUndefined();
 
-    expect(shellAccess.projectCatalog.cleanupStaleProjects).not.toHaveBeenCalled();
+    expect(shellAccess.projectService.getProjects).not.toHaveBeenCalled();
     expect(shellAccess.refreshProjectCatalog).not.toHaveBeenCalled();
   });
 });

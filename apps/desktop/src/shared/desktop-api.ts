@@ -10,7 +10,6 @@ export interface DesktopRuntimeInfo {
 }
 
 export type StartupIssueCode =
-  | 'bridge-unavailable'
   | 'git-unavailable'
   | 'renderer-unavailable'
   | 'storage-unwritable'
@@ -29,10 +28,7 @@ export interface DesktopProjectSummary {
   readonly projectName: string;
   readonly workspacePath: string;
   readonly workflowRootPath: string;
-  readonly connectionState: 'live' | 'remembered';
-  readonly source: 'manual' | 'mcp' | null;
-  readonly addedAt: string | null;
-  readonly lastSeenAt: string | null;
+  readonly addedAt: string;
   readonly gitBranch?: string | undefined;
   readonly latestSpec?: {
     readonly name: string;
@@ -48,7 +44,6 @@ export interface DesktopProjectSummary {
     readonly specName: string;
     readonly specDisplayName: string;
   } | undefined;
-  readonly instanceCount: number;
 }
 
 export interface DesktopProjectWorkspace {

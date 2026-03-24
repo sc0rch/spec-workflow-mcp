@@ -432,7 +432,7 @@ summary:focus-visible,
   display: block;
 }
 
-.mcp-indicator {
+.shell-indicator {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -451,13 +451,13 @@ summary:focus-visible,
   background: transparent;
 }
 
-.header-status-indicator .mcp-indicator-label {
+.header-status-indicator .shell-indicator-label {
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 550;
 }
 
-.mcp-indicator-dot {
+.shell-indicator-dot {
   width: 8px;
   height: 8px;
   border-radius: 999px;
@@ -465,20 +465,20 @@ summary:focus-visible,
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18);
 }
 
-.mcp-indicator-label {
+.shell-indicator-label {
   font-size: 12px;
   font-weight: 600;
 }
 
-.mcp-indicator-online .mcp-indicator-dot {
+.shell-indicator-ready .shell-indicator-dot {
   background: var(--success);
 }
 
-.mcp-indicator-offline .mcp-indicator-dot {
+.shell-indicator-warning .shell-indicator-dot {
   background: var(--warning);
 }
 
-.mcp-indicator-error .mcp-indicator-dot {
+.shell-indicator-error .shell-indicator-dot {
   background: var(--danger);
 }
 
@@ -670,15 +670,7 @@ summary:focus-visible,
   height: 8px;
   border-radius: 999px;
   flex: 0 0 auto;
-  background: var(--text-muted);
-}
-
-.project-dot-live {
-  background: var(--success);
-}
-
-.project-dot-remembered {
-  background: #6d7d87;
+  background: var(--accent-spec);
 }
 
 .project-badges {

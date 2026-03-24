@@ -39,9 +39,10 @@ type InboxItem = {
   badgeClassName: string;
   onSelect: () => void;
 };
-type McpStatus = {
-  tone: 'online' | 'offline' | 'error';
+type ShellStatus = {
+  tone: 'ready' | 'warning' | 'error';
   label: string;
+  title: string;
 };
 type CommandItemContext = {
   shellState: DesktopShellState;
@@ -111,7 +112,7 @@ export function App() {
   const [paletteSelectionIndex, setPaletteSelectionIndex] = useState(0);
   const [isPickingProject, setIsPickingProject] = useState(false);
   const [forgettingProjectId, setForgettingProjectId] = useState<string | null>(null);
-  const [bridgeError, setBridgeError] = useState<string | null>(null);
+  const [shellError, setShellError] = useState<string | null>(null);
   const projectMenuRef = useRef<HTMLDivElement | null>(null);
   const projectMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
   const projectMenuDialogId = useId();
@@ -119,7 +120,7 @@ export function App() {
 
   const applyShellState = useEffectEvent((nextState: DesktopShellState) => {
     setShellState(nextState);
-    setBridgeError(null);
+    setShellError(null);
   });
 
   const selectAdjacentProject = useEffectEvent((offset: number) => {
@@ -211,7 +212,7 @@ export function App() {
       })
       .catch((error) => {
         if (!isDisposed) {
-          setBridgeError(error instanceof Error ? error.message : 'Desktop bridge request failed.');
+          setShellError(error instanceof Error ? error.message : 'Desktop shell request failed.');
         }
       });
 
@@ -337,8 +338,8 @@ export function App() {
   const activeSpec = activeSpecName && projectWorkspace
     ? projectWorkspace.specs.find((spec) => spec.name === activeSpecName) ?? null
     : null;
-  const hasShellIssues = Boolean(bridgeError || workspaceError || shellState.issues.length > 0);
-  const mcpStatus = createMcpStatus(shellState, bridgeError);
+  const hasShellIssues = Boolean(shellError || workspaceError || shellState.issues.length > 0);
+  const shellStatus = createShellStatus(shellState, shellError);
 
   const closeProjectMenu = useEffectEvent(() => {
     setIsProjectMenuOpen(false);
@@ -355,7 +356,7 @@ export function App() {
     try {
       await window.desktop.pickProjectDirectory();
     } catch (error) {
-      setBridgeError(error instanceof Error ? error.message : 'Project picker failed.');
+      setShellError(error instanceof Error ? error.message : 'Project picker failed.');
     } finally {
       setIsPickingProject(false);
     }
@@ -371,7 +372,7 @@ export function App() {
     try {
       await window.desktop.forgetProject(projectId);
     } catch (error) {
-      setBridgeError(error instanceof Error ? error.message : 'Forget project request failed.');
+      setShellError(error instanceof Error ? error.message : 'Forget project request failed.');
     } finally {
       setForgettingProjectId(null);
     }
@@ -440,7 +441,7 @@ export function App() {
     try {
       await item.onSelect();
     } catch (error) {
-      setBridgeError(error instanceof Error ? error.message : 'Command palette action failed.');
+      setShellError(error instanceof Error ? error.message : 'Command palette action failed.');
     }
   });
 
@@ -695,12 +696,7 @@ export function App() {
                 ref={projectMenuTriggerRef}
                 type="button"
               >
-                {activeProject ? (
-                  <span
-                    aria-hidden="true"
-                    className={`project-dot project-dot-${activeProject.connectionState}`}
-                  />
-                ) : null}
+                {activeProject ? <span aria-hidden="true" className="project-dot" /> : null}
                 <span className="project-menu-trigger-copy">
                   <span className="project-menu-trigger-label">
                     {activeProject?.projectName ?? 'Projects'}
@@ -751,10 +747,7 @@ export function App() {
                                 }}
                                 type="button"
                               >
-                                <span
-                                  aria-hidden="true"
-                                  className={`project-dot project-dot-${project.connectionState}`}
-                                />
+                                <span aria-hidden="true" className="project-dot" />
                                 <div className="project-select-copy">
                                   <strong>{project.projectName}</strong>
                                   <span className="project-select-meta project-select-meta-primary">
@@ -818,13 +811,13 @@ export function App() {
               <span className="header-action-label">Search</span>
             </button>
             <div
-              aria-label={`MCP ${mcpStatus.label}`}
-              className={`mcp-indicator mcp-indicator-${mcpStatus.tone} header-status-indicator`}
+              aria-label={`Shell ${shellStatus.label}`}
+              className={`shell-indicator shell-indicator-${shellStatus.tone} header-status-indicator`}
               role="status"
-              title={`MCP ${mcpStatus.label}`}
+              title={shellStatus.title}
             >
-              <span aria-hidden="true" className="mcp-indicator-dot" />
-              <span className="mcp-indicator-label">{mcpStatus.label}</span>
+              <span aria-hidden="true" className="shell-indicator-dot" />
+              <span className="shell-indicator-label">{shellStatus.label}</span>
             </div>
           </div>
         </div>
@@ -833,7 +826,7 @@ export function App() {
       <section className="workspace">
         {hasShellIssues ? (
           <article className="panel workspace-issues">
-            {bridgeError ? <p className="issue issue-error">{bridgeError}</p> : null}
+            {shellError ? <p className="issue issue-error">{shellError}</p> : null}
             {workspaceError ? <p className="issue issue-error">{workspaceError}</p> : null}
             {shellState.issues.length > 0 ? (
               <ul className="issue-list">
@@ -902,7 +895,7 @@ export function App() {
 
                   void window.desktop.saveApprovalDraft(activeProject.projectId, selectedApprovalId, draft)
                     .catch((error) => {
-                      setBridgeError(
+                      setShellError(
                         error instanceof Error ? error.message : 'Approval draft could not be saved.'
                       );
                     });
@@ -1411,24 +1404,40 @@ function formatFileDelta(filesModified: string[], filesCreated: string[]): strin
   return `${modifiedLabel} · ${createdLabel}`;
 }
 
-function createMcpStatus(shellState: DesktopShellState, bridgeError: string | null): McpStatus {
-  if (bridgeError || shellState.issues.some((issue) => issue.severity === 'error')) {
+function createShellStatus(
+  shellState: DesktopShellState,
+  shellError: string | null
+): ShellStatus {
+  if (shellError) {
     return {
       tone: 'error',
-      label: 'Error'
+      label: 'Attention',
+      title: shellError
     };
   }
 
-  if (shellState.projects.some((project) => project.connectionState === 'live')) {
+  const errorIssue = shellState.issues.find((issue) => issue.severity === 'error');
+  if (errorIssue) {
     return {
-      tone: 'online',
-      label: 'Online'
+      tone: 'error',
+      label: 'Attention',
+      title: errorIssue.message
+    };
+  }
+
+  const warningIssue = shellState.issues[0];
+  if (warningIssue) {
+    return {
+      tone: 'warning',
+      label: 'Warnings',
+      title: warningIssue.message
     };
   }
 
   return {
-    tone: 'offline',
-    label: 'Offline'
+    tone: 'ready',
+    label: 'Ready',
+    title: 'Local desktop shell is ready.'
   };
 }
 
@@ -1463,12 +1472,11 @@ function createCommandPaletteItems(context: CommandItemContext): CommandPaletteI
       id: `project:${project.projectId}`,
       category: 'Project',
       title: project.projectName,
-      meta: `${project.connectionState === 'live' ? 'Live now' : 'Saved in app'}${project.gitBranch ? ` · ${project.gitBranch}` : ''}`,
+      meta: `Saved folder${project.gitBranch ? ` · ${project.gitBranch}` : ''}`,
       keywords: [
         project.projectName,
         project.workspacePath,
-        project.workflowRootPath,
-        project.connectionState
+        project.workflowRootPath
       ],
       onSelect: () => {
         context.onSelectProject(project.workspacePath);

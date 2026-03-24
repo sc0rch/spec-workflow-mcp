@@ -3,7 +3,6 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { PathUtils } from './path-utils.js';
 import { ImplementationLogMigrator } from './implementation-log-migrator.js';
-import { getGlobalDir } from './global-dir.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -163,17 +162,17 @@ Templates can include placeholders that will be replaced when documents are crea
 
   /**
    * Migrate implementation logs from JSON to Markdown format
-   * Runs on server startup to handle automatic migration for existing specs
+   * Runs during workspace initialization for existing specs
    */
   private async migrateImplementationLogs(): Promise<void> {
     try {
-      const userDataDir = getGlobalDir();
-      const specsDir = join(PathUtils.getWorkflowRoot(this.projectPath), 'specs');
+      const workflowRoot = PathUtils.getWorkflowRoot(this.projectPath);
+      const migrationStateDir = join(workflowRoot, '.migration-state');
+      const specsDir = join(workflowRoot, 'specs');
 
-      // Create user data directory if it doesn't exist
-      await fs.mkdir(userDataDir, { recursive: true });
+      await fs.mkdir(migrationStateDir, { recursive: true });
 
-      const migrator = new ImplementationLogMigrator(userDataDir);
+      const migrator = new ImplementationLogMigrator(migrationStateDir);
       await migrator.migrateAllSpecs(specsDir);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

@@ -1,28 +1,4 @@
-// Common types for the spec workflow MCP server
-import { encode } from '@toon-format/toon';
-
-export interface SecurityConfig {
-  // Rate limiting configuration
-  rateLimitEnabled: boolean;
-  rateLimitPerMinute: number; // Requests per minute per client
-  
-  // Audit logging configuration
-  auditLogEnabled: boolean;
-  auditLogPath?: string; // Path for audit logs
-  auditLogRetentionDays: number;
-  
-  // CORS configuration
-  corsEnabled: boolean;
-  allowedOrigins: string[]; // List of allowed origins for CORS
-}
-
-export type BoundProjectSource = 'explicit-arg' | 'startup-binding' | 'client-root';
-
-export interface StartupBinding {
-  requestedPath: string;
-  workspacePath: string;
-  workflowRootPath: string;
-}
+export type BoundProjectSource = 'explicit-arg' | 'cwd';
 
 export interface BoundProject {
   requestedPath: string;
@@ -34,12 +10,20 @@ export interface BoundProject {
   source: BoundProjectSource;
 }
 
-export interface ToolContext {
-  startupBinding?: StartupBinding;
-  noSharedWorktreeSpecs?: boolean; // Whether worktrees keep their own local .spec-workflow roots
-  dashboardUrl?: string; // Optional for backwards compatibility
-  lang?: string; // Language code for i18n (e.g., 'en', 'ja')
-  resolveBoundProject: (projectPath?: string) => Promise<BoundProject>;
+export interface CommandProjectContext {
+  projectPath: string;
+  workspacePath?: string;
+  workflowRoot: string;
+  specName?: string;
+  currentPhase?: string;
+}
+
+export interface CommandResult<TData = unknown> {
+  success: boolean;
+  message: string;
+  data?: TData;
+  nextSteps?: string[];
+  projectContext?: CommandProjectContext;
 }
 
 export interface SpecData {
@@ -62,11 +46,10 @@ export interface SpecData {
 
 export interface PhaseStatus {
   exists: boolean;
-  approved?: boolean; // Optional for backwards compatibility  
+  approved?: boolean;
   lastModified?: string;
   content?: string;
 }
-
 
 export interface SteeringStatus {
   exists: boolean;
@@ -76,22 +59,6 @@ export interface SteeringStatus {
     structure: boolean;
   };
   lastModified?: string;
-}
-
-export interface PromptSection {
-  key: string;
-  value: string;
-}
-
-export interface TaskInfo {
-  id: string;
-  description: string;
-  leverage?: string;
-  requirements?: string;
-  completed: boolean;
-  details?: string[];
-  prompt?: string;
-  promptStructured?: PromptSection[];
 }
 
 export interface ImplementationLogEntry {
@@ -108,40 +75,40 @@ export interface ImplementationLogEntry {
   };
   artifacts: {
     apiEndpoints?: Array<{
-      method: string;           // GET, POST, PUT, DELETE, PATCH
-      path: string;             // /api/specs/:name/logs
-      purpose: string;          // What this endpoint does
-      requestFormat?: string;   // Request body/params format or example
-      responseFormat?: string;  // Response format or example
-      location: string;         // File path and line number (e.g., "src/server.ts:245")
+      method: string;
+      path: string;
+      purpose: string;
+      requestFormat?: string;
+      responseFormat?: string;
+      location: string;
     }>;
     components?: Array<{
-      name: string;             // ComponentName
-      type: string;             // "React", "Vue", "Svelte", etc.
-      purpose: string;          // What the component does
-      location: string;         // File path
-      props?: string;           // Props interface or signature
-      exports?: string[];       // What it exports
+      name: string;
+      type: string;
+      purpose: string;
+      location: string;
+      props?: string;
+      exports?: string[];
     }>;
     functions?: Array<{
-      name: string;             // Function/method name
-      purpose: string;          // What it does
-      location: string;         // File path and line
-      signature?: string;       // Function signature
-      isExported: boolean;      // Can it be imported?
+      name: string;
+      purpose: string;
+      location: string;
+      signature?: string;
+      isExported: boolean;
     }>;
     classes?: Array<{
-      name: string;             // Class name
-      purpose: string;          // What it does
-      location: string;         // File path
-      methods?: string[];       // Public methods
+      name: string;
+      purpose: string;
+      location: string;
+      methods?: string[];
       isExported: boolean;
     }>;
     integrations?: Array<{
-      description: string;      // How frontend connects to backend
-      frontendComponent: string; // Which component
-      backendEndpoint: string;  // Which API endpoint
-      dataFlow: string;         // How data flows
+      description: string;
+      frontendComponent: string;
+      backendEndpoint: string;
+      dataFlow: string;
     }>;
   };
 }
@@ -149,39 +116,4 @@ export interface ImplementationLogEntry {
 export interface ImplementationLog {
   entries: ImplementationLogEntry[];
   lastUpdated?: string;
-}
-export interface ToolResponse {
-  success: boolean;
-  message: string;
-  data?: any;
-  nextSteps?: string[]; // Optional for backwards compatibility
-  projectContext?: {
-    projectPath: string;
-    workspacePath?: string;
-    workflowRoot: string;
-    specName?: string;
-    currentPhase?: string;
-    dashboardUrl?: string; // Optional for backwards compatibility
-  };
-}
-
-// MCP-compliant response format (matches CallToolResult from MCP SDK)
-export interface MCPToolResponse {
-  content: Array<{
-    type: "text";
-    text: string;
-  }>;
-  isError?: boolean;
-  _meta?: Record<string, any>;
-}
-
-// Helper function to convert ToolResponse to MCP format
-export function toMCPResponse(response: ToolResponse, isError: boolean = false): MCPToolResponse {
-  return {
-    content: [{
-      type: "text",
-      text: encode(response)
-    }],
-    isError
-  };
 }

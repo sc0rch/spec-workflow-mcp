@@ -5,7 +5,7 @@ import { appendFileSync, existsSync } from 'fs';
 
 /**
  * Migrates implementation logs from JSON format to individual markdown files
- * This utility class handles the automatic migration when the MCP server starts
+ * This utility class handles the automatic migration during workspace initialization
  */
 export class ImplementationLogMigrator {
   private migrationLogPath: string;

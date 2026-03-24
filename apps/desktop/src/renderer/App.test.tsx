@@ -30,10 +30,7 @@ const shellState: DesktopShellState = {
       projectName: 'repo-a',
       workspacePath: '/tmp/repo-a',
       workflowRootPath: '/tmp/repo-a',
-      connectionState: 'live',
-      source: 'mcp',
       addedAt: '2026-03-14T10:00:00.000Z',
-      lastSeenAt: '2026-03-14T12:34:56.000Z',
       gitBranch: 'feature/demo',
       latestSpec: {
         name: 'desktop-rewrite',
@@ -48,19 +45,9 @@ const shellState: DesktopShellState = {
         timestamp: '2026-03-14T11:15:00.000Z',
         specName: 'desktop-rewrite',
         specDisplayName: 'Desktop Rewrite'
-      },
-      instanceCount: 1
+      }
     }
   ]
-};
-
-const rememberedOnlyShellState: DesktopShellState = {
-  ...shellState,
-  projects: shellState.projects.map((project) => ({
-    ...project,
-    connectionState: 'remembered',
-    instanceCount: 0
-  }))
 };
 
 const multiProjectShellState: DesktopShellState = {
@@ -72,10 +59,7 @@ const multiProjectShellState: DesktopShellState = {
       projectName: 'repo-b',
       workspacePath: '/tmp/repo-b',
       workflowRootPath: '/tmp/repo-b',
-      connectionState: 'live',
-      source: 'mcp',
       addedAt: '2026-03-14T10:30:00.000Z',
-      lastSeenAt: '2026-03-14T12:35:10.000Z',
       gitBranch: 'feature/other',
       latestSpec: {
         name: 'review-refresh',
@@ -90,8 +74,7 @@ const multiProjectShellState: DesktopShellState = {
         timestamp: '2026-03-14T12:05:00.000Z',
         specName: 'review-refresh',
         specDisplayName: 'Review Refresh'
-      },
-      instanceCount: 1
+      }
     }
   ]
 };
@@ -352,7 +335,7 @@ describe('App', () => {
     vi.restoreAllMocks();
   });
 
-  it('hydrates shell state and project workspace from the preload bridge', async () => {
+  it('hydrates shell state and project workspace from the preload API', async () => {
     render(<App />);
 
     expect(await screen.findByRole('heading', { name: 'Inbox' })).toBeInTheDocument();
@@ -369,7 +352,7 @@ describe('App', () => {
     expect(screen.getByText('Desktop Rewrite · 1.2')).toBeInTheDocument();
   });
 
-  it('invokes the native folder picker through the desktop bridge', async () => {
+  it('invokes the native folder picker through the desktop API', async () => {
     const user = userEvent.setup();
     const pickProjectDirectory = vi.fn<DesktopApi['pickProjectDirectory']>().mockResolvedValue({
       canceled: false,
@@ -386,27 +369,63 @@ describe('App', () => {
     expect(pickProjectDirectory).toHaveBeenCalledTimes(1);
   });
 
-  it('renders a compact MCP status indicator instead of a diagnostics button', async () => {
+  it('renders a compact shell status indicator instead of a diagnostics button', async () => {
     render(<App />);
 
     await screen.findByRole('heading', { name: 'Inbox' });
 
-    expect(screen.getByRole('status', { name: 'MCP Online' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /MCP/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Shell Ready' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Shell Ready' })).not.toBeInTheDocument();
   });
 
-  it('shows an offline MCP indicator when only remembered projects are available', async () => {
+  it('shows a warning shell indicator when startup checks report warnings', async () => {
     window.desktop = createDesktopApiMock({
-      getShellState: vi.fn().mockResolvedValue(rememberedOnlyShellState)
+      getShellState: vi.fn().mockResolvedValue({
+        ...shellState,
+        issues: [
+          {
+            code: 'tray-icon-missing',
+            severity: 'warning',
+            message: 'Tray menu is unavailable. Icon asset is missing.'
+          }
+        ]
+      })
     });
 
     render(<App />);
 
     await screen.findByRole('heading', { name: 'Inbox' });
-    expect(screen.getByRole('status', { name: 'MCP Offline' })).toBeInTheDocument();
+    const indicator = screen.getByRole('status', { name: 'Shell Warnings' });
+    expect(indicator).toHaveAttribute(
+      'title',
+      'Tray menu is unavailable. Icon asset is missing.'
+    );
   });
 
-  it('forgets a remembered project through the desktop bridge', async () => {
+  it('shows an error shell indicator with tooltip text when the desktop shell reports an error', async () => {
+    window.desktop = createDesktopApiMock({
+      getShellState: vi.fn().mockResolvedValue({
+        ...shellState,
+        issues: [
+          {
+            code: 'storage-unwritable',
+            severity: 'error',
+            message: 'Selected project could not be persisted. Disk is read-only.'
+          }
+        ]
+      })
+    });
+
+    render(<App />);
+
+    const indicator = await screen.findByRole('status', { name: 'Shell Attention' });
+    expect(indicator).toHaveAttribute(
+      'title',
+      'Selected project could not be persisted. Disk is read-only.'
+    );
+  });
+
+  it('forgets a remembered project through the desktop API', async () => {
     const user = userEvent.setup();
     const forgetProject = vi.fn<DesktopApi['forgetProject']>().mockResolvedValue(undefined);
     window.desktop = createDesktopApiMock({
@@ -545,7 +564,7 @@ describe('App', () => {
     });
   });
 
-  it('reloads inbox data when the desktop bridge pushes a new shell state', async () => {
+  it('reloads inbox data when the desktop API pushes a new shell state', async () => {
     const listeners: Array<(nextState: DesktopShellState) => void> = [];
     const nextShellState: DesktopShellState = {
       ...shellState,
@@ -815,7 +834,7 @@ describe('App', () => {
     expect(screen.getByLabelText('Approval comment')).toHaveValue('Keep this draft.');
   });
 
-  it('autosaves approval draft comments through the desktop bridge', async () => {
+  it('autosaves approval draft comments through the desktop API', async () => {
     const user = userEvent.setup();
     const saveApprovalDraft = vi.fn<DesktopApi['saveApprovalDraft']>().mockResolvedValue(undefined);
     window.desktop = createDesktopApiMock({

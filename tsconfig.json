@@ -16,6 +16,28 @@
     "sourceMap": true,
     "allowSyntheticDefaultImports": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "src/dashboard_frontend/**"]
+  "include": [
+    "src/index.ts",
+    "src/types.ts",
+    "src/cli/**/*.ts",
+    "src/core/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/dashboard/**",
+    "src/dashboard_frontend/**",
+    "src/prompts/**",
+    "src/tools/**",
+    "src/server.ts",
+    "src/config.ts",
+    "src/core/dashboard-session.ts",
+    "src/core/project-catalog.ts",
+    "src/core/project-registry.ts",
+    "src/core/remembered-projects.ts",
+    "src/core/security-utils.ts",
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+    "src/**/__tests__/**"
+  ]
 }

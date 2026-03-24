@@ -1,250 +1,124 @@
-# Spec Workflow MCP
+# Spec Workflow
 
-Spec Workflow MCP is a local-first toolchain for spec-driven development.
+Spec Workflow is a local-first spec-driven workflow toolkit with two canonical surfaces:
 
-This repository currently contains four main parts:
+- `spec-workflow`: a CLI for agents, automation, and terminal usage
+- `apps/desktop/`: an Electron app for browsing projects, reviewing approvals, reading specs, and inspecting implementation logs
 
-- `src/`: the MCP server
-- `apps/desktop/`: the Electron desktop app
-- `src/dashboard_frontend/` + `src/dashboard/`: the legacy browser dashboard
-- `vscode-extension/`: the VS Code extension
+There is no MCP server, browser dashboard, or VS Code extension in the active product surface anymore.
 
-The desktop app is the primary local UI.
-The browser dashboard is still available, but it is now a secondary compatibility/debug surface.
-
-## What To Run
-
-If you only want to know how to launch the app from this repository:
-
-```bash
-npm install
-npm run desktop:install
-npm run desktop:dev
-```
-
-Run those commands from the repository root.
-
-That starts the Electron desktop app in development mode.
-
-## Prerequisites
+## Requirements
 
 - Node.js 22+
 - npm
-- macOS, Linux, or Windows with Electron support
+- macOS, Linux, or Windows for the Electron app
 
-## Quick Start
-
-### 1. Install dependencies
-
-Root dependencies:
-
-```bash
-npm install
-```
-
-Desktop app dependencies:
-
-```bash
-npm run desktop:install
-```
-
-### 2. Launch the desktop app
-
-Development mode:
-
-```bash
-npm run desktop:dev
-```
-
-What this does:
-
-- compiles the Electron `main` and `preload` processes in watch mode
-- starts the renderer with Vite on `127.0.0.1:5174`
-- launches the Electron window automatically
-
-### 3. Build the desktop app
-
-```bash
-npm run desktop:build
-```
-
-### 4. Create a packaged desktop build
-
-```bash
-npm run desktop:package
-```
-
-The packaged output is written under [apps/desktop/release](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/apps/desktop/release).
-
-## Run Modes
-
-### Desktop app
-
-Preferred local UI for:
-
-- remembered projects
-- approvals
-- spec editing
-- MCP visibility
-- optional Codex bridge
-
-Commands:
-
-```bash
-npm run desktop:dev
-npm run desktop:build
-npm run desktop:package
-```
-
-### MCP server
-
-Build first:
-
-```bash
-npm run build
-```
-
-Run in project-agnostic mode:
-
-```bash
-npm start
-```
-
-Run with a fixed startup project binding:
-
-```bash
-npm start -- ~/projects/my-app
-```
-
-You can also run the TypeScript entry directly during development:
-
-```bash
-npm run dev
-```
-
-### Legacy browser dashboard
-
-The browser dashboard is no longer the main UI, but it still exists.
-
-Run it directly from TypeScript:
-
-```bash
-npm run dev -- --dashboard
-```
-
-Or from the built output:
-
-```bash
-npm run build
-npm start -- --dashboard
-```
-
-By default it listens on `http://localhost:5091`.
-
-## How The Pieces Fit Together
-
-Current default lifecycle:
-
-- Codex launches the MCP server over stdio
-- the desktop app observes and complements that state
-- the browser dashboard is optional and legacy
-
-So if you open the desktop app by itself, it works as a local shell, but you will only see live MCP sessions after your MCP client is configured and running.
-
-## Codex Setup
-
-There are two practical ways to use this repository with Codex.
-
-### Option A: Codex launches the MCP server directly
-
-This is the simplest setup.
-
-1. Build the server:
-
-```bash
-npm run build
-```
-
-2. Point Codex at the built server:
-
-```toml
-[mcp_servers.spec-workflow]
-command = "node"
-args = ["/Users/sc0rch/Documents/Develop/spec-workflow-mcp/dist/index.js"]
-```
-
-If you want workspace-local `.spec-workflow` state inside git worktrees:
-
-```toml
-[mcp_servers.spec-workflow]
-command = "node"
-args = ["/Users/sc0rch/Documents/Develop/spec-workflow-mcp/dist/index.js", "--no-shared-worktree-specs"]
-```
-
-### Option B: Codex launches the desktop bridge
-
-Use this if you want Electron to own the effective MCP lifecycle behind a stdio bridge.
-
-1. Build the desktop app:
-
-```bash
-npm run desktop:build
-```
-
-2. Point Codex at the bridge executable:
-
-```toml
-[mcp_servers.spec-workflow]
-command = "node"
-args = ["/Users/sc0rch/Documents/Develop/spec-workflow-mcp/apps/desktop/dist/apps/desktop/src/bridge/index.js"]
-```
-
-The bridge will:
-
-- start the desktop app hidden if needed
-- connect to the Electron-managed local MCP socket
-- proxy stdio traffic from Codex
-
-## Most Useful Commands
+## Install
 
 From the repository root:
 
 ```bash
 npm install
-npm run build
-npm run test
-npm run test:dashboard-frontend
 npm run desktop:install
-npm run desktop:dev
+```
+
+## Build
+
+CLI:
+
+```bash
+npm run build
+```
+
+Electron app:
+
+```bash
 npm run desktop:build
+```
+
+## Run
+
+CLI examples:
+
+```bash
+npm run dev -- guide
+npm run dev -- spec-status --spec-name my-spec --project-path ~/code/my-project --json
+npm run dev -- approvals inspect --approval-id approval-123 --project-path ~/code/my-project --json
+```
+
+Electron app in development:
+
+```bash
+npm run desktop:dev
+```
+
+Packaged desktop build:
+
+```bash
+npm run desktop:package
+```
+
+## CLI Surface
+
+The public CLI contract is:
+
+```bash
+spec-workflow guide [--json]
+spec-workflow steering-guide [--json]
+spec-workflow spec-status --spec-name <name> [--project-path <path>] [--json]
+spec-workflow approvals request ...
+spec-workflow approvals status --approval-id <id> ...
+spec-workflow approvals inspect --approval-id <id> ...
+spec-workflow approvals respond --approval-id <id> --action <approve|reject|needs-revision> --response <text> ...
+spec-workflow approvals delete --approval-id <id> ...
+spec-workflow log-implementation --input <json-file> [--project-path <path>] [--json]
+```
+
+Stateful commands bind to:
+
+1. `--project-path`, if provided
+2. the current working directory otherwise
+
+Shared worktree specs remain enabled by default. Use `--no-shared-worktree-specs` to keep `.spec-workflow` inside the current worktree instead of the shared git root.
+
+## Electron App
+
+The Electron app is the primary human-facing interface. It keeps a local remembered-project list and reads project data directly from the repository and `.spec-workflow/`.
+
+Current desktop workflows:
+
+- add and remove remembered projects
+- inspect project/spec overview
+- read requirements, design, and tasks
+- review approvals and respond
+- browse implementation logs
+
+## Skills
+
+The repo ships with a canonical agent instruction file at [SKILL.md](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/SKILL.md).
+
+That file is intentionally CLI-first:
+
+- agents should call `spec-workflow ... --json`
+- business logic stays in the CLI and shared core
+- the skill only describes how to use the CLI correctly
+
+## Verification
+
+From the repository root:
+
+```bash
+npm run build
+npm test
 npm run desktop:test
-npm run desktop:test:e2e
+npm run desktop:build
 ```
 
 ## Repository Map
 
 - [src/index.ts](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/src/index.ts): CLI entrypoint
-- [src/server.ts](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/src/server.ts): MCP server wiring
-- [src/core/project-binding.ts](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/src/core/project-binding.ts): canonical project binding
-- [apps/desktop/src/main/index.ts](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/apps/desktop/src/main/index.ts): Electron app entry
-- [apps/desktop/src/bridge/index.ts](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/apps/desktop/src/bridge/index.ts): Codex bridge entry
-- [docs/electron-desktop-rewrite.md](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/docs/electron-desktop-rewrite.md): rewrite roadmap
-- [docs/LEGACY-DASHBOARD-AUDIT.md](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/docs/LEGACY-DASHBOARD-AUDIT.md): browser-surface cleanup map
-
-## Additional Docs
-
-- [docs/CONFIGURATION.md](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/docs/CONFIGURATION.md)
-- [docs/USER-GUIDE.md](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/docs/USER-GUIDE.md)
-- [docs/WORKFLOW.md](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/docs/WORKFLOW.md)
-- [docs/PROMPTING-GUIDE.md](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/docs/PROMPTING-GUIDE.md)
-- [docs/TOOLS-REFERENCE.md](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/docs/TOOLS-REFERENCE.md)
-- [docs/TROUBLESHOOTING.md](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/docs/TROUBLESHOOTING.md)
-- [docs/DEVELOPMENT.md](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/docs/DEVELOPMENT.md)
-
-## Status
-
-- Desktop app: primary interface
-- MCP server: active and supported
-- Codex bridge: available
-- Browser dashboard: legacy
-- VS Code extension: available
+- [src/cli/commands.ts](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/src/cli/commands.ts): CLI command handlers
+- [src/core/project-binding.ts](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/src/core/project-binding.ts): canonical CLI project binding
+- [apps/desktop/src/main/index.ts](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/apps/desktop/src/main/index.ts): Electron app entrypoint
+- [apps/desktop/src/main/services/desktop-shell.ts](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/apps/desktop/src/main/services/desktop-shell.ts): desktop IPC and shell state
+- [apps/desktop/src/main/services/project-service.ts](/Users/sc0rch/Documents/Develop/spec-workflow-mcp/apps/desktop/src/main/services/project-service.ts): desktop-local project summaries

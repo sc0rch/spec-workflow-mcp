@@ -20,13 +20,16 @@
     "noUnusedParameters": false
   },
   "include": [
-    "src/bridge/**/*.ts",
     "src/main/**/*.ts",
     "src/preload/**/*.ts",
     "src/shared/**/*.ts"
   ],
   "exclude": [
     "src/**/*.test.ts",
-    "src/**/*.spec.ts"
+    "src/**/*.spec.ts",
+    "src/main/services/mcp-bridge-service.ts",
+    "src/main/services/socket-mcp-transport.ts",
+    "src/shared/mcp-bridge.ts",
+    "src/bridge/**"
   ]
 }
