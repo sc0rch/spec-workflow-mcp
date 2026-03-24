@@ -1,5 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 
-# Ensure markdown files always use LF line endings (fixes #166)
+# Ensure markdown files always use LF line endings
 *.md text eol=lf
