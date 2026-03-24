@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { promises as fs } from 'fs';
+import { tmpdir } from 'os';
 import { join } from 'path';
 import { ApprovalStorage } from '../approval-storage.js';
 import { ImplementationLogManager } from '../implementation-log-manager.js';
@@ -12,9 +13,7 @@ describe('ProjectWorkspaceService', () => {
   let service: ProjectWorkspaceService;
 
   beforeEach(async () => {
-    const baseDir = join(process.cwd(), '.tmp-project-workspace');
-    await fs.mkdir(baseDir, { recursive: true });
-    tempDir = join(baseDir, `case-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+    tempDir = await fs.mkdtemp(join(tmpdir(), 'spec-workflow-project-workspace-'));
     workflowRootPath = join(tempDir, 'repo-main');
     workspacePath = workflowRootPath;
     await fs.mkdir(workflowRootPath, { recursive: true });

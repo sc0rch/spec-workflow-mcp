@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { promises as fs } from 'fs';
+import { tmpdir } from 'os';
 import { join } from 'path';
 import { SpecDocumentsService } from '../spec-documents.js';
 
@@ -9,9 +10,7 @@ describe('SpecDocumentsService', () => {
   let service: SpecDocumentsService;
 
   beforeEach(async () => {
-    const baseDir = join(process.cwd(), '.tmp-spec-documents');
-    await fs.mkdir(baseDir, { recursive: true });
-    tempDir = join(baseDir, `case-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+    tempDir = await fs.mkdtemp(join(tmpdir(), 'spec-workflow-spec-documents-'));
     workflowRootPath = join(tempDir, 'repo-main');
     await fs.mkdir(workflowRootPath, { recursive: true });
     service = new SpecDocumentsService();

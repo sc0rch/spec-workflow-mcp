@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { PathUtils } from '../path-utils.js';
+import { mkdtemp, rm } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { PathUtils, validateProjectPath } from '../path-utils.js';
 
 describe('PathUtils.translatePath', () => {
   const originalEnv = { ...process.env };
@@ -432,5 +435,22 @@ describe('PathUtils root prefix edge case', () => {
     process.env.SPEC_WORKFLOW_CONTAINER_PATH_PREFIX = '/projects';
 
     expect(PathUtils.translatePath('/app/src')).toBe('/projects/app/src');
+  });
+});
+
+describe('validateProjectPath', () => {
+  let tempDir: string | undefined;
+
+  afterEach(async () => {
+    if (tempDir) {
+      await rm(tempDir, { recursive: true, force: true });
+      tempDir = undefined;
+    }
+  });
+
+  it('allows project directories created inside the system temp root', async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'spec-workflow-validate-project-path-'));
+
+    await expect(validateProjectPath(tempDir)).resolves.toBe(tempDir);
   });
 });

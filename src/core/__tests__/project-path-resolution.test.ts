@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { join } from 'path';
 import { mkdtemp, mkdir, rm, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
 import { readProjectRelativeFile } from '../project-path-resolution.js';
 import { BoundProject } from '../../types.js';
 
@@ -22,9 +23,7 @@ describe('project-path-resolution', () => {
   let worktreePath: string;
 
   beforeEach(async () => {
-    const baseDir = join(process.cwd(), '.tmp-project-path-resolution');
-    await mkdir(baseDir, { recursive: true });
-    tempRoot = await mkdtemp(join(baseDir, 'case-'));
+    tempRoot = await mkdtemp(join(tmpdir(), 'spec-workflow-project-path-resolution-'));
     mainRepoPath = join(tempRoot, 'repo-main');
     worktreePath = join(tempRoot, 'repo-wt-a');
 

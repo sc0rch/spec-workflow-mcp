@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { promises as fs } from 'fs';
+import { tmpdir } from 'os';
 import { join } from 'path';
 import { ApprovalDraftStorage } from '../approval-draft-storage.js';
 import { ApprovalStorage } from '../approval-storage.js';
@@ -12,9 +13,7 @@ describe('ApprovalReviewService', () => {
   let service: ApprovalReviewService;
 
   beforeEach(async () => {
-    const baseDir = join(process.cwd(), '.tmp-approval-review');
-    await fs.mkdir(baseDir, { recursive: true });
-    tempDir = join(baseDir, `case-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+    tempDir = await fs.mkdtemp(join(tmpdir(), 'spec-workflow-approval-review-'));
     workflowRootPath = join(tempDir, 'repo-main');
     workspacePath = workflowRootPath;
     await fs.mkdir(join(workspacePath, 'src'), { recursive: true });

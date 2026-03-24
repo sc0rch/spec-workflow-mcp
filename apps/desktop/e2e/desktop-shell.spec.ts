@@ -1,23 +1,20 @@
 import { _electron as electron, expect, test } from '@playwright/test';
 import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
-import { homedir } from 'os';
+import { tmpdir } from 'os';
 import { join } from 'path';
 import { ApprovalStorage } from '../../../src/core/approval-storage.js';
-import { SPEC_WORKFLOW_HOME_ENV } from '../../../src/core/global-dir.js';
 import { ImplementationLogManager } from '../../../src/core/implementation-log-manager.js';
 import { DESKTOP_STORAGE_ROOT_ENV } from '../src/main/storage-root.js';
 
 const desktopEntryPath = join(process.cwd(), 'dist', 'apps', 'desktop', 'src', 'main', 'index.js');
 
-test('adds a project through the desktop bridge and restores it after restart', async () => {
+test('adds a project through the desktop shell and restores it after restart', async () => {
   const sandboxPath = await createSandboxPath();
-  const globalStatePath = join(sandboxPath, 'global-state');
   const desktopStoragePath = join(sandboxPath, 'desktop-user-data');
   const workspacePath = join(sandboxPath, 'repo-recovery');
   await createWorkspaceFixture(workspacePath);
 
   const firstRun = await launchDesktop({
-    globalStatePath,
     desktopStoragePath
   });
 
@@ -39,7 +36,6 @@ test('adds a project through the desktop bridge and restores it after restart', 
   }
 
   const secondRun = await launchDesktop({
-    globalStatePath,
     desktopStoragePath
   });
 
@@ -59,13 +55,11 @@ test('adds a project through the desktop bridge and restores it after restart', 
 
 test('forgets a remembered project and keeps it hidden after restart', async () => {
   const sandboxPath = await createSandboxPath();
-  const globalStatePath = join(sandboxPath, 'global-state');
   const desktopStoragePath = join(sandboxPath, 'desktop-user-data');
   const workspacePath = join(sandboxPath, 'repo-forget');
   await createWorkspaceFixture(workspacePath);
 
   const firstRun = await launchDesktop({
-    globalStatePath,
     desktopStoragePath
   });
 
@@ -82,7 +76,6 @@ test('forgets a remembered project and keeps it hidden after restart', async () 
   }
 
   const secondRun = await launchDesktop({
-    globalStatePath,
     desktopStoragePath
   });
 
@@ -96,14 +89,12 @@ test('forgets a remembered project and keeps it hidden after restart', async () 
 });
 
 async function launchDesktop(options: {
-  globalStatePath: string;
   desktopStoragePath: string;
 }) {
   return electron.launch({
     args: [desktopEntryPath],
     env: {
       ...process.env,
-      [SPEC_WORKFLOW_HOME_ENV]: options.globalStatePath,
       [DESKTOP_STORAGE_ROOT_ENV]: options.desktopStoragePath
     }
   });
@@ -143,7 +134,5 @@ async function createWorkspaceFixture(workspacePath: string): Promise<void> {
 }
 
 async function createSandboxPath(): Promise<string> {
-  const basePath = join(homedir(), '.tmp-spec-workflow-desktop-e2e');
-  await mkdir(basePath, { recursive: true });
-  return mkdtemp(join(basePath, 'case-'));
+  return mkdtemp(join(tmpdir(), 'spec-workflow-desktop-e2e-'));
 }

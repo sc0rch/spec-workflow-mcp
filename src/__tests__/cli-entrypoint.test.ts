@@ -1,6 +1,6 @@
 import { execFile } from 'child_process';
-import { mkdir, mkdtemp, writeFile, rm } from 'fs/promises';
-import { homedir } from 'os';
+import { mkdir, mkdtemp, writeFile, rm, realpath } from 'fs/promises';
+import { tmpdir } from 'os';
 import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const entrypointPath = join(repoRoot, 'src', 'index.ts');
 const tsxPath = join(repoRoot, 'node_modules', '.bin', 'tsx');
-const tempRoot = join(homedir(), '.spec-workflow-cli-entrypoint');
+const tempRoot = join(tmpdir(), 'spec-workflow-cli-entrypoint-');
 
 describe('CLI entrypoint', () => {
   const tempDirs: string[] = [];
@@ -27,13 +27,14 @@ describe('CLI entrypoint', () => {
 
   it('binds spec-status to the current working directory when --project-path is omitted', async () => {
     const projectDir = await createProjectFixture();
+    const canonicalProjectDir = await realpath(projectDir);
     const result = await runCli(['spec-status', '--spec-name', 'demo-spec', '--json'], projectDir);
 
     expect(result.exitCode).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({
       success: true,
       projectContext: {
-        projectPath: projectDir
+        projectPath: canonicalProjectDir
       },
       data: {
         name: 'demo-spec'
@@ -49,8 +50,7 @@ describe('CLI entrypoint', () => {
   });
 
   async function createProjectFixture(): Promise<string> {
-    await mkdir(tempRoot, { recursive: true });
-    const projectDir = await mkdtemp(join(tempRoot, 'spec-workflow-entrypoint-'));
+    const projectDir = await mkdtemp(tempRoot);
     tempDirs.push(projectDir);
     const specDir = join(projectDir, '.spec-workflow', 'specs', 'demo-spec');
     await mkdir(specDir, { recursive: true });

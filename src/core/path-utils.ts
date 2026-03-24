@@ -1,6 +1,43 @@
 import { join, normalize, sep, resolve, posix } from 'path';
-import { access, stat, mkdir } from 'fs/promises';
+import { access, stat, mkdir, realpath } from 'fs/promises';
 import { constants } from 'fs';
+import { tmpdir } from 'os';
+
+const IS_CASE_INSENSITIVE_PATH_COMPARISON =
+  process.platform === 'darwin' || process.platform === 'win32';
+
+function normalizeBoundaryPath(pathValue: string): string {
+  const normalized = resolve(pathValue);
+  return IS_CASE_INSENSITIVE_PATH_COMPARISON ? normalized.toLowerCase() : normalized;
+}
+
+function pathIsWithinRoot(pathValue: string, rootPath: string): boolean {
+  const normalizedPath = normalizeBoundaryPath(pathValue);
+  const normalizedRoot = normalizeBoundaryPath(rootPath);
+  return normalizedPath === normalizedRoot || normalizedPath.startsWith(normalizedRoot + sep);
+}
+
+async function resolveExistingPath(pathValue: string): Promise<string> {
+  try {
+    return await realpath(pathValue);
+  } catch {
+    return pathValue;
+  }
+}
+
+async function getAllowedTemporaryRoots(): Promise<string[]> {
+  const roots = new Set<string>();
+  roots.add(await resolveExistingPath(resolve(tmpdir())));
+
+  if (process.platform !== 'win32') {
+    roots.add('/tmp');
+    roots.add('/private/tmp');
+    roots.add(await resolveExistingPath('/tmp'));
+    roots.add(await resolveExistingPath('/private/tmp'));
+  }
+
+  return [...roots];
+}
 
 export class PathUtils {
   /** macOS and Windows are case-insensitive filesystems */
@@ -297,30 +334,39 @@ export async function validateProjectPath(projectPath: string): Promise<string> 
     
     // Resolve to absolute path
     const absolutePath = resolve(projectPath);
-    
-    // Security check: Ensure the path doesn't escape to system directories
-    const systemPaths = ['/etc', '/usr', '/bin', '/sbin', '/var', '/sys', '/proc'];
-    const windowsSystemPaths = ['C:\\Windows', 'C:\\Program Files', 'C:\\Program Files (x86)'];
-    const allSystemPaths = process.platform === 'win32' ? windowsSystemPaths : systemPaths;
-    
-    for (const sysPath of allSystemPaths) {
-      if (absolutePath.toLowerCase().startsWith(sysPath.toLowerCase())) {
-        throw new Error(`Access to system directory not allowed: ${absolutePath}`);
-      }
-    }
-    
+
     // Check if path exists
     await access(absolutePath, constants.F_OK);
-    
+
     // Ensure it's a directory
     const stats = await stat(absolutePath);
     if (!stats.isDirectory()) {
       throw new Error(`Project path is not a directory: ${absolutePath}`);
     }
-    
+
+    const canonicalPath = await resolveExistingPath(absolutePath);
+    const allowedTemporaryRoots = await getAllowedTemporaryRoots();
+    const isTemporaryPath = allowedTemporaryRoots.some((tempRoot) =>
+      pathIsWithinRoot(canonicalPath, tempRoot)
+    );
+
+    // Security check: Ensure the path doesn't escape to system directories,
+    // while still allowing explicit temporary workspaces used by tests and local tooling.
+    const systemPaths = ['/etc', '/usr', '/bin', '/sbin', '/var', '/sys', '/proc'];
+    const windowsSystemPaths = ['C:\\Windows', 'C:\\Program Files', 'C:\\Program Files (x86)'];
+    const allSystemPaths = process.platform === 'win32' ? windowsSystemPaths : systemPaths;
+
+    if (!isTemporaryPath) {
+      for (const sysPath of allSystemPaths) {
+        if (pathIsWithinRoot(canonicalPath, sysPath)) {
+          throw new Error(`Access to system directory not allowed: ${absolutePath}`);
+        }
+      }
+    }
+
     // Final security check: ensure we can actually access this directory
     await access(absolutePath, constants.R_OK | constants.W_OK);
-    
+
     return absolutePath;
   } catch (error) {
     if (error instanceof Error) {

@@ -155,6 +155,7 @@ spec-workflow-mcp.code-workspace
 apps/desktop/release
 apps/desktop/playwright-report
 apps/desktop/test-results
+.tmp-*
 
 
 # Other

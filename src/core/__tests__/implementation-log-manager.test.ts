@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { promises as fs } from 'fs';
+import { tmpdir } from 'os';
 import { join } from 'path';
 import { ImplementationLogManager } from '../implementation-log-manager.js';
 
@@ -9,9 +10,7 @@ describe('ImplementationLogManager', () => {
   let logManager: ImplementationLogManager;
 
   beforeEach(async () => {
-    const baseDir = join(process.cwd(), '.tmp-implementation-log-manager');
-    await fs.mkdir(baseDir, { recursive: true });
-    tempDir = join(baseDir, `case-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+    tempDir = await fs.mkdtemp(join(tmpdir(), 'spec-workflow-implementation-log-manager-'));
     specPath = join(tempDir, 'desktop-rewrite');
     await fs.mkdir(specPath, { recursive: true });
     logManager = new ImplementationLogManager(specPath);

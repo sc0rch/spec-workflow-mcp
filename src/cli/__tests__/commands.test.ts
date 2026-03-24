@@ -1,5 +1,5 @@
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'fs/promises';
-import { homedir } from 'os';
+import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
@@ -14,13 +14,12 @@ import {
 } from '../commands.js';
 
 describe('CLI command handlers', () => {
-  const tempRoot = join(homedir(), '.spec-workflow-cli-tests');
+  const tempRoot = join(tmpdir(), 'spec-workflow-cli-tests-');
   let projectDir: string;
   let specDir: string;
 
   beforeEach(async () => {
-    await mkdir(tempRoot, { recursive: true });
-    projectDir = await mkdtemp(join(tempRoot, 'spec-workflow-cli-'));
+    projectDir = await mkdtemp(tempRoot);
     specDir = join(projectDir, '.spec-workflow', 'specs', 'demo-spec');
     await mkdir(specDir, { recursive: true });
     await writeFile(
